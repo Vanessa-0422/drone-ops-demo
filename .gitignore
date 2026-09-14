@@ -1,0 +1,37 @@
+# ── 敏感词清单：只在本地，绝不提交 ──
+.sensitive-terms
+
+# ── 数据：本项目不提交任何数据文件，一律构建时生成 ──
+data/
+site/data/
+*.csv
+*.tsv
+*.xlsx
+*.parquet
+mock/
+
+# ── 依赖与构建产物 ──
+node_modules/
+dist/
+.cache/
+__pycache__/
+*.pyc
+.venv/
+
+# ── 系统与编辑器 ──
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# ── 环境变量 ──
+.env
+.env.*
+!.env.example
+
+# ── 本地工具，不进仓库 ──
+scripts/scan_sensitive.py
+scripts/install-hooks.sh
+.sensitive-terms*
+.github/
+cmp.py
