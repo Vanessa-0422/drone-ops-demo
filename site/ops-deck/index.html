@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>经营门户</title>
+<style>
+  /* ============================================================
+     主题令牌：深色为基准，浅色只覆盖取值，CSS 结构两档共用。
+     纪律：--y 只用于文字 细线 小圆点；--yFill 用于大面积填充（其上压 --onY）。
+           发光一律 calc(Npx * var(--glowK))，浅色把 --glowK 置 0 关掉 ——
+           白底上的彩色发光只会糊成一团脏晕。
+     ============================================================ */
+  :root{
+    color-scheme:dark;
+    --bg:#07080e; --panel:#10111e; --panel2:#161730;
+    --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --txt:#E9EEF9; --mut:#93A1C0; --mut2:#6B7997;
+    --y:#FFD100; --yglow:rgba(255,209,0,.20); --yFill:#FFD100; --onY:#1a1300;
+    --done:#2ED47A; --doing:#FFD100; --plan:#5E6E92; --block:#FF5E5E;
+    --blue:#5E84F5; --internal:#34D3FF; --external:#B98BFF; --hybrid:#5E84F5;
+    /* 页面底 / 网格纹 */
+    --pageA:rgba(255,209,0,.06); --pageB:rgba(94,132,245,.08); --pageC:#07080e; --pageD:#050509;
+    --gridLine:rgba(255,255,255,.022); --gridOp:.5;
+    /* 表面叠加（深色＝半透明白 · 浅色＝半透明墨） */
+    --wash:rgba(255,255,255,.012); --washH:rgba(255,255,255,.025); --washP:rgba(255,255,255,.02);
+    --track:rgba(255,255,255,.07); --track2:rgba(255,255,255,.08);
+    /* 卡片渐变收口 / 投影 */
+    --cardTo:#08090f; --pcardTo:#0a0a13; --qcFrom:#10122a; --qcTo:#0a0a16;
+    --elev:none; --qcShadow:0 10px 30px rgba(0,0,0,.4);
+    --logoFrom:#181a2e; --logoTo:#0d0f1c; --logoRing:rgba(94,132,245,.16); --logoShadow:0 8px 26px rgba(0,0,0,.5);
+    /* 金色淡染 */
+    --fbarA:rgba(255,209,0,.06); --fbarB:rgba(94,132,245,.05);
+    --tintY:rgba(255,209,0,.12); --tintYi:rgba(255,209,0,.16); --tintYb:rgba(255,209,0,.3); --taskHov:rgba(255,209,0,.04);
+    --doneGlow:rgba(46,212,122,.4); --doneGlow2:rgba(46,212,122,.5);
+    /* 发光半径：浅色把 --glowK 置 0 即整体关掉（.sdot/.rcat 用 currentColor 发光，只能靠半径关） */
+    --glowK:1; --glowR:calc(7px * var(--glowK)); --glowSm:calc(5px * var(--glowK));
+    --glowLg:calc(13px * var(--glowK)); --pulseO:1;
+    /* 亮版：只用于图形填充与大字，小字仍用 AA 安全的深色值 */
+    --doneBright:var(--done); --yBright:var(--y); --ctrlBright:var(--blue);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  /* —— LIGHT：浅色档（默认档 · 不跟随系统 · 只在显式选了深色时落键） —— */
+  :root[data-theme="light"]{
+    color-scheme:light;
+    --bg:#FAFAF9; --panel:#FFFFFF; --panel2:#F6F6F5;
+    --line:rgba(50,49,46,.11); --line2:rgba(50,49,46,.17);
+    --txt:#4F4D46; --mut:#5F5D57; --mut2:#6E6C65;
+    --y:#8F6B00; --yglow:rgba(181,133,10,.32); --yFill:#F0B400; --onY:#1a1300;
+    --done:#147A41; --doing:#B5850A; --plan:#5F6B8A; --block:#C42B35;
+    --blue:#3557C8; --internal:#0A7095; --external:#6F41C0; --hybrid:#3557C8;
+    --pageA:rgba(240,180,0,.04); --pageB:rgba(120,120,115,.05); --pageC:#FDFDFC; --pageD:#F6F6F4;
+    --gridLine:rgba(50,49,46,.030); --gridOp:.55;
+    --wash:rgba(50,49,46,.022); --washH:rgba(50,49,46,.05); --washP:rgba(50,49,46,.03);
+    --track:#ECECEA; --track2:#ECECEA;
+    --cardTo:#FCFCFB; --pcardTo:#FBFBFA; --qcFrom:#FFFFFF; --qcTo:#F8F8F7;
+    --elev:0 1px 2px rgba(50,49,46,.05),0 8px 22px rgba(50,49,46,.05); --qcShadow:0 10px 26px rgba(50,49,46,.12);
+    --logoFrom:#FFFFFF; --logoTo:#F3F3F1; --logoRing:rgba(50,49,46,.12); --logoShadow:0 6px 18px rgba(50,49,46,.10);
+    --fbarA:rgba(240,180,0,.06); --fbarB:rgba(150,140,120,.05);
+    --tintY:rgba(240,180,0,.13); --tintYi:rgba(240,180,0,.16); --tintYb:rgba(169,118,10,.26); --taskHov:rgba(240,180,0,.06);
+    --doneGlow:rgba(27,158,87,.45); --doneGlow2:rgba(27,158,87,.35);
+    --glowK:0; --pulseO:.45;
+    --doneBright:#17A45C; --yBright:#B5850A; --ctrlBright:#3B82F6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{background:var(--pageD);min-height:100%}
+  body{background:
+      radial-gradient(1200px 700px at 18% -8%,var(--pageA),transparent 60%),
+      radial-gradient(1000px 640px at 100% 0%,var(--pageB),transparent 55%),
+      linear-gradient(180deg,var(--pageC),var(--pageD) 70%);
+    color:var(--txt);font-family:var(--sans);
+    min-height:100vh;overflow-x:hidden;transition:color .3s ease}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:var(--gridOp);
+    background-image:linear-gradient(var(--gridLine) 1px,transparent 1px),linear-gradient(90deg,var(--gridLine) 1px,transparent 1px);
+    background-size:46px 46px;mask-image:radial-gradient(circle at 50% 26%,#000 0%,transparent 82%)}
+  a{color:inherit;text-decoration:none}
+  .wrap{position:relative;z-index:1;max-width:1480px;margin:0 auto;padding:22px 26px 60px}
+  /* header */
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:16px}
+  .brand{display:flex;align-items:center;gap:15px}
+  .logo{width:50px;height:50px;border-radius:12px;flex:0 0 auto;background:linear-gradient(150deg,var(--logoFrom),var(--logoTo));border:1px solid var(--line2);box-shadow:0 0 0 1px var(--logoRing),var(--logoShadow);display:grid;place-items:center}
+  .logo svg{width:29px;height:29px;stroke:var(--yFill)}
+  .logo svg circle[fill]{fill:var(--yFill)}
+  .ttl h1{font-size:24px;letter-spacing:.5px;font-weight:800;line-height:1.1}
+  .ttl h1 .ai{color:var(--y)}
+  .ttl .sub{margin-top:5px;font-size:12px;color:var(--mut);letter-spacing:3px;font-family:var(--mono)}
+  .meta{display:flex;align-items:center;gap:9px;font-size:11px;color:var(--mut2);font-family:var(--mono);flex-wrap:wrap}
+  .pill{border:1px solid var(--line2);border-radius:999px;padding:6px 12px;color:var(--mut);background:var(--washP)}
+  .langtog{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden}
+  .langbtn{font-family:var(--mono);font-size:10px;padding:3px 8px;background:transparent;color:var(--mut);border:none;cursor:pointer;transition:.15s}
+  .langbtn.active{background:var(--yFill);color:var(--onY);font-weight:700}
+  .langbtn:not(.active):hover{color:var(--txt)}
+  /* 主题切换（两态：浅色 ⇄ 深色 · 默认浅色） */
+  .thtog{display:inline-flex;align-items:center;justify-content:center;gap:0;border:1px solid var(--line2);border-radius:999px;padding:0;width:22px;height:22px;
+    background:var(--washP);color:var(--mut);font-family:var(--mono);font-size:10px;letter-spacing:.3px;cursor:pointer;transition:.15s}
+  .thtog:hover{color:var(--txt);border-color:var(--y)}
+  .thtog svg{width:13px;height:13px;flex:0 0 auto;color:var(--yBright)}
+  /* 数字与单位之间的极窄间隙。不用空格字符：多数数值走等宽字体，窄空格会被撑成整格。
+     英文档后面跟的是单词，定宽会粘成一坨，故换成随字体自适应的真实空格。 */
+  .g{display:inline-block;width:.16em}
+  :root[lang="en"] .g{width:auto}
+  :root[lang="en"] .g::before{content:" ";white-space:pre}
+  /* formula */
+  .fbar{background:linear-gradient(100deg,var(--fbarA),var(--fbarB));border:1px solid var(--line);border-left:3px solid var(--yFill);border-radius:12px;padding:13px 18px;margin-bottom:16px;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap}
+  .fbar .fmain{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;flex:1 1 0}
+  .fbar .flab{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--y);flex:0 0 auto}
+  .fbar .fx{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .fbar .fx>span{white-space:nowrap}
+  html[lang="en"] .fbar .fx{font-size:12px;gap:6px}
+  .fbar .fx .op{color:var(--mut2);font-weight:400}
+  .fbar .bn{color:var(--blue)}
+  .fbar .fpath{flex:0 0 auto;align-self:center;font-family:var(--mono);font-size:9.5px;color:var(--mut2);line-height:1.8;text-align:right;border-left:1px solid var(--line);padding-left:18px}
+  .fbar .fpath .fph{display:block;color:var(--y);letter-spacing:1.2px;font-size:9px;margin-bottom:3px}
+  .fbar .fpath b{color:var(--blue)}
+  /* 结论三问 */
+  .conc{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+  @media(max-width:900px){.conc{grid-template-columns:1fr}}
+  .qc{display:flex;align-items:center;gap:13px;background:linear-gradient(150deg,var(--qcFrom),var(--qcTo));border:1px solid var(--line);border-radius:16px;padding:15px 17px;position:relative;overflow:hidden;box-shadow:var(--elev)}
+  .qc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--yFill)}
+  .qc.has{cursor:pointer;transition:.15s}.qc.has:hover{border-color:var(--y);box-shadow:0 0 0 1px var(--yglow),var(--qcShadow);transform:translateY(-1px)}
+  .qn{width:30px;height:30px;border-radius:8px;flex:0 0 auto;display:grid;place-items:center;font-family:var(--mono);font-weight:800;background:var(--tintY);color:var(--y);border:1px solid var(--yglow)}
+  .qmain{flex:1;min-width:0}
+  .qt{font-size:14px;font-weight:800}
+  .qs{font-size:10.5px;color:var(--mut);margin-top:4px;line-height:1.5}
+  .qr{flex:0 0 auto;text-align:right}
+  .qpg{font-family:var(--mono);font-size:22px;font-weight:800;color:var(--y)}.qpg small{font-size:11px;opacity:.7}
+  .qcta{font-family:var(--mono);font-size:9.5px;color:var(--blue);margin-top:2px}
+  /* kpis */
+  .kpis{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr 1fr;gap:12px;margin-bottom:6px}
+  @media(max-width:900px){.kpis{grid-template-columns:1fr 1fr}}
+  .card{background:linear-gradient(165deg,var(--panel),var(--cardTo));border:1px solid var(--line);border-radius:16px;padding:14px 15px;box-shadow:var(--elev)}
+  .ring-card{display:flex;align-items:center;gap:14px}
+  .ring{width:78px;height:78px;position:relative;flex:0 0 auto}
+  /* nowrap：环内只有 78px 宽，不加这一条「61 %」会把百分号折到第二行 */
+  .ring .num{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-weight:800;font-size:19px;white-space:nowrap}
+  .ring .num small{font-size:10px;color:var(--mut)}
+  .ring-card .lab{font-size:13px;font-weight:700;line-height:1.4}
+  .ring-card .lab b{display:block;font-family:var(--mono);font-size:9px;color:var(--mut2);letter-spacing:1px;font-weight:400;margin-top:2px}
+  .stat .v{font-size:25px;font-weight:800;font-family:var(--mono)}
+  .stat .k{font-size:10.5px;color:var(--mut);margin-top:2px}
+  .stat .bar{height:4px;border-radius:4px;background:var(--track);margin-top:9px;overflow:hidden}.stat .bar i{display:block;height:100%;border-radius:4px;width:30%}
+  /* section title */
+  .sec-t{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--y);margin:22px 0 12px;display:flex;align-items:center;gap:10px}
+  .sec-t span{color:var(--mut2);letter-spacing:.5px;font-size:9.5px;font-weight:400}
+  .sec-t .secmain{color:var(--y);font-size:11px;letter-spacing:1.5px}
+  .sec-t::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--yglow),transparent)}
+  .sec-row{display:flex;align-items:center;gap:14px;margin:22px 0 12px}
+  .sec-row .sec-t{margin:0;flex:1}
+  .editToggle{font-family:var(--mono);font-size:10px;color:var(--mut2);cursor:pointer;user-select:none;border:1px solid var(--line);border-radius:6px;padding:2px 9px;transition:.15s;flex:0 0 auto;white-space:nowrap}
+  .editToggle:hover{color:var(--mut);border-color:var(--line2)}
+  .editToggle.on{color:var(--y);border-color:var(--yglow)}
+  .msedit{display:none;align-items:center;gap:3px;flex:0 0 auto}
+  #board.editing .msedit{display:inline-flex}
+  #board.editing .mini2,#board.editing .pct2{display:none}
+  .msedit i{width:11px;height:11px;border-radius:3px;border:1px solid var(--line2);cursor:pointer;transition:.1s;display:inline-block}
+  .msedit i.on{background:var(--yFill);border-color:var(--yFill)}
+  .msedit i:hover{border-color:var(--y);box-shadow:0 0 var(--glowSm) var(--yglow)}
+  /* board */
+  .brow{display:grid;gap:14px;margin-bottom:14px}
+  .brow2{grid-template-columns:1fr 1fr}
+  @media(max-width:900px){.brow2{grid-template-columns:1fr}}
+  .pcard{background:linear-gradient(165deg,var(--panel),var(--pcardTo));border:1px solid var(--line);border-radius:16px;padding:15px 16px;box-shadow:var(--elev)}
+  .ph{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+  .pzh{font-size:15px;font-weight:800}
+  .pen{font-family:var(--mono);font-size:9.5px;color:var(--mut2);letter-spacing:1px}
+  .pmods{display:grid;gap:11px}
+  .brow1 .pmods{grid-template-columns:1fr 1fr}
+  @media(max-width:900px){.brow1 .pmods{grid-template-columns:1fr}}
+  /* grid 子项默认 min-width:auto，轨道会被内容的 min-content 顶开。英文模块名更长，
+     .cnm2 虽有 min-width:0 + ellipsis，上游 .pcard/.modb 缩不动则 ellipsis 不生效，
+     两列会算成不等宽并撑出横向滚动。故各级 grid 子项统一允许收缩。 */
+  .brow>*{min-width:0}
+  .pmods>*{min-width:0}
+  .modb{min-width:0;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:var(--wash)}
+  .modh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .mcode{font-family:var(--mono);font-weight:700;font-size:12px}
+  .mzh{font-weight:700;font-size:13px}
+  .mflow{font-family:var(--mono);font-size:9px;color:var(--y);border:1px solid var(--line2);border-radius:6px;padding:1px 6px;letter-spacing:.3px;white-space:nowrap}
+  .mpct{font-family:var(--mono);font-size:11px;margin-left:auto}
+  .cgo{color:var(--y);cursor:pointer;font-weight:700;transition:.15s}
+  .cgo:hover{text-shadow:0 0 var(--glowR) var(--y)}
+  .mgo{margin-left:9px;font-size:13px;line-height:1;flex:0 0 auto}
+  .capd .cgo{font-family:var(--mono);font-size:9.5px;margin-left:3px}
+  .goicon{width:12px;height:12px;display:inline-block;vertical-align:-1.5px}
+  .mgo .goicon{width:13px;height:13px;vertical-align:-2px}
+  .mbar{height:3px;border-radius:3px;background:var(--track);margin:8px 0 3px;overflow:hidden}.mbar i{display:block;height:100%;border-radius:3px}
+  .caps2{display:flex;flex-direction:column}
+  .cap2{display:flex;align-items:center;gap:7px;padding:7px 2px;border-top:1px solid var(--line);font-size:11.5px;cursor:pointer}
+  .cap2:hover{background:var(--washH)}
+  .cap2 .cnm2{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prc{font-family:var(--mono);font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;border:1px solid var(--line2);flex:0 0 auto}
+  .mini2{width:42px;height:4px;border-radius:4px;background:var(--track2);overflow:hidden;flex:0 0 auto}.mini2 i{display:block;height:100%;border-radius:4px}
+  .pct2{font-family:var(--mono);font-size:10px;color:var(--mut);flex:0 0 auto;width:32px;text-align:right}
+  .arr{flex:0 0 auto;width:12px;text-align:center;color:var(--mut2)}
+  .capd{display:none;font-size:10.5px;color:var(--mut);line-height:1.65;padding:7px 2px 9px 9px;border-left:2px solid var(--line2);margin:0 0 2px 4px}
+  .capd.show{display:block}
+  .capd b{color:var(--mut2);font-family:var(--mono);font-size:9.5px;margin-right:3px}
+  .postfold{margin-bottom:14px;border:1px dashed var(--line2);border-radius:12px;padding:12px 15px;background:var(--wash)}
+  .postfold>summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--mut);list-style:none}
+  .postfold>summary::-webkit-details-marker{display:none}
+  .postfold>summary::before{content:"▸ ";color:var(--mut2)}.postfold[open]>summary::before{content:"▾ "}
+  .postfold[open]>summary{margin-bottom:12px}
+  /* tags */
+  .tag{font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:6px;letter-spacing:.5px;border:1px solid;white-space:nowrap;flex:0 0 auto}
+  /* 淡染由基色派生（color-mix）：深色下等价于原 rgba 值，浅色下随令牌自动加深 */
+  .t-internal{color:var(--internal);border-color:color-mix(in srgb,var(--internal) 40%,transparent);background:color-mix(in srgb,var(--internal) 8%,transparent)}
+  .t-external{color:var(--external);border-color:color-mix(in srgb,var(--external) 40%,transparent);background:color-mix(in srgb,var(--external) 8%,transparent)}
+  .t-hybrid{color:var(--hybrid);border-color:color-mix(in srgb,var(--hybrid) 40%,transparent);background:color-mix(in srgb,var(--hybrid) 8%,transparent)}
+  .sdot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 var(--glowR)}
+  /* legend bar */
+  .lgbar{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 13px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:5px 13px;background:var(--wash);margin-bottom:6px}
+  @media(max-width:760px){.lgbar{grid-template-columns:1fr}}
+  .lgcol{display:flex;align-items:center;flex-wrap:wrap;gap:3px 8px}
+  .lgcol+.lgcol{border-left:1px solid var(--line);padding-left:13px}
+  @media(max-width:760px){.lgcol+.lgcol{border-left:none;padding-left:0}}
+  .lgh{font-family:var(--mono);font-size:8px;letter-spacing:.5px;color:var(--mut2);margin-right:2px}
+  .lgrow{display:flex;flex-wrap:wrap;gap:3px 8px}
+  .lgcol .lg{font-size:9px;color:var(--mut);display:flex;align-items:center;gap:4px}
+  .lg .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+  .mslegend{display:none;font-family:var(--mono);font-size:9px;color:var(--mut2);letter-spacing:.2px;margin:-2px 0 12px;line-height:1.7}
+  .mslegend b{color:var(--y);font-weight:400}
+  /* grid 行动 / 进度 */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px;align-items:start}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+  .task{display:flex;gap:9px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;margin-bottom:6px;background:var(--wash);transition:.15s}
+  .task[data-link]{cursor:pointer}.task[data-link]:hover{border-color:var(--y);background:var(--taskHov)}
+  .task .idx{width:19px;height:19px;border-radius:6px;flex:0 0 auto;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:10.5px;background:var(--tintYi);color:var(--y);border:1px solid var(--tintYb)}
+  .task .tt{font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .task .td{font-size:10px;color:var(--mut2);margin-top:3px;line-height:1.45}
+  .task .ref{font-size:9px;font-family:var(--mono);color:var(--mut2);border:1px solid var(--line2);border-radius:6px;padding:1px 5px}
+  /* 进度：阶段条 + 结果态条目（决策层视角） */
+  @keyframes mlp{0%,100%{box-shadow:0 0 var(--glowSm) var(--yglow);opacity:1}50%{box-shadow:0 0 var(--glowLg) var(--y);opacity:var(--pulseO)}}
+  .phstrip{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 0 20px}
+  .phpill{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;padding:4px 11px;border-radius:16px;border:1px solid var(--line2);color:var(--mut)}
+  .phpill .pd{width:8px;height:8px;border-radius:50%;background:var(--line2);flex:0 0 auto}
+  .phpill.done{color:var(--txt);border-color:var(--doneGlow)}.phpill.done .pd{background:var(--doneBright);box-shadow:0 0 var(--glowR) var(--doneGlow2)}
+  .phpill.doing{color:var(--y);border-color:var(--yglow)}.phpill.doing .pd{background:var(--doing);box-shadow:0 0 var(--glowR) var(--yglow);animation:mlp 1.8s infinite}
+  .phstrip .arr{color:var(--mut2);font-size:11px}
+  .rlist{margin-top:6px}
+  .ritem{display:flex;gap:12px;align-items:baseline;font-size:12px;line-height:1.6;padding:9px 0}
+  .ritem+.ritem{border-top:1px solid var(--line)}
+  .ritem .rcat{font-family:var(--mono);font-size:9.5px;letter-spacing:.5px;flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .ritem .rcat::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 var(--glowR) currentColor;flex:0 0 auto;align-self:center}
+  .ritem .rtxt{flex:1;color:var(--txt)}
+  .foot{margin-top:26px;text-align:center;font-size:11px;color:var(--mut2);font-family:var(--mono);letter-spacing:.3px}
+  .loading{border:1px solid var(--line);border-radius:16px;padding:26px;background:var(--wash);color:var(--mut);font-size:13px;line-height:1.9;text-align:center}
+  .loading code{font-family:var(--mono);color:var(--y)}
+  :focus-visible{outline:2px solid var(--y);outline-offset:1px}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<script>/* 主题预置，先于首屏绘制，避免选了浅色时闪一下深色。
+   默认浅色，只有显式选了深色才落键，不跟随系统。五个页面共用 ops_theme 这一个键。 */
+(function(){try{if(localStorage.getItem('ops_theme')!=='dark')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();
+</script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FFD100" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 7v10M7 12h10"/><circle cx="12" cy="12" r="2.3" fill="#FFD100" stroke="none"/>
+          <circle cx="5" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/>
+          <path d="M6.6 6.6 10.4 10.4M17.4 6.6 13.6 10.4M6.6 17.4 10.4 13.6M17.4 17.4 13.6 13.6"/>
+        </svg>
+      </div>
+      <div class="ttl">
+        <h1>经营门户 · <span class="ai">Ops</span> Portal</h1>
+        <div class="sub" id="hdrSub">无人机配送 · 推演 / 监控 / 沉淀</div>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="pill" id="asofPill"></span>
+      <span class="pill" id="axisPill">主轴 · 商圈经营</span>
+      <span class="langtog"><button class="langbtn active" data-lang="zh" onclick="switchLang('zh')">中</button><button class="langbtn" data-lang="en" onclick="switchLang('en')">EN</button></span>
+      <button class="thtog" id="thTog" type="button"><svg id="thIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg></button>
+    </div>
+  </header>
+
+  <div id="root">
+  <div class="fbar" id="fbar"></div>
+
+  <div class="conc" id="conc"></div>
+
+  <div class="kpis">
+    <div class="card ring-card"><div class="ring" id="ring"></div>
+      <div class="lab"><span id="ringLab">总体建设进度</span><b>BUILD PROGRESS</b></div></div>
+    <div class="card stat"><div class="v" id="kTotal" style="color:var(--txt)">0</div><div class="k">能力总数</div><div class="bar"><i style="width:100%;background:var(--mut2)"></i></div></div>
+    <div class="card stat"><div class="v" id="kDoing" style="color:var(--doing)">0</div><div class="k">在建</div><div class="bar"><i id="bDoing" style="background:var(--doing)"></i></div></div>
+    <div class="card stat"><div class="v" id="kDone" style="color:var(--done)">0</div><div class="k">已交付就绪</div><div class="bar"><i id="bDone" style="background:var(--done)"></i></div></div>
+    <div class="card stat"><div class="v" id="kBlock" style="color:var(--block)">0</div><div class="k">阻塞能力</div><div class="bar"><i id="bBlock" style="background:var(--block)"></i></div></div>
+  </div>
+
+  <div class="sec-row">
+    <div class="sec-t"><span class="secmain" id="secMain">能力地图</span> <span id="secSub">开航前 → 开航后 · 决策中枢 · 底座</span></div>
+    <span class="editToggle" id="editToggle"></span>
+  </div>
+  <div class="mslegend" id="msLegend"></div>
+  <div id="board"></div>
+  <div id="legend"></div>
+  <div class="grid2"><div id="tasks"></div><div id="logs"></div></div>
+  </div>
+
+  <div class="foot" id="foot">经营门户 ｜ 数据底座：订单起讫 · 商家供给 · 履约时长 ｜ 全部数据由脚本生成，不是真实经营数据</div>
+</div>
+
+<script>
+/* ===================== 常量 ===================== */
+const SC={done:'var(--done)',doing:'var(--doing)',plan:'var(--plan)',block:'var(--block)'};
+const AI={internal:{cls:'t-internal',t:'内部模型'},external:{cls:'t-external',t:'外部模型'},hybrid:{cls:'t-hybrid',t:'混合'}};
+const MS_LABELS=['立项 · 需求明确','数据 · 口径就绪','方案 · 逻辑设计','原型可用','联调 · 交付'];
+const GO='<svg class="goicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M13 4h7v7"/><path d="M20 4l-9 9"/><path d="M19 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>';
+
+/* ===================== i18n（中 / EN） ===================== */
+let LANG='zh';
+function L(s){return (LANG==='en'&&s!=null&&EN[s]!==undefined)?EN[s]:s;}
+const EN={
+ // 外框
+ '无人机配送 · 推演 / 监控 / 沉淀':'Drone Delivery · Simulate / Monitor / Settle',
+ '主轴 · 商圈经营':'Main Axis · District Ops','判决刷新于':'Verdict refreshed',
+ '浅色':'Light','深色':'Dark','主题':'Theme','切换到浅色':'Switch to light','切换到深色':'Switch to dark',
+ '总体建设进度':'Overall Build Progress','能力总数':'Total Caps','在建':'Building','已交付就绪':'Delivered / Ready','阻塞能力':'Blocked Caps',
+ '能力地图':'Capability Map','开航前 → 开航后 · 决策中枢 · 底座':'Pre-Launch → Post-Launch · Command · Foundation',
+ '编辑进度':'Edit Progress','里程碑':'Milestones','建设':'build','前往':'Open',
+ '经营门户 ｜ 数据底座：订单起讫 · 商家供给 · 履约时长 ｜ 全部数据由脚本生成，不是真实经营数据':'Ops Portal ｜ Data base: order origin-destination · merchant supply · delivery time ｜ Every figure is script-generated, not real operating data',
+ '立项 · 需求明确':'Initiated · Scoped','数据 · 口径就绪':'Data · Metrics Ready','方案 · 逻辑设计':'Design · Logic','原型可用':'Prototype Ready','联调 · 交付':'Integrated · Delivered',
+ // 公式条
+ '经营收益':'Operating Profit','订单交易收益':'Order Revenue','商业化收益':'Commercialization','可控成本':'Controllable Cost',
+ '无人机订单':'Drone Orders','平台大盘订单':'Platform Order Base','商家商品联合覆盖率':'Merchant × Item Coverage','可履约率':'Fulfillment Rate','配送方式选择率':'Delivery-Mode Pick-Rate',
+ '系统闭环':'System Loop','圈点测算':'Zone & Estimate','识别缺口':'Identify Gaps','生成任务':'Generate Tasks','监控结果':'Monitor Results','动态调整':'Adjust Dynamically',
+ // 结论三问
+ '能不能赚钱 · 经济性推演':'Can It Earn · Economics','开到哪了 · 开航进度':'How Far · Launch Progress','确定性如何 · 数据沉淀':'How Certain · Data Settling',
+ '选址沙盘 ▸':'Site Sandbox ▸','排期推演台 ▸':'Rollout Planner ▸','贯穿方法论':'Cross-cutting',
+ '单/天':'/day','项':'items',
+ // 支柱
+ '开航前':'Pre-Launch','开航后':'Post-Launch','决策中枢':'Command','底座':'Foundation',
+ '① 开在哪 → ② 经济性 → ③ 排期':'① Where → ② Economics → ③ Sequencing',
+ '① 供给作业 → ② 助手':'① Supply Ops → ② Assistants',
+ '项目总览':'Project Overview','数据与口径':'Data & Metrics',
+ '供给与转述两条线，点开展开':'supply and relay, the two lines behind it, click to expand',
+ // 模块
+ '选址沙盘':'Site Sandbox','单元经济台':'Unit Economics Board','经营门户':'Ops Portal',
+ '商家 BD 工作台':'Merchant BD Console','业务助手':'BD Assistants','开航排期推演台':'Rollout Planner','数据与口径底座':'Data & Metrics Foundation',
+ '开航① 开在哪':'Pre-Launch ① Where','开航② 经济性':'Pre-Launch ② Economics','决策入口':'Decision Entry',
+ '开航③ 供给':'Pre-Launch ③ Supply','开航③ 转述':'Pre-Launch ③ Relay','开航① 先开哪':'Pre-Launch ① Which First','贯穿':'End-to-end',
+ // 能力名
+ '圈选与需求洞察':'Zone Drawing & Demand Insight','测算链路':'Estimation Chain','系统推荐降落点':'Suggested Landing Points',
+ '五段测算链路':'Five-Stage Estimation Chain','成本反向倒推':'Reverse Cost Derivation','敏感性与逐年推演':'Sensitivity & Year-by-Year',
+ '结论三问':'Three Verdict Questions','自动播报':'Auto Broadcast',
+ '供给四级漏斗':'Four-Step Supply Funnel','名单多视角':'Multi-View Target List','预警与当日建议':'Alerts & Daily Suggestions',
+ '口径单源问答':'Single-Source Q&A','红线与锚点用例':'Redline & Anchor Cases',
+ '候选点位静态账':'Candidate Site Static Case','六十个月轨迹推演':'Sixty-Month Trajectory',
+ '口径单源与生成器':'Single-Source Metrics & Generator','全链路埋点接入':'Full-Funnel Tracking',
+ // 能力明细：实现
+ '地图圈定取餐圈与降落圈，按订单起讫配对出圈内订单池':'Draw the pickup circle and the landing circle on the map, then pair order origins with destinations to size the in-zone order pool',
+ '订单池 × 可承接率 × 选择率 → 日均单量 → 引擎出月利润与保本线':'Order pool × servable rate × pick-rate → daily orders → the engine returns monthly profit and the break-even line',
+ '按需求密度与订单起讫聚类选点，禁飞区硬过滤，可一键采纳':'Cluster candidate points by demand density and order origin-destination, hard-filter no-fly zones, adopt with one click',
+ '订单池 → 收入 → 成本 → 盈亏 → 转正，逐段结论与明细并排':'Order pool → revenue → cost → profit → path to positive, each stage pairing its conclusion with the detail',
+ '由收益反推可承受租金上限，作谈判锚点，签约价回填后校准':'Derive the affordable rent ceiling backwards from revenue as a negotiation anchor, then calibrate once the signed price is fed back',
+ '租金 × 单量的利润率沙盘，五年逐年推演与按转正周期反推租金':'A rent × volume margin sandbox, a five-year year-by-year projection, and rent derived from a target payback period',
+ '能不能赚 / 推进到哪 / 结论确定性，三个数由脚本现算写入':'Can it earn / how far along / how certain: all three figures are computed by script at build time',
+ '定期把停滞项与异常推给对应的人':'Push stalled items and anomalies to the right person on a schedule',
+ '商家池 → 已签 → 已开通 → 有动销，逐级归因到具体门店':'Merchant pool → signed → opened → selling, each step attributable down to the individual store',
+ '核心 / 配额 / 长尾 / 已签四个视角，加商品视角':'Core / quota / long-tail / signed, four views plus an item view',
+ '渠道回撤 / 零上架 / 已签零单三类异常逐家列出':'Channel rollback / nothing listed / signed but no orders, three anomaly classes listed store by store',
+ '助手只经取数脚本拿数，不心算不外推，回复必带快照日期':'The assistant reads only through the query script, never estimates or extrapolates, and always states the snapshot date',
+ '红线管行为、锚点管数值，不过不出包':'Redlines govern behaviour, anchors govern numbers, and nothing ships until both pass',
+ '逐点位算稳态水位下的月账与保本线，出过线与不过线':'Compute the steady-state monthly case and break-even line per site, splitting those that clear the bar from those that do not',
+ '覆盖与选择率两条爬坡曲线驱动逐月推演，排梯队与分城转正':'Two ramp curves, coverage and pick-rate, drive the month-by-month projection, ranking the wave order and the year each city turns positive',
+ '一份引擎文件驱动全部页面，一份生成器产出全部数据':'One engine file drives every page and one generator produces every dataset',
+ '曝光到完单逐级埋点，含各环节失败与取消原因':'Step-by-step tracking from impression to completion, including the failure and cancellation reason at each step',
+ // 能力明细：可行性 / 依赖
+ '已可用，订单起讫网格已接入':'Available; the order origin-destination grid is connected','订单起讫聚合 · 商家库':'Order origin-destination aggregate · merchant base',
+ '与单元经济台共用引擎，结论等于明细':'Shares the engine with the Unit Economics Board, so the conclusion equals the detail','测算参数':'Estimation parameters',
+ '已可用，采纳后进入测算':'Available; adopted points flow straight into the estimate','需求网格 · 禁飞区':'Demand grid · no-fly zones',
+ '引擎已可用':'Engine available',
+ '成本单价多为假定值，按调研到谈判到实战逐步固化':'Most unit costs are still assumptions, firmed step by step from research to negotiation to live operation','签约价回填':'Signed-price feedback',
+ '逐年涨幅未经校准':'Year-on-year growth not yet calibrated','逐年涨幅假定':'Year-on-year growth assumption',
+ '已可用，不接受手工填写':'Available; manual entry is not accepted','各模块状态':'Module statuses',
+ '待消息通道打通':'Pending a message channel','消息通道':'Message channel',
+ '已可用':'Available','签约表每日导出':'Daily contract-table export','商品在售与上架明细':'Item on-sale and listing detail','无人机渠道状态':'Drone channel status',
+ '结构设计已定，未接入对话平台':'Structure settled, not yet wired to a chat platform','对话平台':'Chat platform',
+ '用例集已定义':'Case set defined','取数脚本':'Query script',
+ '全域候选集':'Full candidate set','曲线参数未经校准':'Curve parameters not calibrated','爬坡曲线假定':'Ramp-curve assumptions',
+ '无':'None','拿不到，选择率与损失归因的前置':'Not obtainable; a prerequisite for the pick-rate and for order-loss attribution','上游埋点':'Upstream tracking',
+ // 能力明细：标签
+ '实现':'How','可行性':'Feasibility','依赖':'Deps','产出物':'Deliverable','产出物待接入':'Deliverable TBD',
+ // 图例
+ '能力状态 · %=建设进度':'Cap Status · % = build progress','已交付 / 就绪':'Delivered / Ready','规划':'Planned','阻塞 / 待数据':'Blocked / Pending Data',
+ 'AI 分工':'AI Split','内部模型':'Internal Model','外部模型':'External Model','混合':'Hybrid',
+ '数据三态':'Data State','事实':'Fact','可推导':'Derivable','假定值':'Assumption',
+ // 左右两栏
+ '行动 · 当前在推':'Action · In Progress','进行中 · 点击跳产出物':'Active · click to open the deliverable',
+ '进度 · 已经到哪':'Progress · How Far','决策层视角 · 结果态':'Exec view · outcome state',
+ // 任务
+ '接真实配送方式选择率':'Connect the real delivery-mode pick-rate','G · 底座':'G · Foundation',
+ '用无人机实单表测选择率替换假定的 5%，阻塞在上游取数。这个数一动，全部商圈的日均单量与保本缺口跟着重算。':'Measure the pick-rate from real drone orders to replace the assumed 5%; blocked on the upstream query. Move this one number and every district recomputes its daily volume and its break-even gap.',
+ '成本单价固化':'Fix the unit costs','B · 单元经济台':'B · Unit Economics Board',
+ '人力 设备 电池 场地 其他五项里，除场地租金外都是规格常量。哪些固化、哪些人工输入、谁校验，需要与业务侧逐项过一遍。':'Of the five cost lines, labour, equipment, battery, site and other, everything except site rent is a spec constant. Which ones get fixed, which stay manual and who verifies them has to be walked through line by line with the business side.',
+ '签约价回填校准':'Feed the signed price back',
+ '可承受租金上限是谈判锚点，签约价确定后要回填，否则模型永远停在反推值上，谈第二个点位时没有参照。':'The affordable rent ceiling is the negotiation anchor. Once a price is signed it has to be fed back, otherwise the model stays on a derived figure and the second site gets negotiated with no reference point.',
+ '排期推演曲线校准':'Calibrate the rollout curves','F · 排期推演台':'F · Rollout Planner',
+ '覆盖爬坡与选择率爬坡两条曲线的终点与周期都是拍的，先按可核区间与外推区间分段标注，不把外推段当结论用。':'Both ramp curves, coverage and pick-rate, have an assumed endpoint and period. Mark the verifiable range apart from the extrapolated range first, and do not read the extrapolated part as a conclusion.',
+ // 里程碑 / 结果
+ '框架与方法论':'Framework & Method','测算引擎与四件套':'Engine & the Four Tools','供给数据接入':'Supply Data Connected','单商圈盈利模型':'Single-District Profit Model','规模化复制':'Scale Replication',
+ '已就位':'In Place','在推':'In Progress','确定性水位':'Certainty Level','阻塞':'Blocked',
+ '五个工具页共用一份引擎与一份数据，改口径只改一处':'Five tool pages share one engine and one dataset, so a metric changes in exactly one place',
+ '供给四级漏斗与商品覆盖逐级可见，归因到具体门店':'The four-step supply funnel and item coverage are visible at every step and attributable to the individual store',
+ '单商圈盈利模型：成本单价仍是假定值，等谈判与实战回填':'Single-district profit model: unit costs are still assumptions, awaiting negotiation and live operation to fill them in',
+ '驱动结论的 16 个量里 7 个是假定值':'7 of the 16 inputs behind the verdict are assumptions',
+ '全链路埋点未打通，配送方式选择率仍是假定值':'Full-funnel tracking is not connected, so the delivery-mode pick-rate remains an assumption',
+ // 商圈名
+ '北湾商圈':'Northbay District','河畔商圈':'Riverside District','西门商圈':'Westgate District','湖景商圈':'Lakeview District',
+ // 载入失败
+ '演示数据尚未生成。':'The demo dataset has not been generated yet.','先在仓库根目录跑':'Run','再刷新本页。':'in the repository root, then reload this page.',
+};
+
+/* ===================== 数据 ===================== */
+let D=null,CAP_BY_ID={};
+fetch('../data/board.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+ .then(d=>{D=d;boot();})
+ .catch(e=>{document.getElementById('root').innerHTML='<div class="loading">'+L('演示数据尚未生成。')+'<br>'+
+   L('先在仓库根目录跑')+' <code>python3 scripts/gen_mock.py</code>，'+L('再刷新本页。')+'</div>';
+   console.error(e);});
+
+/* 里程碑 ⇄ 进度百分比：五格，●=1 ◐=0.5 ○=0，与编辑面板那排方块同一套口径 */
+function pgToMs(pg){let t=Math.round(pg/10)/2,done=Math.floor(t),wip=(t-done)>=0.25?1:0,s='';for(let i=0;i<5;i++)s+=i<done?'●':(i===done&&wip?'◐':'○');return s;}
+function msPct(s){let t=0;for(const ch of s)t+=ch==='●'?1:ch==='◐'?0.5:0;return Math.round(t/s.length*100);}
+function buildCaps(){CAP_BY_ID={};Object.keys(D.modules).forEach(mid=>D.modules[mid].caps.forEach((c,i)=>{
+  c._id=mid+(i+1);c._mod=mid;c._ms=pgToMs(c.pg);c._pg=msPct(c._ms);CAP_BY_ID[c._id]=c;}));}
+
+/* ===================== 取数辅助 ===================== */
+function modStat(m){const s=m.caps.map(c=>effSt(c));if(s.includes('block'))return'block';if(s.every(x=>x==='done'))return'done';if(s.includes('doing'))return'doing';return'plan';}
+function modPg(m){return Math.round(m.caps.reduce((a,c)=>a+c._pg,0)/m.caps.length);}
+const allCaps=()=>Object.values(D.modules).flatMap(m=>m.caps);
+function effSt(c){return ((c._ms.match(/●/g)||[]).length===5)?'done':c.st;} /* 里程碑满格（5/5）视为已交付就绪 */
+function warn(f){const t=L(f);return /拿不到|阻塞/.test(f)?`<span style="color:var(--block)">${t}</span>`:t;}
+const md=s=>s?s.slice(5).replace('-','.'):'';
+
+/* ===================== KPI ===================== */
+function renderKPI(){
+ const caps=allCaps();
+ const total=caps.length, done=caps.filter(c=>effSt(c)==='done').length,
+       doing=caps.filter(c=>effSt(c)==='doing').length, block=caps.filter(c=>effSt(c)==='block').length;
+ const overall=Math.round(caps.reduce((a,c)=>a+c._pg,0)/total);
+ kTotal.textContent=total;kDoing.textContent=doing;kDone.textContent=done;kBlock.textContent=block;
+ bDoing.style.width=(doing/total*100)+'%';bDone.style.width=(done/total*100)+'%';bBlock.style.width=(block/total*100)+'%';
+ const r=34,c=2*Math.PI*r,off=c*(1-overall/100);
+ ring.innerHTML=`<svg viewBox="0 0 78 78" style="transform:rotate(-90deg)">
+   <circle cx="39" cy="39" r="${r}" fill="none" stroke="var(--track2)" stroke-width="6"/>
+   <circle cx="39" cy="39" r="${r}" fill="none" stroke="var(--y)" stroke-width="6" stroke-linecap="round"
+     stroke-dasharray="${c}" stroke-dashoffset="${c}" style="filter:drop-shadow(0 0 var(--glowR) var(--yglow));transition:stroke-dashoffset 1.1s ease"/>
+ </svg><div class="num">${overall}<small><span class="g"></span>%</small></div>`;
+ setTimeout(()=>{const el=ring.querySelector('circle:last-child');if(el)el.style.strokeDashoffset=off;},120);
+}
+
+/* ===================== 结论三问 =====================
+   门户不做业务计算：三个数从 econ / launch / certainty 现算，页面只负责呈现。
+   三个数的数据日各不相同（经营 / 开航 / 口径），各自标在副题末尾；
+   顶部那枚药丸只说这份判决是哪天刷新的，不冒充统一的数据截止日。 */
+function verdictCards(){
+ const worst=D.econ.reduce((a,b)=>(b.gap||0)>(a.gap||0)?b:a);
+ const stall=D.launch.reduce((a,b)=>b.stalled_days>a.stalled_days?b:a);
+ const maxTasks=Math.max.apply(null,D.launch.map(x=>x.tasks_stalled));
+ const ct=D.certainty,en=LANG==='en',loss=Math.abs(worst.profit_now);
+ const earnSub=en
+   ? `Farthest from break-even is ${L(worst.nm)}: now ${worst.daily_now}/day → break-even ${worst.breakeven} · monthly loss ${Math.round(loss/1000)}k · data ${md(D.snapshot.econ)}`
+   : `距转正最远的是 ${worst.nm}：当前 ${worst.daily_now} 单/天 → 保本线 ${worst.breakeven} · 月亏 ${(loss/10000).toFixed(1)} 万 · 数据 ${md(D.snapshot.econ)}`;
+ const launchSub=en
+   ? `${D.launch.length} districts in flight, the longest untouched for ${stall.stalled_days} days · data ${md(D.snapshot.launch)}`
+   : `${D.launch.length} 个商圈在推，最久一个已 ${stall.stalled_days} 天没有更新 · 数据 ${md(D.snapshot.launch)}`;
+ const certainSub=en
+   ? `${ct.assumed} of the ${ct.total} inputs behind the verdict are still assumptions, the pick-rate weighing most`
+   : `驱动结论的 ${ct.total} 个量里 ${ct.assumed} 个仍是假定值，其中选择率影响最大`;
+ return [
+  {t:'能不能赚钱 · 经济性推演',v:String(worst.breakeven||'—'),u:'单/天',sub:earnSub,mods:['A','B'],link:'../sandbox/',cta:'选址沙盘 ▸'},
+  {t:'开到哪了 · 开航进度',v:String(maxTasks),u:'项',sub:launchSub,mods:['F'],link:'../op-planner/',cta:'排期推演台 ▸'},
+  {t:'确定性如何 · 数据沉淀',v:String(ct.assumed),u:'项',sub:certainSub,mods:['G'],link:null,cta:'贯穿方法论'},
+ ];
+}
+function renderConc(){
+ const agg=ids=>{const c=ids.flatMap(i=>D.modules[i].caps);return Math.round(c.reduce((a,x)=>a+x._pg,0)/c.length);};
+ conc.innerHTML=verdictCards().map((c,i)=>`<div class="qc ${c.link?'has':''}" ${c.link?`data-link="${c.link}" tabindex="0" role="button"`:''}>
+   <div class="qn">${i+1}</div>
+   <div class="qmain"><div class="qt">${L(c.t)}</div><div class="qs">${c.sub}</div></div>
+   <div class="qr"><div class="qpg">${c.v}${c.u?`<small><span class="g"></span>${L(c.u)}</small>`:''}</div><div class="qcta">${L(c.cta)} · ${L('建设')}<span class="g"></span>${agg(c.mods)}%</div></div></div>`).join('');
+ conc.querySelectorAll('.qc.has').forEach(el=>{const go=()=>window.open(el.dataset.link,'_blank');el.onclick=go;el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}};});
+}
+
+/* ===================== 四支柱状态板 ===================== */
+function capRow(c,m){const done=(c._ms.match(/●/g)||[]).length;return `<div class="cap2" data-cid="${c._id}" tabindex="0">
+   <span class="sdot" style="background:${SC[effSt(c)]};color:${SC[effSt(c)]}"></span>
+   <span class="cnm2">${L(c.nm)}</span>
+   <span class="tag ${AI[c.ai].cls}">${L(AI[c.ai].t)}</span>
+   <span class="prc" style="color:${c.pr==='P0'?'var(--block)':c.pr==='P1'?'var(--y)':'var(--mut2)'}">${c.pr}</span>
+   <span class="mini2"><i style="width:${c._pg}%;background:${SC[effSt(c)]}"></i></span>
+   <span class="pct2">${c._pg}%</span><span class="msedit">${[0,1,2,3,4].map(i=>`<i data-ms="${c._id}|${i}" title="${L(MS_LABELS[i])}" class="${i<done?'on':''}"></i>`).join('')}</span><span class="arr">⌄</span></div>
+   <div class="capd" data-for="${c._id}"><b>${L('实现')}</b>${L(c.impl)}<br><b>${L('可行性')}</b>${warn(c.feas)}<br><b>${L('依赖')}</b>${L(c.deps)}${m.link?` · <b>${L('产出物')}</b><span class="cgo" data-link="${m.link}">${L(m.zh)} ${GO}</span>`:` · <span style="color:var(--mut2)">${L('产出物待接入')}</span>`}</div>`;}
+function modBlock(mid){const m=D.modules[mid],st=modStat(m),pg=modPg(m);
+ return `<div class="modb"><div class="modh"><span class="mcode" style="color:${SC[st]}">${mid}</span><span class="mzh">${L(m.zh)}</span>${m.flow?`<span class="mflow">${L(m.flow)}</span>`:''}<span class="mpct" style="color:${SC[st]}">${pg}%</span>${m.link?`<span class="cgo mgo" data-link="${m.link}" title="${L('前往')} ${L(m.zh)}">${GO}</span>`:''}</div>
+   <div class="mbar"><i style="width:${pg}%;background:${SC[st]}"></i></div>
+   <div class="caps2">${m.caps.map(c=>capRow(c,m)).join('')}</div></div>`;}
+function pillar(pid){return D.pillars.find(x=>x.id===pid);}
+function pillarCard(pid){const p=pillar(pid);
+ return `<div class="pcard"><div class="ph"><span class="pzh">${L(p.zh)}</span><span class="pen">${p.en} · ${L(p.note)}</span></div><div class="pmods">${p.mods.map(modBlock).join('')}</div></div>`;}
+function renderBoard(){
+ const post=pillar('POST');
+ board.innerHTML=`<div class="brow brow1">${pillarCard('PRE')}</div>
+   <div class="brow brow2">${pillarCard('HUB')}${pillarCard('BASE')}</div>
+   <details class="postfold"><summary>${L(post.zh)} · ${L(post.note)} · ${L('供给与转述两条线，点开展开')}</summary><div class="brow">${pillarCard('POST')}</div></details>`;
+ board.querySelectorAll('.cap2').forEach(el=>{const tg=()=>{const d=board.querySelector(`.capd[data-for="${el.dataset.cid}"]`);if(d)d.classList.toggle('show');};el.onclick=tg;el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tg();}};});
+ board.querySelectorAll('.cgo').forEach(el=>el.onclick=e=>{e.stopPropagation();window.open(el.dataset.link,'_blank');});
+ board.querySelectorAll('.msedit i').forEach(el=>el.onclick=e=>{e.stopPropagation();const p=el.dataset.ms.split('|'),id=p[0],i=+p[1];const c=CAP_BY_ID[id];const cur=(c._ms.match(/●/g)||[]).length;setCapDone(id,cur===i+1?i:i+1);});
+}
+
+/* ===================== 图例 / 行动 / 进度 ===================== */
+function renderRest(){
+ const ct=D.certainty;
+ legend.innerHTML=`<div class="lgbar">
+   <div class="lgcol"><div class="lgh">${L('能力状态 · %=建设进度')}</div><div class="lgrow">
+     <span class="lg"><i class="dot" style="background:var(--done)"></i>${L('已交付 / 就绪')}</span><span class="lg"><i class="dot" style="background:var(--doing)"></i>${L('在建')}</span><span class="lg"><i class="dot" style="background:var(--plan)"></i>${L('规划')}</span><span class="lg"><i class="dot" style="background:var(--block)"></i>${L('阻塞 / 待数据')}</span></div></div>
+   <div class="lgcol"><div class="lgh">${L('AI 分工')}</div><div class="lgrow">
+     <span class="lg" style="color:var(--internal)">● ${L('内部模型')}</span><span class="lg" style="color:var(--external)">● ${L('外部模型')}</span><span class="lg" style="color:var(--blue)">● ${L('混合')}</span></div></div>
+   <div class="lgcol"><div class="lgh">${L('数据三态')}</div><div class="lgrow">
+     <span class="lg"><i class="dot" style="background:var(--done)"></i>${L('事实')}<span class="g"></span>${ct.fact}</span><span class="lg"><i class="dot" style="background:var(--blue)"></i>${L('可推导')}<span class="g"></span>${ct.derived}</span><span class="lg"><i class="dot" style="background:var(--y)"></i>${L('假定值')}<span class="g"></span>${ct.assumed}</span></div></div></div>`;
+ tasks.innerHTML=`<div class="sec-t">${L('行动 · 当前在推')} <span>${L('进行中 · 点击跳产出物')}</span></div>`
+   +D.tasks.map((t,i)=>{const m=D.modules[t.go];const lk=m&&m.link;
+   return `<div class="task" ${lk?`data-link="${lk}" tabindex="0" role="button"`:''}><div class="idx">${i+1}</div><div class="tx"><div class="tt">${L(t.t)} <span class="ref">${L(t.ref)}</span></div><div class="td">${L(t.d)}</div></div></div>`;}).join('');
+ tasks.querySelectorAll('.task[data-link]').forEach(el=>{const go=()=>window.open(el.dataset.link,'_blank');el.onclick=go;el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}};});
+ const rc={done:'var(--done)',doing:'var(--y)',block:'var(--block)'};
+ logs.innerHTML=`<div class="sec-t">${L('进度 · 已经到哪')} <span>${L('决策层视角 · 结果态')}</span></div>`
+   +`<div class="phstrip">`+D.milestones.map((m,i)=>`<span class="phpill ${m.s}"><span class="pd"></span>${L(m.t)}</span>${i<D.milestones.length-1?'<span class="arr">→</span>':''}`).join('')+`</div>`
+   +`<div class="rlist">`+D.results.map(r=>`<div class="ritem"><span class="rcat" style="color:${rc[r.s]}">${L(r.k)}</span><span class="rtxt">${L(r.t)}</span></div>`).join('')+`</div>`;
+ /* ⚠ 迭代日志（board.json 的 logs[]）刻意不渲染到页面上，这不是漏写。
+    门户是给决策层看的，逐版口径缘由属于接手者读的内容，不该占门户版面。
+    数据留在 board.json 里当变更记录，要看历史读那份 JSON 或 git log。 */
+}
+
+/* ===================== 静态外框 i18n ===================== */
+function fbarHTML(){return `<div class="fmain">
+      <span class="flab">${L('经营收益')} = <b style="color:var(--y)">${L('订单交易收益')}</b> + ${L('商业化收益')} − ${L('可控成本')}</span>
+      <span class="fx"><span>${L('无人机订单')}</span><span class="op">=</span><span>${L('平台大盘订单')}</span><span class="op">×</span><span class="bn">${L('商家商品联合覆盖率')}</span><span class="op">×</span><span>${L('可履约率')}</span><span class="op">×</span><span>${L('配送方式选择率')}</span></span>
+    </div>
+    <span class="fpath"><span class="fph">${L('系统闭环')}</span>${L('圈点测算')} <b>→</b> ${L('识别缺口')} <b>→</b> ${L('生成任务')} <b>→</b> ${L('监控结果')} <b>→</b> ${L('动态调整')}</span>`;}
+function applyStatic(){
+ document.getElementById('fbar').innerHTML=fbarHTML();
+ document.getElementById('hdrSub').textContent=L('无人机配送 · 推演 / 监控 / 沉淀');
+ document.getElementById('axisPill').textContent=L('主轴 · 商圈经营');
+ document.getElementById('asofPill').textContent=L('判决刷新于')+' '+D.snapshot.refreshed;
+ document.getElementById('ringLab').textContent=L('总体建设进度');
+ document.getElementById('secMain').textContent=L('能力地图');
+ document.getElementById('secSub').textContent=L('开航前 → 开航后 · 决策中枢 · 底座');
+ document.getElementById('editToggle').textContent='✎ '+L('编辑进度');
+ document.getElementById('msLegend').innerHTML='<b>'+L('里程碑')+'</b>'+(LANG==='en'?': ':'：')+MS_LABELS.map((s,i)=>('①②③④⑤'[i]+' '+L(s))).join('  ·  ');
+ document.getElementById('foot').textContent=L('经营门户 ｜ 数据底座：订单起讫 · 商家供给 · 履约时长 ｜ 全部数据由脚本生成，不是真实经营数据');
+ const klabels=['能力总数','在建','已交付就绪','阻塞能力'];
+ document.querySelectorAll('.kpis .stat .k').forEach((el,i)=>{if(klabels[i])el.textContent=L(klabels[i]);});
+ renderThemeBtn();
+}
+function renderAll(){renderKPI();renderConc();renderBoard();renderRest();applyStatic();setEdit(EDIT_ON);}
+function switchLang(lang){if(!D)return;LANG=lang;document.documentElement.lang=lang==='en'?'en':'zh-CN';document.querySelectorAll('.langbtn').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));renderAll();}
+
+/* ============ 进度自定义（里程碑 · 本地持久） ============ */
+const PGKEY='ops_pg_v1';
+function loadPg(){try{return JSON.parse(localStorage.getItem(PGKEY)||'{}');}catch(e){return{};}}
+function savePg(o){try{localStorage.setItem(PGKEY,JSON.stringify(o));}catch(e){}}
+function applyStoredPg(){const o=loadPg();Object.keys(o).forEach(id=>{const c=CAP_BY_ID[id];if(c){const d=Math.max(0,Math.min(5,o[id]|0));c._ms='●'.repeat(d)+'○'.repeat(5-d);c._pg=d*20;}});}
+function setCapDone(id,done){const c=CAP_BY_ID[id];if(!c)return;done=Math.max(0,Math.min(5,done));c._ms='●'.repeat(done)+'○'.repeat(5-done);c._pg=done*20;const o=loadPg();o[id]=done;savePg(o);renderAll();}
+
+/* ============ 里程碑编辑开关 ============
+   默认非编辑（显示进度条与百分比）；点「✎ 编辑进度」切出每行五格里程碑方块，
+   点第 i 格把进度设成 i+1 格，再点同一格退回 i 格，状态存 localStorage。 */
+const EDITKEY='ops_edit_v1';
+let EDIT_ON=false;
+try{EDIT_ON=localStorage.getItem(EDITKEY)==='1';}catch(e){}
+function setEdit(on){
+ EDIT_ON=on;
+ board.classList.toggle('editing',on);
+ const ml=document.getElementById('msLegend');if(ml)ml.style.display=on?'block':'none';
+ const bt=document.getElementById('editToggle');if(bt)bt.classList.toggle('on',on);
+ try{localStorage.setItem(EDITKEY,on?'1':'0');}catch(e){}
+}
+
+/* ============ 主题（浅色 / 深色）· 两态 ============ */
+const THKEY='ops_theme';
+const TH_ICON={
+ light:'<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/><path d="M12 1.5v2.7M12 19.8v2.7M4.5 4.5l1.9 1.9M17.6 17.6l1.9 1.9M1.5 12h2.7M19.8 12h2.7M4.5 19.5l1.9-1.9M17.6 6.4l1.9-1.9" stroke="currentColor" stroke-width="2.2"/>',
+ dark:'<path d="M20.6 14.9A8.7 8.7 0 1 1 9.1 3.4a6.9 6.9 0 0 0 11.5 11.5z" fill="currentColor" stroke="none"/>'};
+function thMode(){try{return localStorage.getItem(THKEY)==='dark'?'dark':'light';}catch(e){return 'light';}}
+function renderThemeBtn(){const m=thMode(),ic=document.getElementById('thIco'),bt=document.getElementById('thTog');
+  if(!ic||!bt)return; ic.innerHTML=TH_ICON[m];
+  bt.setAttribute('aria-label',L('主题')+' · '+L(m==='light'?'浅色':'深色'));
+  bt.title=L(m==='light'?'切换到深色':'切换到浅色');}
+function applyTheme(){const m=thMode();
+  if(m==='light')document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  renderThemeBtn();}
+function cycleTheme(){const nx=thMode()==='light'?'dark':'light';
+  try{nx==='dark'?localStorage.setItem(THKEY,'dark'):localStorage.removeItem(THKEY);}catch(e){}
+  applyTheme();}
+
+/* ===================== INIT ===================== */
+function boot(){
+ buildCaps();
+ applyStoredPg();
+ const et=document.getElementById('editToggle');if(et)et.onclick=()=>setEdit(!board.classList.contains('editing'));
+ renderAll();
+ applyTheme();
+}
+(function(){const th=document.getElementById('thTog');if(th)th.onclick=cycleTheme;applyTheme();})();
+</script>
+</body>
+</html>
