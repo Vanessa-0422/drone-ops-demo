@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单元经济台</title>
+<style>
+  /* 主题令牌与选址沙盘同源。深色为基准，浅色只覆盖取值。
+     纪律：--y 只用于文字与细线，--yFill 用于大面积填充（其上压 --onY）。 */
+  :root{color-scheme:dark;--bg:#07080e;--panel:#10111e;--panel2:#161730;
+    --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
+    --txt:#E9EEF9;--mut:#93A1C0;--mut2:#7A88A8;--y:#FFD100;--yglow:rgba(255,209,0,.25);
+    --done:#2ED47A;--block:#FF5E5E;--doneSoft:#6FC29B;--blockSoft:#FF5E5E;
+    --internal:#34D3FF;--blue:#5E84F5;--orange:#ff9a56;
+    --yFill:#FFD100;--onY:#1a1300;--onSolid:#08090f;--onTint:#08090f;
+    --txt2:#AEB9CE;--txt3:#C7D2E6;--field:#0c0d17;--yInk:#9A8330;
+    --wash:rgba(255,255,255,.02);--washH:rgba(255,255,255,.03);--track:rgba(255,255,255,.05);
+    --cardTo:#0a0b14;--vdFrom:#12131f;--vdTo:#0a0b12;--bgGrad:#0e0f1e;--menuBg:#0e1020;
+    --elev:none;--shadowMd:0 6px 22px rgba(0,0,0,.45);
+    --axisTxt:#8C9BB8;--axisLine:rgba(233,238,249,.4);
+    --yWashKey:rgba(255,209,0,.05);--yWashCeil:rgba(255,209,0,.04);--yWashOn:rgba(255,209,0,.06);
+    --yWashBadge:rgba(255,209,0,.08);--yRing:rgba(255,209,0,.16);--projArea:rgba(255,209,0,.08);
+    --dimO:.4;--sfxO:.7;--glowK:1;--tintK:1;--ctrl:var(--blue);--ctrlBright:var(--blue);
+    --doneBright:var(--done);--orangeBright:var(--orange);--yBright:var(--y);
+    --barGold:var(--yFill);--barOrange:var(--orange);--lkO:.72;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  :root[data-theme="light"]{color-scheme:light;
+    --bg:#FAFAF9;--panel:#FFFFFF;--panel2:#F6F6F5;--line:rgba(50,49,46,.11);--line2:rgba(50,49,46,.17);
+    --txt:#4F4D46;--mut:#5F5D57;--mut2:#6E6C65;--y:#8F6B00;--yglow:rgba(181,133,10,.32);
+    --done:#147A41;--block:#C42B35;--doneSoft:#2E7D51;--blockSoft:#C42B35;
+    --internal:#0A7095;--blue:#3557C8;--orange:#B4560F;
+    --yFill:#F0B400;--onY:#1a1300;--onSolid:#FFFFFF;--onTint:#08090f;
+    --txt2:#5C5A52;--txt3:#57554D;--field:#F8F8F7;--yInk:#7A5A08;
+    --wash:rgba(50,49,46,.022);--washH:rgba(50,49,46,.05);--track:#ECECEA;
+    --cardTo:#FCFCFB;--vdFrom:#FFFFFF;--vdTo:#FBFBFA;--bgGrad:#FDFDFC;--menuBg:#FFFFFF;
+    --elev:0 1px 2px rgba(50,49,46,.05),0 8px 22px rgba(50,49,46,.05);
+    --shadowMd:0 4px 16px rgba(50,49,46,.10);
+    --axisTxt:#5F5D57;--axisLine:rgba(50,49,46,.35);
+    --yWashKey:color-mix(in srgb,var(--y) 14%,transparent);--yWashCeil:color-mix(in srgb,var(--y) 12%,transparent);
+    --yWashOn:color-mix(in srgb,var(--y) 12%,transparent);--yWashBadge:color-mix(in srgb,var(--y) 16%,transparent);
+    --yRing:color-mix(in srgb,var(--y) 45%,transparent);--projArea:color-mix(in srgb,var(--yFill) 18%,transparent);
+    --dimO:.55;--sfxO:1;--glowK:0;--tintK:2.6;--ctrl:#2563EB;--ctrlBright:#3B82F6;
+    --doneBright:#17A45C;--orangeBright:#DD7016;--yBright:#B5850A;
+    --barGold:#8F6B00;--barOrange:#B4560F;--lkO:1}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{background:radial-gradient(1200px 700px at 70% -10%,var(--bgGrad),var(--bg) 60%) var(--bg);min-height:100%}
+  body{color:var(--txt);font-family:var(--sans);min-height:100vh;padding:20px 24px 40px}
+  a{color:inherit;text-decoration:none}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .back{font-family:var(--mono);font-size:12px;color:var(--mut);border:1px solid var(--line2);border-radius:8px;padding:5px 11px;transition:.12s}
+  .back:hover{color:var(--y);border-color:var(--y)}
+  .brand{font-size:18px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .brand b{color:var(--y)}
+  .bsub{font-weight:500;color:var(--mut);font-size:14px}
+  .stage{font-family:var(--mono);font-size:10px;color:var(--y);border:1px solid color-mix(in srgb,var(--y) 45%,transparent);background:var(--yWashBadge);border-radius:6px;padding:2px 8px;letter-spacing:.4px}
+  .badge{font-family:var(--mono);font-size:11px;color:var(--y);border:1px solid var(--yglow);border-radius:6px;padding:3px 9px;letter-spacing:1px}
+  .usel{font-family:var(--mono);font-size:12px;font-weight:600;background:transparent;border:1px solid var(--line2);border-radius:8px;color:var(--ctrl);padding:5px 9px;cursor:pointer;transition:.15s;margin-left:auto}
+  .usel:hover{border-color:var(--mut2)}
+  .usel:focus{border-color:var(--ctrl);outline:none}
+  .usel option{background:var(--field);color:var(--txt)}
+  .shareb{font-family:var(--mono);font-size:11px;color:var(--mut);background:transparent;border:1px solid var(--line2);border-radius:8px;padding:5px 10px;cursor:pointer;min-height:28px}
+  .shareb:hover{color:var(--y);border-color:var(--y)}
+  .langtog{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden}
+  .langbtn{font-family:var(--mono);font-size:11px;padding:3px 8px;background:transparent;color:var(--mut);border:none;cursor:pointer;transition:.15s}
+  .langbtn.active{background:var(--yFill);color:var(--onY);font-weight:700}
+  .thtog{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;width:35px;height:29px;background:none;color:var(--mut);cursor:pointer;transition:.15s}
+  .thtog:hover{border-color:var(--mut)}
+  .thtog svg{width:14px;height:14px;color:var(--yBright)}
+  /* 数字与单位之间的极窄间隙。不用空格字符：数值走等宽字体，窄空格会被撑成整格。 */
+  .g{display:inline-block;width:.16em}
+  :root[lang="en"] .g{width:auto}
+  :root[lang="en"] .g::before{content:" ";white-space:pre}
+  .vk .v,.clv,.clp,.c3v,.beb .big{white-space:nowrap}
+
+  /* 判决条常驻：在页底改参数时，结论要一直在视口里 */
+  .verdict{display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;border:1px solid var(--line);border-radius:16px;padding:16px 22px;margin-bottom:18px;
+    background:linear-gradient(180deg,var(--vdFrom),var(--vdTo));position:sticky;top:8px;z-index:40;box-shadow:var(--shadowMd)}
+  .verdict.vwin{border-left:3px solid var(--done)}
+  .verdict.vloss{border-left:3px solid var(--block)}
+  .verdict .vmain{font-size:16px;font-weight:800;flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:0;flex-wrap:wrap}
+  .verdict .vmain .ico{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:900;color:var(--onSolid);flex:0 0 auto;margin-right:11px}
+  .verdict .vkpis{display:flex;gap:26px;margin-left:auto;flex-wrap:wrap}
+  @media(max-width:1000px){.verdict .vkpis{margin-left:0;gap:14px 22px}}
+  .vk{min-width:110px}
+  .vk .k{font-size:11px;color:var(--mut2);font-family:var(--mono);letter-spacing:.5px}
+  .vk .v{font-size:20px;font-weight:800;font-family:var(--mono);margin-top:3px}
+  .vk .v small{font-size:12px;font-weight:600;opacity:var(--sfxO)}
+  .rmbadge{font-family:var(--mono);font-size:10px;color:var(--internal);border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-right:8px;white-space:nowrap}
+
+  /* 左结论列 + 右明细 */
+  .md{display:grid;grid-template-columns:380px 1fr;gap:20px;align-items:start}
+  @media(max-width:860px){.md{grid-template-columns:1fr}}
+  .md>.detpane{min-width:0}
+  .rail{position:sticky;top:calc(var(--vdH,86px) + 16px);display:flex;flex-direction:column;gap:9px}
+  @media(max-width:860px){.rail{position:static}}
+  .ritem{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border-radius:12px;border:1px solid transparent;cursor:pointer;transition:background .12s}
+  .ritem:hover{background:var(--washH)}
+  .ritem.on{background:var(--yWashOn);border-color:color-mix(in srgb,var(--y) 30%,transparent)}
+  .ritem .rt{font-family:var(--mono);font-size:12px;color:var(--txt3);font-weight:500}
+  .ritem.on .rt{color:var(--txt)}
+  .ritem .rt .no{color:var(--y);font-weight:700;margin-right:6px}
+  .ritem .rc{font-family:var(--mono);font-weight:700;font-size:19px;color:var(--yBright);line-height:1.15}
+  .ritem.pv{box-shadow:inset 2px 0 0 var(--block)}
+  .ritem.pv-gd{box-shadow:inset 2px 0 0 var(--done)}
+  .ritem.pv .rc{font-size:21px}
+  .ritem .rc.bd{color:var(--blockSoft)}.ritem .rc.gd{color:var(--doneSoft)}
+  .ritem .rc small{font-size:11px;color:var(--mut2);font-weight:500}
+  /* 测算逻辑对所有段渲染，不只给当前段。切段不重建这一列，只给当前段渲染的话公式会停在初始段。 */
+  .ritem .logic{font-family:var(--mono);font-size:11.5px;color:var(--mut2);line-height:1.6;margin-top:4px}
+  .ritem .logic b{color:var(--txt2);font-weight:500}
+  .detpane .cstage{display:none}
+  .detpane .cstage.active{display:block;margin-bottom:0}
+  .cstage{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--cardTo));padding:13px 16px;margin-bottom:11px;box-shadow:var(--elev)}
+  .cstage>.ch{display:flex;align-items:baseline;gap:9px;margin-bottom:9px;flex-wrap:wrap}
+  .cstage>.ch .no{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--y)}
+  .cstage>.ch .ti{font-size:14px;font-weight:800}
+  .cstage>.ch .hint{font-family:var(--mono);font-size:9.5px;color:var(--mut2);margin-left:auto;letter-spacing:.3px}
+
+  .flowrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:12px}
+  .flowrow .fin{color:var(--mut)}.flowrow .fin b{color:var(--txt);font-weight:600}
+  .flowrow .arr{color:var(--mut2)}
+  .flowrow .fout{color:var(--txt);font-weight:700}
+  .flowrow .fout .bigv{font-size:18px;color:var(--y)}
+  .dvt{display:inline-block;font-size:10px;color:var(--mut2);border:1px solid var(--line2);border-radius:4px;padding:0 5px;margin-left:6px;font-weight:400}
+  .rf{display:inline-block;font-size:10px;color:var(--block);border:1px dashed var(--block);border-radius:4px;padding:0 5px;margin-left:6px;opacity:.85;font-weight:400}
+
+  /* ① 可承接率构成：商家覆盖 × 商品覆盖 = 可承接率，三个数在屏上要对得上 */
+  .acsrc{font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:10px;padding-top:9px;border-top:1px solid var(--line);line-height:1.85;max-width:min(100%,78ch)}
+  .acsrc .acg{margin:12px 0 8px}
+  .acsrc .acsub{color:var(--mut);margin:6px 0 4px}
+  .acsrc .acrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:7px 0;color:var(--mut2)}
+  .acsrc .act{color:var(--txt);font-weight:600;margin-right:7px}
+  .acsrc .acv{font-weight:700;white-space:nowrap}
+  .acsrc .acres{margin-top:11px;padding-top:10px;border-top:1px solid var(--line)}
+  .acsrc .acf{color:var(--mut2);font-size:11.5px;margin-top:10px}
+
+  /* ② 收入构成瀑布 与 ③ 科目明细共用行模式 */
+  .clr{display:flex;align-items:center;gap:9px;font-size:12px;margin-bottom:13px}
+  .clr .cdot{flex:0 0 7px;width:7px;height:7px;border-radius:2px}
+  .clr .cln{flex:0 0 110px;color:var(--mut);white-space:nowrap}
+  html[lang="en"] .clr .cln{flex-basis:140px}
+  .clr .clbar{flex:1;height:7px;background:var(--track);border-radius:4px;overflow:hidden}
+  .clr .clbar i{display:block;height:100%;background:linear-gradient(90deg,var(--barGold),var(--orange));border-radius:4px}
+  .clr .clv{flex:0 0 74px;text-align:right;font-family:var(--mono);font-weight:600}
+  .clr .clp{flex:0 0 58px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--mut2)}
+  .clr.tot{border-top:1px solid var(--line);padding-top:9px;margin-top:3px;font-weight:700}
+  .clr.tot .cln,.clr.tot .clv,.clr.tot .clp{color:var(--y)}
+  .cldrv{font-family:var(--mono);font-size:11.5px;color:var(--mut2);margin:-6px 0 10px 126px}
+  html[lang="en"] .cldrv{margin-left:156px}
+  details.dd{margin:-4px 0 10px 126px}
+  html[lang="en"] details.dd{margin-left:156px}
+  details.dd summary{font-size:11px;color:var(--mut2);font-family:var(--mono);cursor:pointer;list-style:none}
+  details.dd summary::-webkit-details-marker{display:none}
+  details.dd summary::before{content:"▸ "}details.dd[open] summary::before{content:"▾ "}
+  details.dd .di{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut);font-family:var(--mono);padding:2px 0}
+  .rev3{display:flex;gap:7px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--mut);margin-top:7px}
+  .rev3 b{color:var(--txt)}
+
+  /* ③ 成本三分 */
+  .c3{display:flex;align-items:center;gap:10px;font-size:12px;margin-bottom:14px}
+  .c3 .c3n{flex:0 0 190px}
+  html[lang="en"] .c3 .c3n{flex:0 0 250px}
+  .c3 .c3n .t{font-weight:700;color:var(--txt)}
+  .c3 .c3bar{flex:1;height:9px;background:var(--track);border-radius:6px;overflow:hidden}
+  .c3 .c3bar i{display:block;height:100%;border-radius:6px}
+  .c3.fix .c3bar i{background:var(--barOrange)}
+  .c3.step .c3bar i{background:var(--barGold)}
+  .c3.varc .c3bar i{background:var(--ctrlBright)}
+  .c3 .c3v{flex:0 0 92px;text-align:right;font-family:var(--mono);font-weight:700}
+  .c3 .c3p{flex:0 0 40px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--mut2)}
+  .c3tier{font-family:var(--mono);font-size:11px;color:var(--mut2);letter-spacing:.4px;margin:2px 0 10px;padding-top:9px;border-top:1px dashed var(--line2)}
+  .opttag{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--mut2);border:1px dashed var(--line2);border-radius:6px;padding:0 6px;margin-left:6px;white-space:nowrap}
+  .mhrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 9px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--wash);font-family:var(--mono);font-size:11.5px}
+  .mhtg{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--mut);background:var(--field);border:1px solid var(--line2);border-radius:999px;padding:4px 10px;cursor:pointer}
+  .mhtg .dot{width:7px;height:7px;border-radius:50%;background:var(--mut2)}
+  .mhtg.on{color:var(--onY);background:var(--yFill);border-color:var(--yFill);font-weight:700}
+  .mhtg.on .dot{background:var(--onY)}
+  .mhm{color:var(--mut)}.mhm b{color:var(--txt)}
+  .ain{background:var(--field);border:1px solid var(--line2);border-radius:6px;color:var(--txt);font-family:var(--mono);font-size:11px;padding:2px 5px;width:64px;margin-left:4px}
+  .ain:focus{border-color:var(--y);outline:none}
+  .iu{margin-left:4px;color:var(--mut2);font-size:11px}
+
+  /* ④ 盈亏结论 */
+  .be2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:560px){.be2{grid-template-columns:1fr}}
+  .beb{background:var(--field);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .beb.ceil{border-color:var(--yglow);background:var(--yWashCeil)}
+  .beb .t{font-size:12px;color:var(--mut);font-family:var(--mono);margin-bottom:8px}
+  .beb .big{font-size:26px;font-weight:800;font-family:var(--mono)}
+  .beb .big small{font-size:12px;opacity:var(--sfxO);font-weight:600}
+  .beb .sub{font-size:12px;color:var(--mut2);font-family:var(--mono);margin-top:6px;line-height:1.6}
+  .beb .sub b{color:var(--txt)}
+  .hmwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--panel2);border-radius:12px;padding:10px 12px;min-width:0;max-width:100%}
+  /* 角列钉死 60px。table-layout:fixed 在表宽大于声明宽合计时按声明宽比例分摊余量，
+     数据列一旦也声明宽度就会连带把角列撑开，左边空出一大片。 */
+  table.hm{border-collapse:collapse;font-family:var(--mono);font-size:11.5px;width:100%;min-width:428px;table-layout:fixed}
+  table.hm th{color:var(--mut);font-weight:400;padding:4px 5px;text-align:center;white-space:nowrap}
+  table.hm td{padding:0;text-align:center}
+  table.hm col.c0{width:60px}
+  table.hm .cell{padding:7px 4px;border-radius:4px;color:var(--onTint);font-weight:700}
+  table.hm .rowh{color:var(--mut);text-align:right;padding:0 9px 0 0;white-space:nowrap;font-weight:400}
+  table.hm th.hmc{font-size:9.5px;line-height:1.35;text-align:right;padding-right:9px;color:var(--mut2);font-weight:400;white-space:nowrap}
+  table.hm td.hmaxis{font-size:9.5px;text-align:left;padding:0 5px 3px;color:var(--mut2);white-space:nowrap}
+  table.hm .cur{outline:2px solid var(--y);outline-offset:-2px;border-radius:4px}
+  html:not([data-theme]) table.hm .cell.ink-lt{color:#FFF}
+  .hmlegend{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--mut2);font-family:var(--mono);margin-top:10px;flex-wrap:wrap}
+  .hmlegend i{width:30px;height:9px;border-radius:2px;display:inline-block}
+  .hmnote{font-family:var(--mono);font-size:11px;color:var(--mut2);margin-top:6px}
+
+  /* ⑤ 转正 */
+  .lev3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  @media(max-width:680px){.lev3{grid-template-columns:1fr}}
+  .lvc{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--wash)}
+  .lvc .li{font-family:var(--mono);font-size:10px;color:var(--y);letter-spacing:.3px;margin-bottom:4px}
+  .lvc .lt{font-size:12px;font-weight:700}
+  .lvc .ld{font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.45}
+  .p5{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px;align-items:stretch}
+  @media(max-width:680px){.p5{grid-template-columns:1fr}}
+  .p5b{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--wash);display:flex;flex-direction:column}
+  .p5b.bks{grid-column:1/-1}
+  .p5b .p5h{display:flex;align-items:baseline;gap:7px;font-size:12px;font-weight:700;margin-bottom:5px;flex-wrap:wrap}
+  .p5b .p5sub{font-family:var(--mono);font-size:11px;color:var(--mut);margin-bottom:6px;line-height:1.5}
+  .p5note{font-family:var(--mono);font-size:11px;color:var(--mut2);line-height:1.5;margin-top:5px}
+  .projwrap{position:relative;padding-top:14px;margin:2px 0 6px;flex:1;display:flex;flex-direction:column;min-height:128px}
+  .projplot{position:relative;flex:1;min-height:96px}
+  .projsvg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  /* 坐标文字与数据点走 HTML 绝对定位，不放进 SVG：
+     preserveAspectRatio="none" 会把 <text> 与 <circle> 一起拉伸变形。 */
+  .projwrap .pcl{position:absolute;top:0;transform:translateX(-50%);font-family:var(--mono);font-size:9.5px;color:var(--yInk);white-space:nowrap;pointer-events:none}
+  .pdot{position:absolute;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid var(--bg);box-sizing:border-box;pointer-events:none}
+  .pdot-end{width:12px;height:12px;box-shadow:0 0 0 3px var(--yRing)}
+  .pxlrow{position:relative;height:14px;margin-top:5px}
+  .pxlrow .pxl{position:absolute;bottom:0;transform:translateX(-50%);font-family:var(--mono);font-size:11px;color:var(--axisTxt)}
+  .pzero{position:absolute;left:0;transform:translateY(-50%);font-family:var(--mono);font-size:10px;color:var(--mut2);pointer-events:none}
+  .asm{display:flex;gap:9px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--mut2);align-items:center}
+  .gaprow{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11.5px;margin:3px 0;color:var(--mut);gap:10px}
+  .gaprow b{color:var(--txt);white-space:nowrap}
+  .gapbar{display:flex;height:11px;border-radius:6px;overflow:hidden;margin:7px 0 6px;background:var(--track)}
+  .gapseg{height:100%}
+
+  /* 调参 */
+  details.fold{margin-top:8px;border-top:1px solid var(--line);padding-top:9px}
+  details.fold>summary{font-family:var(--mono);font-size:11.5px;color:var(--mut);cursor:pointer;list-style:none}
+  details.fold>summary::-webkit-details-marker{display:none}
+  details.fold>summary::before{content:"▸ ";color:var(--mut2)}
+  details.fold[open]>summary::before{content:"▾ "}
+  .tuner{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--cardTo));padding:11px 16px;margin-top:16px}
+  .tuner>summary{font-family:var(--mono);font-size:12px;color:var(--y);cursor:pointer;list-style:none;letter-spacing:.6px}
+  .tuner>summary::-webkit-details-marker{display:none}
+  .tuner>summary::before{content:"▸ ";color:var(--mut2)}
+  .tuner[open]>summary::before{content:"▾ "}
+  .grp{margin-bottom:6px}
+  .gh{font-size:12px;font-weight:700;color:var(--txt);margin:14px 0 8px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .gh::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--yBright)}
+  .gh.neg::before{background:var(--mut2)}
+  .ghimp{margin-left:8px;font-family:var(--mono);font-size:11.5px;font-weight:400;color:var(--mut2)}
+  .ig{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px}
+  .ic{display:flex;flex-direction:column;gap:3px}
+  .ic label{font-size:11px;color:var(--mut);display:flex;justify-content:space-between;gap:6px}
+  .ic label .u{color:var(--mut2);font-family:var(--mono)}
+  .ic input,.ic select{background:var(--field);border:1px solid var(--line2);border-radius:8px;color:var(--txt);font-family:var(--mono);font-size:13px;padding:7px 9px;width:100%}
+  .ic input:focus,.ic select:focus{border-color:var(--y);outline:none}
+  .ic.key input{border-color:var(--yglow);background:var(--yWashKey)}
+  .ic.lk input{color:var(--mut2);border-style:dashed;background:transparent;pointer-events:none}
+  .ic.lk label{opacity:var(--lkO)}
+  input[type=number]{-moz-appearance:textfield;appearance:textfield}
+  input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .resetb{margin-top:12px;width:100%;font-family:var(--mono);font-size:12px;color:var(--mut2);background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px;cursor:pointer}
+  .resetb:hover{color:var(--y);border-color:var(--y)}
+  .rpwrap{overflow-x:auto;margin:4px 0 8px}
+  table.rp{border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:720px;width:100%}
+  table.rp th{font-size:11px;font-weight:400;color:var(--mut2);text-align:left;padding:3px 8px 5px 0;white-space:nowrap;border-bottom:1px solid var(--line)}
+  table.rp td{padding:4px 8px 4px 0;vertical-align:middle;white-space:nowrap;border-bottom:1px dashed var(--line)}
+  table.rp .rpn{color:var(--mut);max-width:170px;overflow:hidden;text-overflow:ellipsis}
+  table.rp input,table.rp select{background:var(--field);border:1px solid var(--line2);border-radius:8px;color:var(--txt);font-family:var(--mono);font-size:12px;padding:4px 6px;min-height:26px}
+  table.rp input{width:80px}table.rp input.sm{width:56px}
+  table.rp input:focus,table.rp select:focus{border-color:var(--y);outline:none}
+  table.rp input:disabled{color:var(--mut2);border-style:dashed;background:transparent}
+  table.rp .rpm{text-align:right;font-weight:700;color:var(--txt)}
+  table.rp .rpx{background:transparent;border:1px solid var(--line);border-radius:6px;color:var(--mut2);font-size:11px;padding:2px 7px;cursor:pointer}
+  table.rp .rpx:hover{color:var(--block);border-color:var(--block)}
+  .rpops{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mono);font-size:11.5px;color:var(--mut2);margin:2px 0 8px}
+  .rpops button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--blue);font-family:var(--mono);font-size:11.5px;padding:4px 9px;cursor:pointer;min-height:26px}
+  .rpops button:hover{border-color:var(--blue)}
+  .rptot{font-family:var(--mono);font-size:12px;color:var(--y);font-weight:700;margin:2px 0 6px}
+  .rptot small{color:var(--mut2);font-weight:400;font-size:11px}
+  .foot{margin-top:22px;text-align:center;font-size:11.5px;color:var(--mut2);font-family:var(--mono);line-height:1.8}
+  .loading{padding:80px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--mut2);line-height:2}
+  :focus-visible{outline:2px solid var(--y);outline-offset:1px}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<script>/* 主题预置，先于首屏绘制。默认浅色，只有显式选了深色才落键，不跟随系统。 */
+(function(){try{if(localStorage.getItem('ops_theme')!=='dark')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();
+</script>
+</head>
+<body>
+<header>
+  <a class="back" id="backLink" href="../sandbox/">◂ 返回选址沙盘</a>
+  <div class="brand"><span class="stage" id="stageBadge">开航② · 经济性</span>
+    <span id="brandName">单元 <b>经济</b>台</span>
+    <span id="brandSub" class="bsub"> · 经营测算一张图</span>
+    <span class="badge" id="engBadge" title="测算引擎单源 engine/ue_model.js">引擎单源</span></div>
+  <select class="usel" id="unitSel" aria-label="选择商圈"></select>
+  <button class="shareb" id="shareBtn">⧉ 复制当前情景链接</button>
+  <span class="langtog"><button class="langbtn active" data-lang="zh" onclick="switchLang('zh')">中</button><button class="langbtn" data-lang="en" onclick="switchLang('en')">EN</button></span>
+  <button class="thtog" id="thTog" type="button"><svg id="thIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg></button>
+</header>
+
+<div id="boot" class="loading">载入演示数据…</div>
+<div id="app" style="display:none">
+<div class="verdict" id="verdict" aria-live="polite"></div>
+<div class="md">
+  <div class="rail" id="rail"></div>
+  <div class="detpane">
+    <div class="cstage" id="s1"><div class="ch"><span class="no">①</span><h2 class="ti" data-h2="点位 → 可分配订单池">点位 → 可分配订单池</h2><span class="hint" id="s1hint"></span></div><div id="c1"></div></div>
+    <div class="cstage" id="s2"><div class="ch"><span class="no">②</span><h2 class="ti" data-h2="收入测算">收入测算</h2></div><div id="c2"></div></div>
+    <div class="cstage" id="s3"><div class="ch"><span class="no">③</span><h2 class="ti" data-h2="成本 · 固定 / 阶梯 / 可变">成本 · 固定 / 阶梯 / 可变</h2></div>
+      <div id="c3"></div>
+      <details class="fold"><summary data-h2="展开科目构成明细">展开科目构成明细</summary><div id="costBreak" style="margin-top:9px"></div></details></div>
+    <div class="cstage" id="s4"><div class="ch"><span class="no">④</span><h2 class="ti" data-h2="盈亏结论">盈亏结论</h2><span class="hint" data-h2="谈判锚点">谈判锚点</span></div>
+      <div class="be2" id="breakeven"></div>
+      <details class="fold" open><summary data-h2="敏感性沙盘 · 租金 × 单量 → 利润率">敏感性沙盘 · 租金 × 单量 → 利润率</summary>
+        <div class="hmwrap" style="margin-top:12px"><div id="heatmap"></div></div>
+        <div class="hmlegend" id="hmLegend"></div><div class="hmnote" id="hmNote"></div></details></div>
+    <div class="cstage" id="s5"><div class="ch"><span class="no">⑤</span><h2 class="ti" data-h2="从亏到转正">从亏到转正</h2><span class="hint" data-h2="转正路径">转正路径</span></div><div id="c5"></div></div>
+  </div>
+</div>
+<details class="tuner"><summary data-h2="调参 · 改一个数看结论怎么动">调参 · 改一个数看结论怎么动</summary>
+  <div id="inputs" style="margin-top:10px"></div>
+  <button class="resetb" id="resetBtn">↺ 全部恢复模型默认</button>
+</details>
+<div class="foot" id="foot"></div>
+</div>
+
+<script id="ue-model">/*UE_MODEL_START*/
+/* ============================================================================
+ * 单元经济测算引擎 —— 全站唯一口径单源
+ *
+ * 浏览器：window.UEModel   Node：globalThis.UEModel
+ * 用法：  UEModel.compute({dailyOrders: 200, landingPts: 4, takeoffRent: 9000, ...})
+ *         UEModel.findBreakeven(cfg)            → 真实保本线
+ *         UEModel.rentFromPoints(rentPoints[,y]) → 逐点租金折算成标量
+ *         UEModel.project(cfg[, growth])         → 五年逐年推演
+ *
+ * 结构要点
+ *   收入 = 单均配送收入(客单价×佣金率 + 平台费 + C端配送费) × 月单量 + 广告收入
+ *   成本 = 人力 + 设备折旧 + 电池 + 场地办公 + 其他 + 网络运维 + 营销补贴
+ *   驱动 = 日均单量。人力与设备都是阶梯量(ceil)，所以利润对单量非单调。
+ *   租金 = 逐点四模式(固定 / 仅营业额提成 / 固定+营业额提成 / 固定+配送费提成)
+ *          在 rentFromPoints 独立折算后写回标量，compute 只消费标量。
+ *
+ * 三页共用这一份文件，由 scripts/inject_ue.py 注入到各页的
+ * /*UE_MODEL_START* / … /*UE_MODEL_END* / 标记区。改公式只改这里，改完重新注入。
+ *
+ * 演示说明：本文件里的全部参数取值均为虚构演示值，与任何真实业务无关。
+ * ==========================================================================*/
+(function (g) {
+  'use strict';
+  var ceil = Math.ceil, min = Math.min, max = Math.max, pow = Math.pow;
+
+  /* —— 默认参数。★ 标的是业务输入，其余是规格常量。全部为虚构演示值 —— */
+  var DEFAULTS = {
+    // A 单量与运营（★业务输入）
+    takeoffPts: 1,            // 起飞点数量
+    landingPts: 4,            // 降落点数量（有逐点租金表时 = 表行数派生）
+    routeDist: 2500,          // 平均航线距离 m（单程）
+    dailyOrders: 200,         // ★日均单量 = 全部成本的驱动
+    peakShare: 0.12,          // 峰值小时单量占比
+    lastMileLandingPts: 2,    // 送货上门降落点数（末端配送人数下限）
+    lastMileShare: 0.30,      // 送货上门订单占比
+    // B 收入参数（★业务输入）
+    aov: 52,                  // 实付客单价
+    commissionRate: 0.18,     // 商家佣金率
+    platformFee: 2,           // 平台费 /单
+    deliveryFee: 11,           // C端配送费 /单
+    marketing: 8000,          // 广告收入 /月（计入收入与利润）
+    subsidyPerOrder: 0,       // 营销补贴 /单（我方承担，调用方按视图传档）
+    // C 场地成本（★唯一真正可谈的成本）
+    takeoffRent: 9000,
+    landingRent: 12000,
+    takeoffFitoutPerPt: 3500, // 起飞点每点装修月摊
+    landingFitoutPerPt: 900,  // 降落点每点装修月摊
+    // 人效与调休（规格）
+    annualLeaveDays: 30, weeklyOffDays: 52,   // restFactor = 365/(365-30-52)
+    pilotProd: 280, maintProd: 460, groundProd: 110,
+    pickupProd: null,         // 取餐人效：null = 按取餐方式取值；显式数值优先
+    pickupType: 'Ride',
+    pickupProdByType: { Ride: 30, Walk: 50, Other: 40 },
+    lastMileProd: 32, patrolProd: 180,
+    patrolMinOrders: 180,     // 日均低于此值不配末端巡游
+    groundCapPerTakeoff: 4,
+    // 人力月薪
+    salPilot: 9200, salMaint: 8600, salPickup: 3400, salGround: 4500,
+    salLastMile: 3400, salPatrol: 3400,
+    // 设备配比（规格）
+    droneSpeed: 10,           // m/s 巡航
+    takeoffLandingMin: 4,     // 起降阶段合计分钟
+    droneIdle: 0.3,           // 闲置率（充电与维护）
+    maxDrones: 24,            // 单起飞点机队上限
+    markerPerTakeoff: 6,
+    cabinetPerOrders: 150,    // 恒温柜：每 150 日单 1 个
+    cabinetMaxPerTakeoff: 4,
+    chargingPerCabinet: 2,
+    storagePerDrones: 2,
+    // 设备月折旧单价
+    depDrone: 640, depMarker: 45, depPort: 2900, depCabinet: 300,
+    depCharging: 120, depStorage: 85, depSpare: 115, depBoxReturn: 44,
+    // 电池（规格）
+    batteryPrice: 1700, batteryCycleLife: 600, batteryPackEnergy: 390,
+    elecCost: 0.41, coulombic: 0.93,
+    baseConsume: 0.35, marginalConsume: 0.08, baselineDist: 1700, batterySafety: 0.75,
+    // 其他成本（规格）
+    equipOM: 1000, opsSupplies: 900,
+    simDrone: 580, simPort: 580, simHandheld: 480,
+    vehiclePerTakeoff: 600, boxPerOrder: 0.3,
+    droneInsurance: 130, rtkPerTakeoff: 200,
+    venueElecPerUnit: 300, broadband: 1000, networkOM: 1000,
+    daysPerMonth: 30,         // 月度视图 30；五年视图 project 内用 365/12
+
+    /* 地面协同人力：取餐 + 末端配送 + 末端巡游。
+       总开关 groundStaff 管取餐员（没有它餐到不了起飞点，不是划不划算的选项），
+       末端两项另受 ROI 闸 lastMileSwitch 管，逐单量判。 */
+    groundStaff: true,
+    roiMultiple: 2,           // 末端 ROI 阈值倍数（假定值，待校准）
+    lastMileSwitch: 'auto',   // auto 按 ROI 逐单量判 / on 恒计入 / off 恒不计
+    equipDepOn: true,
+
+    /* 逐点末端闸。不传 landingPools 时整段不启用，退回商圈级单闸。
+         landingPools: [{ share, bands:[≤1km 占比, 1–2km 占比] }, …]
+       归属口径 = 最近点：一单只归离它最近且在圈内的那个降落点，不重复计。 */
+    landingPools: null,
+
+    /* 关闸的标价：某个降落点关掉末端配送后只能柜取，该点上门订单按距离的留存率。
+       这不是绝对自提意愿，是改变履约形态时的相对调整 —— 因为配送方式选择率的口径
+       是「在大网配送与无人机配送之间选无人机的概率」，本身混合了柜取与上门两种形态。
+       只取两档：≤1km 视为不丢单，1–2km 取 0.5，超出本就在降落圈外。 */
+    lmKeepBands: [{ maxKm: 1.0, keep: 1.00 }, { maxKm: 2.0, keep: 0.50 }]
+  };
+
+  /* 营销补贴分档（假定值）。取值随站龄走，调用方按视图取档，不要在引擎里写死一个数。 */
+  var SUBSIDY_TIERS = { steady: 2.5, firstYear: 7.5, firstHalf: 10 };
+
+  /* 商圈上下文覆盖：起飞点就在商场里，取餐是楼内步行，人效远高于跑单口径。 */
+  var DISTRICT_OVERRIDES = { pickupProd: 80, peakShare: 0.12 };
+
+  function compute(o) {
+    var p = Object.assign({}, DEFAULTS, o || {});
+    var rest = 365 / (365 - p.annualLeaveDays - p.weeklyOffDays);
+    var monthlyOrders = p.dailyOrders * p.daysPerMonth;
+    var peakHourVol = p.dailyOrders * p.peakShare;
+    var lastMileDaily = p.dailyOrders * p.lastMileShare;
+
+    /* 单均收入前移：末端 ROI 闸在人力段就要用它。 */
+    var merchantCommission = p.aov * p.commissionRate + p.platformFee;
+    var revPerOrder = merchantCommission + p.deliveryFee;
+    /* 净单均 = 毛单均 − 我方承担的补贴。末端 ROI 闸的分子只许用它：
+       闸问的是多派这一班末端人力撬动的订单值不值这份人力，而订单拖进来的补贴是
+       逐单流出，不管报表上它坐在收入减项还是成本行。分子分母必须同口径。 */
+    var revPerOrderNet = revPerOrder - p.subsidyPerOrder;
+    var pickupProd = (p.pickupProd != null) ? p.pickupProd
+      : (p.pickupProdByType[p.pickupType] != null ? p.pickupProdByType[p.pickupType] : p.pickupProdByType.Other);
+
+    /* —— 逐点末端闸 ——
+       ① 每个降落点各判各的 ROI，分子分母都只算该点的上门订单与末端人力；
+       ② 关闸的点只能柜取，该点上门订单按 lmKeepBands 留存率打折，收入与成本一起减。
+       必须同时减收入：只删成本不删收入的话，关一个点永远是净赚，保本线只会降，
+       那不是经济性变好，是模型少算一笔账。
+       ROI 用该点未打折的需求算 —— 问的是在这里开末端值不值，开着就不丢单。 */
+    var lmPts = null, demandDaily = p.dailyOrders;
+    if (Array.isArray(p.landingPools) && p.landingPools.length) {
+      var shTot = 0, i;
+      for (i = 0; i < p.landingPools.length; i++) shTot += (+p.landingPools[i].share || 0);
+      var even = !(shTot > 0);
+      lmPts = p.landingPools.map(function (q, idx) {
+        var sh = even ? 1 / p.landingPools.length : (+q.share || 0) / shTot;
+        var dI = demandDaily * sh;
+        var lmDI = dI * p.lastMileShare;
+        // 逐点人数下限 = 1。商圈级的 lastMileLandingPts 在这一档不参与，
+        // 否则低单量下每个点都 2 人起，ROI 被除散，逐点化会退化成全关。
+        var staff = max(1, ceil(lmDI / p.lastMileProd)) * rest;
+        var costI = staff * p.salLastMile;
+        var leverI = dI * p.daysPerMonth * p.lastMileShare * revPerOrderNet;
+        var roiI = costI > 0 ? leverI / costI : Infinity;
+        var onI = !!p.groundStaff && (p.lastMileSwitch === 'on' ? true
+          : p.lastMileSwitch === 'off' ? false : roiI >= p.roiMultiple);
+        var bd = q.bands || [1], bsum = 0, keep = 0, k;
+        for (k = 0; k < p.lmKeepBands.length; k++) bsum += (+bd[k] || 0);
+        if (bsum <= 0) keep = p.lmKeepBands[0].keep;
+        else for (k = 0; k < p.lmKeepBands.length; k++)
+          keep += ((+bd[k] || 0) / bsum) * p.lmKeepBands[k].keep;
+        return { i: idx, share: sh, daily: dI, lmDaily: lmDI, staff: staff, cost: costI,
+                 leverRev: leverI, roi: roiI, on: onI, keep: keep,
+                 lostDaily: onI ? 0 : lmDI * (1 - keep) };
+      });
+      var lost = 0;
+      for (i = 0; i < lmPts.length; i++) lost += lmPts[i].lostDaily;
+      p.dailyOrders = demandDaily - lost;
+      monthlyOrders = p.dailyOrders * p.daysPerMonth;
+      peakHourVol = p.dailyOrders * p.peakShare;
+      lastMileDaily = p.dailyOrders * p.lastMileShare;
+    }
+
+    // —— 机队规模 ——
+    var cycleMin = p.routeDist * 2 / p.droneSpeed / 60 + p.takeoffLandingMin;
+    var tripsPerHr = 60 / cycleMin;
+    var peakDrones = peakHourVol > 0 ? ceil(peakHourVol / tripsPerHr) : 0;
+    var fleetLimit = p.maxDrones * p.takeoffPts;   // 上限随起飞点数放大
+    var drones = min(ceil(peakDrones * (1 + p.droneIdle)), fleetLimit);
+
+    // —— 人力（阶梯用工 × 调休系数）——
+    var nPilot = ceil(p.dailyOrders / p.pilotProd) * rest;
+    var nMaint = ceil(p.dailyOrders / p.maintProd) * rest;
+    var nPickup = ceil(p.dailyOrders / pickupProd) * rest;
+    var nGround = min(ceil(p.dailyOrders / p.groundProd), p.groundCapPerTakeoff * p.takeoffPts) * rest;
+    var lmOpenN = 0, lmOpenDaily = 0, z;
+    if (lmPts) for (z = 0; z < lmPts.length; z++) if (lmPts[z].on) {
+      lmOpenN++; lmOpenDaily += lmPts[z].lmDaily;
+    }
+    var nLastMile = lmPts
+      ? (lmOpenN ? max(lmOpenN, ceil(lmOpenDaily / p.lastMileProd)) * rest : 0)
+      : max(p.lastMileLandingPts, ceil(lastMileDaily / p.lastMileProd)) * rest;
+    var nPatrol = p.dailyOrders < p.patrolMinOrders ? 0 : ceil(p.dailyOrders / p.patrolProd) * rest;
+
+    var cPilot = nPilot * p.salPilot, cMaint = nMaint * p.salMaint, cGround = nGround * p.salGround;
+    /* 三项地面人力的原值始终算出（供 ROI 判决），计入 labor 分两层门控：
+         取餐员   只随总开关 groundStaff
+         末端两项 受 ROI 闸，分母只算这两项，与分子（上门订单收入）同口径，逐单量判
+       分母若混进取餐员，ROI 会恒在 1 以下、闸恒关，取餐员被一起剔除，
+       等于模型认为餐是自己飞到起飞点的。 */
+    var cPickupRaw = nPickup * p.salPickup,
+        cLastMileRaw = nLastMile * p.salLastMile,
+        cPatrolRaw = nPatrol * p.salPatrol;
+    var gsOn = p.groundStaff ? 1 : 0;
+    var cPickup = cPickupRaw * gsOn;
+
+    /* 逐点档下 nLastMile 只含开闸点的人力，全关时是 0，直接拿它当分母商圈级 ROI 会变 Infinity。
+       所以逐点档的商圈级 ROI 改成把每个点都当作开着的合计，语义仍是
+       「在这个商圈铺末端配送划不划算」，且恒有定义。逐点的真实判决在 lmPts[].on 上。 */
+    var lmCost, lmLeverRev;
+    if (lmPts) {
+      var cAll = 0, rAll = 0;
+      for (z = 0; z < lmPts.length; z++) { cAll += lmPts[z].cost; rAll += lmPts[z].leverRev; }
+      lmCost = cAll + cPatrolRaw;
+      lmLeverRev = rAll;
+    } else {
+      lmCost = cLastMileRaw + cPatrolRaw;
+      lmLeverRev = monthlyOrders * p.lastMileShare * revPerOrderNet;
+    }
+    var lmRoi = lmCost > 0 ? lmLeverRev / lmCost : Infinity;
+    var lmAdvise = lmRoi >= p.roiMultiple;
+    var lmOn = lmPts ? (gsOn && lmOpenN > 0 ? 1 : 0)
+      : gsOn && (p.lastMileSwitch === 'on' ? 1
+        : p.lastMileSwitch === 'off' ? 0 : (lmAdvise ? 1 : 0));
+    var cLastMile = cLastMileRaw * lmOn, cPatrol = cPatrolRaw * lmOn;
+    var staffCostAll = cPickupRaw + cLastMileRaw + cPatrolRaw;
+    var labor = cPilot + cMaint + cPickup + cGround + cLastMile + cPatrol;
+
+    // —— 设备折旧 ——
+    var nMarker = p.takeoffPts * p.markerPerTakeoff;
+    var nPort = p.landingPts;
+    var nCabinet = min(ceil(p.dailyOrders / p.cabinetPerOrders), p.cabinetMaxPerTakeoff * p.takeoffPts);
+    var nCharging = nCabinet * p.chargingPerCabinet;
+    var nStorage = ceil(drones / p.storagePerDrones);
+    var nSpare = p.takeoffPts;
+    var nBoxReturn = p.landingPts;
+    var equipDepRaw = drones * p.depDrone + nMarker * p.depMarker + nPort * p.depPort
+      + nCabinet * p.depCabinet + nCharging * p.depCharging + nStorage * p.depStorage
+      + nSpare * p.depSpare + nBoxReturn * p.depBoxReturn;
+    var equipDep = p.equipDepOn ? equipDepRaw : 0;
+
+    // —— 电池（随航程）——
+    var consumeRatio = p.baseConsume + (p.routeDist / 1000 - p.baselineDist / 1000) * p.marginalConsume;
+    var batHwPerOrder = consumeRatio / p.batterySafety * (p.batteryPrice / p.batteryCycleLife);
+    var batElecPerOrder = consumeRatio * p.batteryPackEnergy / p.coulombic * p.elecCost / 1000;
+    var batteryHw = batHwPerOrder * monthlyOrders;
+    var batteryElec = batElecPerOrder * monthlyOrders;
+    var battery = batteryHw + batteryElec;
+
+    // —— 场地与办公 ——
+    var rent = p.takeoffRent + p.landingRent;
+    var takeoffFitoutM = (p.takeoffFitoutM != null) ? p.takeoffFitoutM : p.takeoffPts * p.takeoffFitoutPerPt;
+    var landingFitoutM = (p.landingFitoutM != null) ? p.landingFitoutM : p.landingPts * p.landingFitoutPerPt;
+    var fitout = takeoffFitoutM + landingFitoutM;
+    var venueElec = p.venueElecPerUnit * (p.landingPts + p.takeoffPts);
+    var venueOffice = rent + fitout + venueElec + p.broadband;
+
+    // —— 其他成本 ——
+    var nHandheld = (p.handheldCount != null) ? p.handheldCount : ceil(nGround + nPickup);
+    var simDroneC = ceil(drones) * p.simDrone,
+        simPortC = ceil(nPort) * p.simPort,
+        simHandheldC = nHandheld * p.simHandheld;
+    var simTotal = simDroneC + simPortC + simHandheldC;
+    var vehicle = p.takeoffPts * p.vehiclePerTakeoff;
+    var box = monthlyOrders * p.boxPerOrder;
+    var insurance = drones * p.droneInsurance;
+    var rtk = p.takeoffPts * p.rtkPerTakeoff;
+    var other = p.equipOM * p.takeoffPts + p.opsSupplies * p.takeoffPts
+      + simTotal + vehicle + box + insurance + rtk;
+
+    /* 营销补贴单列成科目，不并进「其他」：它是当前最大的一笔逐单流出，
+       并进去以后在成本结构里就看不见了。 */
+    var subsidy = p.subsidyPerOrder * monthlyOrders;
+    var deliveryCost = labor + equipDep + battery + venueOffice + other + p.networkOM + subsidy;
+
+    // —— 收入 ——
+    var revDelivery = revPerOrder * monthlyOrders;
+    var revenue = revDelivery + p.marketing;
+
+    // —— 利润 ——
+    var profit = revenue - deliveryCost;
+    var margin = revenue ? profit / revenue : 0;
+    var costPerOrder = monthlyOrders ? deliveryCost / monthlyOrders : 0;
+    var profitPerOrder = revPerOrder - costPerOrder;
+
+    /* 局部估计的平衡点：可变成本只算电池与餐箱，其余视为固定。
+       远低于平衡点时会严重低估，真实保本走 findBreakeven。 */
+    var varCostPerOrder = monthlyOrders > 0 ? (battery + box) / monthlyOrders : 0;
+    var contributionPerOrder = revPerOrder - varCostPerOrder;
+    var breakEvenMonthly = contributionPerOrder > 0 ? deliveryCost / contributionPerOrder : Infinity;
+    var breakEvenDaily = breakEvenMonthly / p.daysPerMonth;
+
+    /* 成本反向倒推：给定单量、其余成本已知时，仍能保本的最大可承受月租金。
+       这是谈判锚点 —— 不正向填租金算盈亏，而由收益反推能承受多少。 */
+    var nonRentCost = deliveryCost - rent;
+    var rentCeiling = revenue - nonRentCost;
+    var negotiationRoom = rentCeiling - rent;
+
+    return {
+      inputs: p, restFactor: rest,
+      monthlyOrders: monthlyOrders, dailyOrders: p.dailyOrders,
+      peakHourVol: peakHourVol, drones: drones, peakDrones: peakDrones,
+      revPerOrder: revPerOrder, revPerOrderNet: revPerOrderNet,
+      merchantCommission: merchantCommission,
+      revDelivery: revDelivery, marketing: p.marketing, revenue: revenue,
+      labor: labor, equipDep: equipDep, battery: battery, venueOffice: venueOffice,
+      other: other, networkOM: p.networkOM, subsidy: subsidy,
+      subsidyPerOrder: p.subsidyPerOrder, deliveryCost: deliveryCost,
+      rent: rent, nonRentCost: nonRentCost,
+      profit: profit, margin: margin, costPerOrder: costPerOrder, profitPerOrder: profitPerOrder,
+      varCostPerOrder: varCostPerOrder, breakEvenMonthly: breakEvenMonthly,
+      breakEvenDaily: breakEvenDaily,
+      rentCeiling: rentCeiling, negotiationRoom: negotiationRoom,
+      /* 这是读数不是入参。任何一个字段都不许回填进 cfg 再喂给跨单量的扫描与推演 ——
+         那会把某一个单量上的判决冻结着用到整条扫描上。
+         要 ROI 的分母就用 lmCost（末端两项），要三项总额就用 costAll，两者别混算。 */
+      groundStaffEval: {
+        on: !!p.groundStaff, costAll: staffCostAll, lmCost: lmCost, leverRev: lmLeverRev,
+        roi: lmRoi, advise: lmAdvise, lmOn: !!lmOn, pickupOn: !!gsOn,
+        perPoint: !!lmPts, openPts: lmPts ? lmOpenN : null, points: lmPts,
+        demandDaily: demandDaily, effDaily: p.dailyOrders,
+        lostDaily: lmPts ? demandDaily - p.dailyOrders : 0
+      },
+      breakdown: {
+        labor: { total: labor, items: [
+          ['飞手', nPilot, p.salPilot, cPilot], ['机务', nMaint, p.salMaint, cMaint],
+          ['取餐员', nPickup, p.salPickup, cPickup], ['地勤', nGround, p.salGround, cGround],
+          ['末端配送', nLastMile, p.salLastMile, cLastMile], ['末端巡游', nPatrol, p.salPatrol, cPatrol]
+        ] },
+        equipDep: { total: equipDep, items: [
+          ['无人机 A1', drones, p.depDrone], ['地面标识', nMarker, p.depMarker],
+          ['降落柜', nPort, p.depPort], ['室外恒温柜', nCabinet, p.depCabinet],
+          ['充电柜', nCharging, p.depCharging], ['机库', nStorage, p.depStorage],
+          ['备品柜', nSpare, p.depSpare], ['餐箱回收柜', nBoxReturn, p.depBoxReturn]
+        ] },
+        battery: { total: battery, hardware: batteryHw, electricity: batteryElec, consumeRatio: consumeRatio },
+        venueOffice: { total: venueOffice, rent: rent, takeoffRent: p.takeoffRent, landingRent: p.landingRent,
+          fitout: fitout, takeoffFitout: takeoffFitoutM, landingFitout: landingFitoutM,
+          venueElec: venueElec, broadband: p.broadband },
+        other: { total: other, sim: simTotal, simDrone: simDroneC, simPort: simPortC, simHandheld: simHandheldC,
+          vehicle: vehicle, box: box, insurance: insurance, rtk: rtk,
+          equipOM: p.equipOM * p.takeoffPts, opsSupplies: p.opsSupplies * p.takeoffPts }
+      }
+    };
+  }
+
+  /* ==========================================================================
+   * 逐点租金层 —— 独立于 compute 的纯函数。
+   * UI 维护 rentPoints → rentFromPoints 折算 → 写回四个标量 → compute 与全部
+   * 既有消费方（热力图 / 反推 / URL 载荷）零改动。
+   * RentPoint = { name, mode, fixed, pct, growthRent, fitoutTotal, amortMonths,
+   *               dailyOrders, aov, cfee, growthOrders, growthAov, growthCfee }
+   * ========================================================================*/
+  var RENT_MODES = ['fixed', 'pct_gmv', 'fixed_pct_gmv', 'fixed_pct_cfee'];
+  function modeHasFixed(m) { return m === 'fixed' || m === 'fixed_pct_gmv' || m === 'fixed_pct_cfee'; }
+  function modeHasGmv(m) { return m === 'pct_gmv' || m === 'fixed_pct_gmv'; }
+  function modeHasCfee(m) { return m === 'fixed_pct_cfee'; }
+
+  function pointMonthly(pt, yearIdx) {
+    var y = yearIdx || 1;
+    var fixedM = modeHasFixed(pt.mode) ? (pt.fixed || 0) * pow(1 + (pt.growthRent || 0), y - 1) : 0;
+    var d = (pt.dailyOrders || 0) * pow(1 + (pt.growthOrders || 0), y - 1);
+    var aov = (pt.aov || 0) * pow(1 + (pt.growthAov || 0), y - 1);
+    var cf = (pt.cfee || 0) * pow(1 + (pt.growthCfee || 0), y - 1);
+    var base = (modeHasGmv(pt.mode) ? d * aov : 0) + (modeHasCfee(pt.mode) ? d * cf : 0);
+    return fixedM + base * (pt.pct || 0) * 365 / 12;
+  }
+  function pointFitoutM(pt) {
+    var mo = pt.amortMonths || 12;
+    return mo > 0 ? (pt.fitoutTotal || 0) / mo : 0;
+  }
+  function rentFromPoints(rp, yearIdx) {
+    var to = (rp && rp.takeoff) || [], la = (rp && rp.landing) || [];
+    var r = { takeoffRent: 0, landingRent: 0, takeoffFitoutM: 0, landingFitoutM: 0,
+              takeoffPts: to.length || 1, landingPts: la.length };
+    to.forEach(function (pt) { r.takeoffRent += pointMonthly(pt, yearIdx); r.takeoffFitoutM += pointFitoutM(pt); });
+    la.forEach(function (pt) { r.landingRent += pointMonthly(pt, yearIdx); r.landingFitoutM += pointFitoutM(pt); });
+    return r;
+  }
+  /* 商圈快照 → 默认逐点表（全固定、均摊）。
+     恒等式：rentFromPoints(defaultRentPoints(u)) ≡ 快照里的四个标量。 */
+  function defaultRentPoints(u, fitoutT, fitoutL) {
+    var lands = u.lands || 0, names = u.landNames || [];
+    var per = lands ? +((u.landingRent || 0) / lands).toFixed(2) : 0;
+    var arr = [];
+    for (var i = 0; i < lands; i++) arr.push({
+      name: names[i] || null, nameKey: '降落点', nameIdx: i + 1,
+      mode: 'fixed', fixed: per, pct: 0, growthRent: 0,
+      fitoutTotal: fitoutL != null ? fitoutL : 10800, amortMonths: 12,
+      dailyOrders: null, aov: null, cfee: null, growthOrders: 0, growthAov: 0, growthCfee: 0
+    });
+    return {
+      takeoff: [{
+        name: u.hubName || null, nameKey: '起飞点', nameIdx: null,
+        mode: 'fixed', fixed: (u.takeoffRent != null ? u.takeoffRent : DEFAULTS.takeoffRent),
+        pct: 0, growthRent: 0,
+        fitoutTotal: fitoutT != null ? fitoutT : 42000, amortMonths: 12,
+        dailyOrders: null, aov: null, cfee: null, growthOrders: 0, growthAov: 0, growthCfee: 0
+      }],
+      landing: arr
+    };
+  }
+
+  /* ==========================================================================
+   * 五年逐年推演
+   *   年 = 日均 × 365（daysPerMonth 取 365/12）；设备逐年重算；折旧五年不到期；
+   *   装修计入首年一次性（月度视图仍按 amortMonths 摊，两个口径并存）；
+   *   租金随逐点表逐年推演（固定部分复利，提成部分随该年营业额或配送费）。
+   * ========================================================================*/
+  var GROWTH_DEF = {
+    orders: [0, 0.12, 0.12, 0.10, 0.10],
+    salary: 0.03, aov: 0.03, marketing: 0.10,
+    commission: 0, platformFee: 0, cfee: 0
+  };
+  function project(o, gr) {
+    var base = Object.assign({}, o || {});
+    var G = Object.assign({}, GROWTH_DEF, gr || {});
+    var orders = G.orders && G.orders.length ? G.orders : GROWTH_DEF.orders;
+    var d0 = (base.dailyOrders != null) ? base.dailyOrders : DEFAULTS.dailyOrders;
+    var rp = base.rentPoints || null;
+    var fitout1 = 0;
+    if (rp) {
+      (rp.takeoff || []).concat(rp.landing || []).forEach(function (pt) { fitout1 += pt.fitoutTotal || 0; });
+    } else {
+      var tfM = (base.takeoffFitoutM != null) ? base.takeoffFitoutM
+        : ((base.takeoffPts != null ? base.takeoffPts : DEFAULTS.takeoffPts) * DEFAULTS.takeoffFitoutPerPt);
+      var lfM = (base.landingFitoutM != null) ? base.landingFitoutM
+        : ((base.landingPts != null ? base.landingPts : DEFAULTS.landingPts) * DEFAULTS.landingFitoutPerPt);
+      fitout1 = (tfM + lfM) * 12;
+    }
+    var pick = function (k) { return (base[k] != null) ? base[k] : DEFAULTS[k]; };
+    var aov0 = pick('aov'), mkt0 = pick('marketing'), cr0 = pick('commissionRate'),
+        pf0 = pick('platformFee'), df0 = pick('deliveryFee');
+    var salKeys = ['salPilot', 'salMaint', 'salPickup', 'salGround', 'salLastMile', 'salPatrol'];
+    var sal0 = {}; salKeys.forEach(function (k) { sal0[k] = pick(k); });
+
+    var years = [], landYear = null, daily = d0, totRev = 0, totCost = 0, totProfit = 0;
+    for (var t = 1; t <= 5; t++) {
+      if (t > 1) daily = daily * (1 + (orders[t - 1] || 0));
+      var f = pow(1 + G.salary, t - 1);
+      var cfgY = Object.assign({}, base, {
+        rentPoints: undefined,
+        dailyOrders: daily,
+        daysPerMonth: 365 / 12,
+        aov: aov0 * pow(1 + G.aov, t - 1),
+        marketing: mkt0 * pow(1 + G.marketing, t - 1),
+        commissionRate: cr0 * pow(1 + G.commission, t - 1),
+        platformFee: pf0 * pow(1 + G.platformFee, t - 1),
+        deliveryFee: df0 * pow(1 + G.cfee, t - 1),
+        equipDepOn: true,
+        takeoffFitoutM: 0, landingFitoutM: 0
+      });
+      salKeys.forEach(function (k) { cfgY[k] = sal0[k] * f; });
+      if (rp) {
+        var r = rentFromPoints(rp, t);
+        cfgY.takeoffRent = r.takeoffRent; cfgY.landingRent = r.landingRent;
+        if (o == null || o.takeoffPts == null) cfgY.takeoffPts = r.takeoffPts;
+        if (o == null || o.landingPts == null) cfgY.landingPts = r.landingPts;
+      }
+      var m = compute(cfgY);
+      var rev = m.revenue * 12;
+      var cost = m.deliveryCost * 12 + (t === 1 ? fitout1 : 0);
+      var pr = rev - cost;
+      if (landYear == null && pr >= 0) landYear = t;
+      totRev += rev; totCost += cost; totProfit += pr;
+      years.push({ t: t, daily: daily, annualOrders: daily * 365, monthlyOrders: m.monthlyOrders,
+        revenue: rev, cost: cost, profit: pr, margin: rev ? pr / rev : 0, rent: m.rent * 12, m: m });
+    }
+    return { years: years, landYear: landYear,
+      totals: { revenue: totRev, cost: totCost, profit: totProfit },
+      fitoutOneOff: fitout1, growth: G };
+  }
+
+  /* ==========================================================================
+   * 真实保本线
+   *   compute().breakEvenDaily 是局部估计（成本冻结在当前单量），远低于平衡点时严重低估。
+   *   这里把成本随单量的阶梯上升也算进去，逐单量扫描。
+   *
+   *   判据 = 持续为正，取最后一段连续为正的起点，不取首次穿越：
+   *   利润对单量非单调（人力是 ceil 阶梯、收入是线性，每上一级台阶利润掉一次），
+   *   首次穿零的那个单量未必稳得住。
+   *   因此必须扫满 CAP，不许一穿越就 return，也不许用二分 ——
+   *   非单调下二分会落进某个孤立的正区间里。
+   * ========================================================================*/
+  function findBreakeven(o) {
+    var cfg = o || {};
+    var dpm = cfg.daysPerMonth || DEFAULTS.daysPerMonth;
+    var CAP = 3000;
+    /* 机队运力上限：只报不拦。封顶之后引擎还在按单量加收入、不再加飞机，
+       成本摊薄让保本线仍然解得出来，但那个单量这套机队飞不了。
+       判据用真实运力（封顶后在飞架数 × 每架每小时趟数 ÷ 峰值占比），
+       不是「飞机数撞顶」那一刻 —— 撞顶只是成本停涨点。 */
+    var p0 = Object.assign({}, DEFAULTS, cfg);
+    var cyc = p0.routeDist * 2 / p0.droneSpeed / 60 + p0.takeoffLandingMin;
+    var tph = 60 / cyc;
+    var flying = (p0.maxDrones * p0.takeoffPts) / (1 + p0.droneIdle);
+    var fleetCapDaily = p0.peakShare > 0 ? Math.floor(flying * tph / p0.peakShare) : null;
+
+    var stable = null, firstCross = null;
+    for (var d = 1; d <= CAP; d++) {
+      if (compute(Object.assign({}, cfg, { dailyOrders: d })).profit >= 0) {
+        if (firstCross === null) firstCross = d;
+        if (stable === null) stable = d;
+      } else {
+        stable = null;
+      }
+    }
+    if (stable === null) {
+      return { daily: Infinity, monthly: Infinity, feasible: false,
+               firstCross: firstCross, dipAfterFirst: firstCross !== null,
+               fleetCapDaily: fleetCapDaily, overFleet: false };
+    }
+    return { daily: stable, monthly: stable * dpm, feasible: true,
+             firstCross: firstCross, dipAfterFirst: firstCross !== null && firstCross !== stable,
+             fleetCapDaily: fleetCapDaily,
+             overFleet: fleetCapDaily != null && stable > fleetCapDaily };
+  }
+
+  var API = {
+    DEFAULTS: DEFAULTS, GROWTH_DEF: GROWTH_DEF, SUBSIDY_TIERS: SUBSIDY_TIERS,
+    DISTRICT_OVERRIDES: DISTRICT_OVERRIDES, RENT_MODES: RENT_MODES,
+    compute: compute, findBreakeven: findBreakeven,
+    rentFromPoints: rentFromPoints, defaultRentPoints: defaultRentPoints,
+    pointMonthly: pointMonthly, project: project
+  };
+  g.UEModel = API;
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+/*UE_MODEL_END*/</script>
+<script>
+/* =====================================================================
+ * 单元经济台 —— 经营测算一张图
+ * 五段链路：① 订单池 → ② 收入 → ③ 成本 → ④ 盈亏 → ⑤ 转正
+ * 左边一列是每段的结论与测算逻辑，右边是当前段的明细。
+ * 测算全部走 UEModel，页面不自己算 —— 结论必须等于明细。
+ * 数据由 scripts/gen_mock.py 生成，与任何真实业务无关。
+ * ===================================================================== */
+'use strict';
+const $=s=>document.querySelector(s);
+/* 负号统一 U+2212。等宽字体下 ASCII 的减号与它宽度不同，同屏出现两种负号会看出来参差。 */
+const wan=v=>(v<0?'−':'')+Math.abs(v/10000).toFixed(1);
+const fmt=v=>{const n=Math.round(v);return (n<0?'−':'')+Math.abs(n).toLocaleString();};
+const pctTxt=v=>(v<0?'−':'')+Math.abs(v).toFixed(0);
+
+let LANG='zh';
+function L(s){return (LANG==='en'&&s!=null&&EN[s]!==undefined)?EN[s]:s;}
+function nW(v){return LANG==='en'?((v<0?'−':'')+Math.abs(Math.round(v/1000)).toLocaleString()):wan(v);}
+function bk(s){return LANG==='en'?' ('+s+')':'（'+s+'）';}
+const EN={
+ '返回选址沙盘':'Back to Site Sandbox','开航② · 经济性':'Pre-Launch ② · Economics','经营测算一张图':'Operating economics, one view',
+ '引擎单源':'One engine','测算引擎单源 engine/ue_model.js':'Single engine source: engine/ue_model.js',
+ '选择商圈':'Select district','复制当前情景链接':'Copy scenario link','已复制':'Copied','载入演示数据…':'Loading demo data…',
+ '订单池':'Order pool','收入':'Revenue','成本':'Cost','盈亏':'P&L','转正':'To positive',
+ '点位 → 可分配订单池':'Site → addressable pool','收入测算':'Revenue','成本 · 固定 / 阶梯 / 可变':'Cost · fixed / stepped / variable',
+ '盈亏结论':'P&L verdict','从亏到转正':'Loss → positive','谈判锚点':'Deal anchor','转正路径':'Path to positive',
+ '展开科目构成明细':'Expand per-item breakdown','敏感性沙盘 · 租金 × 单量 → 利润率':'Sensitivity · rent × volume → margin',
+ '调参 · 改一个数看结论怎么动':'Tune · change one number, watch it move','↺ 全部恢复模型默认':'↺ Reset all to defaults',
+ 'UE 为正 · 月利润':'UE positive · monthly profit','月亏':'Monthly loss','保本线':'Break-even','还差':'gap','验证期':'pilot stage',
+ '几年转正':'Years to positive','约':'~','年转正':'y to positive','5 年内未转正':'Not positive within 5y','可承受租金上限':'Affordable rent ceiling',
+ '万':'k','万/月':'k/mo','万/年':'k/y','单/天':'/day','单/月':'/mo','单':'orders','年':'y','月':'mo','人':' ppl','项':'items','/单':'/order','个':'','家':'',
+ '数据':'Data','快照':'snapshot','独立测算':'Standalone','取餐圈口径':'pickup-circle basis',
+ '大盘订单池':'Market pool','可承接率':'Servable rate','配送方式选择率':'Delivery-option pick rate','假定':'assumed','输入直接给':'entered directly',
+ '可承接率构成':'Servable-rate build-up','商家覆盖':'Merchant coverage','商品覆盖':'Item coverage',
+ '现状':'Now','近期':'Near','目标':'Target','仅已签':'signed only','已签+签约中':'signed + signing','核心商家全签':'all core merchants signed',
+ '当前无签约中，与现状同值':'no merchant in signing, same as Now','已上架':'listed','已签可供给':'available from signed',
+ '当前采用':'currently used','圈内':'in circle','数据源':'Source','假定值':'assumption','暂无订单数据，三档覆盖待算':'no order data yet, 3-tier coverage pending',
+ '实测值 · 不参与上方计算':'measured · not applied above','商家覆盖为假定值时不叠乘':'not compounded while merchant coverage is an assumption',
+ '单均':'per order','月单量':'monthly volume','广告收入':'Ad revenue','月收入合计':'Total monthly revenue','收入构成':'Revenue breakdown',
+ '商家佣金':'Merchant commission','平台费':'Platform fee','C端配送费':'Delivery fee','客单价':'AOV','佣金率':'commission rate',
+ '月值 · 计入收入与利润':'monthly · counted into revenue and profit','商圈现值为 0，待商业化数据':'0 for districts, pending commercial data',
+ '商家侧':'Merchant side','用户侧':'User side','对外只露用户侧配送费':'external material shows the user-side fee only',
+ '固定成本':'Fixed','阶梯成本 · 人力':'Stepped · labour','可变成本':'Variable','月配送成本合计':'Total monthly cost','成本科目':'Cost items',
+ '人力':'Labour','设备折旧':'Equipment depreciation','电池':'Battery','场地及办公':'Venue & office','其他':'Other','网络运维':'Network O&M','营销补贴':'Marketing subsidy',
+ '明细':'Detail','地面协同人力':'Ground staff','开':'on','关':'off','末端成本':'Last-mile cost','撬动收入':'Driven revenue','取餐员另计':'picker counted separately',
+ '阈值':'Threshold','逐点':'Per point','关闸丢单':'Orders lost when closed','圈内 1km 内关闸不丢单':'within 1 km, closing loses no orders',
+ '末端配送与巡游受 ROI 闸，取餐员恒计入':'Last-mile delivery and patrol are ROI-gated; the picker is always counted',
+ '盈亏平衡单量':'Break-even volume','当前':'Current','缺口':'Gap','已转正':'already positive','需补单量':'need more volume',
+ '保本线取最后一段连续为正的起点':'Break-even = start of the last continuously positive stretch',
+ '首次穿零':'first crossing','之后还会回落':'dips again after that',
+ '现状红线 · 当前单量':'current-volume ceiling','当前拟租金':'Current rent','谈判空间':'Negotiating headroom',
+ '当前租金在上限内，可承受':'Rent is within the ceiling','租金需压到上限内，或抬单量与可承接率':'Cut rent below the ceiling, or raise volume and servable rate',
+ '利润率:':'Margin:','亏 ←':'Loss ←','→ 盈':'→ Profit','当前场景':'Current scenario','绿区可转正':'Green turns positive','租金轴为场地总月租':'Rent axis = total monthly site rent',
+ '月租金':'Rent/mo','日单量':'Orders/day','日单':'Daily','租金':'Rent','利润率':'Margin','不在表格轴范围内，当前场景未标注':'Outside the axis range, current scenario not marked',
+ '杠杆①':'Lever ①','杠杆②':'Lever ②','杠杆③':'Lever ③','增设降落点':'Add a landing point','商家商品覆盖':'Merchant & item coverage',
+ '扩大可配对的订单池':'widens the matchable order pool','沿建议名单签核心商家':'sign core merchants from the list','对照区间 20–30%':'reference range 20–30%',
+ '五年逐年推演':'Five-year projection','单量涨幅':'Volume growth','薪资':'Salary','广告':'Ads','假定 · 待校准':'assumption · to calibrate','已偏离默认口径':'off default assumptions',
+ '首年含装修一次性':'Y1 includes one-off fit-out','折旧五年不到期':'no depreciation expiry within 5y','第 5 年距保本':'Y5 gap to break-even',
+ '转正前要垫多少钱':'Cash to carry before turning positive','每年':'per year','全年亏损':'Annual loss','可垫付年亏上限':'Coverable annual loss','未覆盖':'Uncovered','已覆盖':'Covered','已盈利，无缺口':'Profitable, no gap',
+ '反推租金上限 · 按转正周期':'Backsolved rent ceiling · by target year','目标年转正时全程可承受的最大总月租':'Max total monthly rent sustainable while turning positive by year N',
+ '该年日均':'daily that year','免租仍亏':'negative even rent-free','租金不构成约束':'rent is not the constraint','底线':'Floor',
+ 'A · 单量与运营':'A · Volume & ops','B · 收入参数':'B · Revenue','C · 场地租金 · 唯一可谈':'C · Site rent · the only negotiable',
+ 'D · 人力月薪 · 固定':'D · Monthly salary · fixed','E · 人效':'E · Productivity','F · 设备折旧单价 · 固定':'F · Depreciation unit price · fixed',
+ 'G · 电池参数 · 固定':'G · Battery · fixed','H · 其他成本单价 · 固定':'H · Other unit prices · fixed','I · 五年模型 · 假定':'I · Five-year model · assumptions',
+ '固定参数 · 不可调':'Fixed parameters · locked','日均单量':'Daily orders','起飞点数':'Takeoff points','降落点数':'Landing points','平均航程':'Avg route',
+ '峰值小时占比':'Peak-hour share','送货上门占比':'Door-delivery share','上门降落点':'Door landing points','飞机闲置率':'Drone idle rate',
+ '实付客单价':'AOV paid','商家佣金率':'Commission rate','营销补贴':'Marketing subsidy',
+ '飞手':'Pilot','机务':'Maintenance','取餐员':'Picker','地勤':'Ground crew','末端配送':'Last-mile','末端巡游':'Patrol','关闸留存':'retention if closed',
+ '起飞点月租':'Takeoff rent/mo','降落点月租':'Landing rent/mo','点位':'Site','模式':'Mode','固定额':'Fixed','提成比例':'Share %','年涨':'Growth/y',
+ '装修总额':'Fit-out total','摊销月数':'Amort. months','月租（算）':'Rent (calc)','删除':'remove','增加降落点':'Add landing point','全部设为固定':'All fixed',
+ '固定租金':'Fixed rent','仅营业额提成':'GMV share only','固定+营业额提成':'Fixed + GMV share','固定+配送费提成':'Fixed + delivery-fee share',
+ '合计':'Total','改行数即改降落点数':'row count = number of landing points',
+ '客单价涨幅':'AOV growth','薪资涨幅':'Salary growth','广告涨幅':'Ads growth','年可承受亏损上限':'Annual loss cap',
+ '浅色':'Light','深色':'Dark','主题':'Theme','切换到浅色':'Switch to light','切换到深色':'Switch to dark',
+ '选择率':'pick rate','手动改写':'manual override','链路值':'chain value','利润':'Profit','未计入':'not counted',
+ '单元经济台':'Unit Economics','上限为假定值，业务方按年定':'The cap is an assumption, set yearly by the business side',
+ '月薪':'salary','人数':'headcount','折旧单价':'unit price','派生数量':'derived qty','每单耗电':'energy per order',
+ '装修':'fit-out','电费':'electricity','单价':'unit price','数量':'qty','固定月费':'fixed monthly fee',
+ '硬件磨损':'Hardware wear','起飞租金':'Takeoff rent','降落租金':'Landing rent','装修摊销':'Fit-out amortisation',
+ '场地电费':'Site electricity','宽带':'Broadband','设备运维':'Equipment O&M','运营物料':'Ops supplies',
+ '流量卡':'SIM data','运营车辆':'Ops vehicle','餐箱包装':'Meal-box packaging','保险':'Insurance','定位服务':'Positioning service',
+ '无人机':'Drone','地面标识':'Ground marker','降落柜':'Landing cabinet','室外恒温柜':'Outdoor temp cabinet',
+ '充电柜':'Charging cabinet','机库':'Hangar','备品柜':'Spare cabinet','餐箱回收柜':'Meal-box return',
+ '当前单量下免租也不保本':'Rent-free still does not break even at this volume',
+ '北湾商圈':'Northbay District','河畔商圈':'Riverside District','西门商圈':'Westgate District','湖景商圈':'Lakeview District',
+ '本页为个人作品集演示，全部数据由脚本生成，与任何真实业务无关。':'Portfolio demo. All data is script-generated and unrelated to any real business.'
+};
+
+/* ============ 主题 ============ */
+const THKEY='ops_theme';
+const TH_ICON={
+ light:'<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/><path d="M12 1.5v2.7M12 19.8v2.7M4.5 4.5l1.9 1.9M17.6 17.6l1.9 1.9M1.5 12h2.7M19.8 12h2.7M4.5 19.5l1.9-1.9M17.6 6.4l1.9-1.9" stroke="currentColor" stroke-width="2.2"/>',
+ dark:'<path d="M20.6 14.9A8.7 8.7 0 1 1 9.1 3.4a6.9 6.9 0 0 0 11.5 11.5z" fill="currentColor" stroke="none"/>'};
+function thMode(){try{return localStorage.getItem(THKEY)==='dark'?'dark':'light';}catch(e){return 'light';}}
+function renderThemeBtn(){const m=thMode(),ic=$('#thIco'),bt=$('#thTog');if(!ic)return;
+  ic.innerHTML=TH_ICON[m];
+  bt.setAttribute('aria-label',L('主题')+' · '+L(m==='light'?'浅色':'深色'));
+  bt.title=L(m==='light'?'切换到深色':'切换到浅色');}
+function applyTheme(){const m=thMode();
+  if(m==='light')document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  renderThemeBtn();}
+function cycleTheme(){const nx=thMode()==='light'?'dark':'light';
+  try{nx==='dark'?localStorage.setItem(THKEY,'dark'):localStorage.removeItem(THKEY);}catch(e){}
+  applyTheme();}
+
+/* ============ 状态 ============ */
+let PARAMS=null, UNITS=null, ORDER=[], curUnit=null, state=null, rp=null,
+    growth=null, lossCapAnnual=0, LFX=null, curSec=1, projAnimated=false;
+const P=new URLSearchParams(location.search);
+const numOk=v=>{const n=+v;return isFinite(n)?n:null;};
+
+fetch('../data/ue_params.json').then(r=>r.json()).then(j=>{PARAMS=j;UNITS=j.districts;
+  ORDER=Object.keys(UNITS);boot();})
+ .catch(e=>{$('#boot').innerHTML='演示数据尚未生成。<br>先在仓库根目录跑 <code>python3 scripts/gen_mock.py</code>，再刷新本页。';
+   console.error(e);});
+
+function boot(){
+  state=Object.assign({},UEModel.DEFAULTS);
+  growth=JSON.parse(JSON.stringify(UEModel.GROWTH_DEF));
+  lossCapAnnual=PARAMS.loss_cap_annual;
+  /* 联动载荷：URL 参数优先，没有就读选址沙盘写的 localStorage。
+     ⚠ URL 显式点名商圈时不让旧载荷反向覆盖 —— 否则带着 ?id=A 打开却静默加载成上次看的 B，
+       标题是 A、数字是 B，整页对不上而且没有任何提示。 */
+  let linkId=P.get('id')||'';
+  if(P.get('d')){
+    ['d:dailyOrders','lp:landingPts','rd:routeDist','tr:takeoffRent','lr:landingRent'].forEach(kv=>{
+      const [k,f]=kv.split(':');const n=numOk(P.get(k));if(n!==null)state[f]=n;});
+    if(P.get('mo')&&P.get('ac')&&P.get('pe'))LFX={mo:+P.get('mo'),ac:+P.get('ac'),pe:+P.get('pe')};
+  }else{
+    try{const o=JSON.parse(localStorage.getItem('ops_link')||'null');
+      if(o&&(!linkId||o.id===linkId)){linkId=o.id||linkId;}}catch(e){}
+  }
+  curUnit=(linkId&&UNITS[linkId])?linkId:ORDER[0];
+  const urlScalars=P.get('d')?{
+    dailyOrders:numOk(P.get('d')),routeDist:numOk(P.get('rd')),
+    takeoffRent:numOk(P.get('tr')),landingRent:numOk(P.get('lr')),landingPts:numOk(P.get('lp'))}:null;
+  $('#thTog').onclick=cycleTheme;
+  $('#shareBtn').onclick=copyScenario;
+  $('#resetBtn').onclick=resetAll;
+  $('#unitSel').onchange=e=>loadUnit(e.target.value);
+  applyTheme();
+  loadUnit(curUnit);
+  /* 载荷标量在 loadUnit 之后再写一遍：loadUnit 会用商圈快照覆盖单量与租金，
+     而带参数进来的人要看的是他在沙盘上调出来的那个情景，不是快照。 */
+  if(urlScalars)applyScalars(urlScalars);
+  $('#boot').style.display='none';
+  $('#app').style.display='';
+  /* 判决条是 sticky，左结论列要按它的实际高度让位。高度随内容变，所以量一次写进变量。 */
+  const setVdH=()=>{const vd=$('#verdict');
+    if(vd)document.documentElement.style.setProperty('--vdH',vd.offsetHeight+'px');};
+  setVdH();window.addEventListener('resize',setVdH);
+  window.__setVdH=setVdH;
+}
+
+/* 逐商圈上下文 → 引擎入参。
+   可承接率 = 商家覆盖 × 商品覆盖，与选址沙盘同一套口径，两页数字必须对得上。 */
+function unitEconomics(id){
+  const u=UNITS[id];if(!u)return null;
+  const sup=u.supply||null,cov=sup&&sup.coverage;
+  let acc,accSrc;
+  if(cov&&cov[cov.default||'near']!=null){acc=cov[cov.default||'near'];accSrc='near';}
+  else{acc=0.4;accSrc='assumed';}
+  const ic=sup&&sup.itemCov;
+  /* 乘的是条件比率（已上架 ÷ 已签可供给），不是 已上架 ÷ 圈内高销品：
+     后者分母含未签店，本身已经包含商家覆盖，再乘一次会把商家覆盖算两遍。
+     商家覆盖是假定值时整档维持假定，不叠乘实测的商品覆盖。 */
+  if(ic&&typeof ic.rate==='number'&&accSrc!=='assumed'){acc=acc*ic.rate;accSrc='near×item';}
+  return {id,unit:u,supply:sup,mo:u.mo,acc,accSrc,pickRate:u.pickRate,
+    dailyOrders:u.mo*acc*u.pickRate/30,lands:u.lands,routeDist:u.routeDist,
+    takeoffRent:u.takeoffRent,landingRent:u.landingRent,landingPools:u.landingPools};}
+
+function loadUnit(id){
+  const e=unitEconomics(id);if(!e)return;
+  curUnit=id;LFX=null;
+  state.dailyOrders=e.dailyOrders;state.routeDist=e.routeDist;
+  /* 切商圈重置逐点租金表。商圈上下文没有商业化数据，广告收入置 0，不替商圈创造数据。 */
+  rp=UEModel.defaultRentPoints({lands:e.lands,landNames:e.unit.landNames,hubName:e.unit.hubName,
+    takeoffRent:e.takeoffRent,landingRent:e.landingRent},42000,10800);
+  state.marketing=0;
+  state.landingPools=e.landingPools||null;
+  state.subsidyPerOrder=UEModel.SUBSIDY_TIERS.steady;
+  Object.assign(state,UEModel.DISTRICT_OVERRIDES);
+  syncRent();populateUnitSel();buildInputs();render();applyStatic();}
+
+/* URL 载荷标量 → 逐点租金表。点数由载荷给，金额按点均摊，装修沿用商圈假定。 */
+function applyScalars(o){
+  if(o.dailyOrders!=null)state.dailyOrders=o.dailyOrders;
+  if(o.routeDist!=null)state.routeDist=o.routeDist;
+  const n=Math.max(1,Math.round(o.landingPts||rp.landing.length));
+  const names=(UNITS[curUnit]&&UNITS[curUnit].landNames)||[];
+  rp=UEModel.defaultRentPoints({lands:n,landNames:names,
+    hubName:(UNITS[curUnit]||{}).hubName,
+    takeoffRent:o.takeoffRent!=null?o.takeoffRent:state.takeoffRent,
+    landingRent:o.landingRent!=null?o.landingRent:state.landingRent},42000,10800);
+  syncRent();buildInputs();render();}
+
+function populateUnitSel(){const sel=$('#unitSel');
+  sel.innerHTML=ORDER.map(id=>`<option value="${id}"${id===curUnit?' selected':''}>${L(UNITS[id].nm)}</option>`).join('');}
+
+/* ===== 逐点租金层：UI 维护 rp，折算成四个标量后写回 state，compute 只消费标量 ===== */
+function rpAll(){return rp?rp.takeoff.concat(rp.landing):[];}
+function rpHasShare(){return rpAll().some(p=>p.mode!=='fixed');}
+function rpEff(dOverride,forProj){
+  const d=(dOverride!=null?dOverride:state.dailyOrders),n=Math.max(1,rp.landing.length);
+  const fill=(pt,isT)=>{const o=Object.assign({},pt);
+    if(o.dailyOrders==null)o.dailyOrders=isT?d:d/n;
+    if(o.aov==null)o.aov=state.aov;
+    if(o.cfee==null)o.cfee=state.deliveryFee;
+    if(forProj){
+      if(!o.growthOrders)o.growthOrders=growth.orders[1]||0;
+      if(!o.growthAov)o.growthAov=growth.aov||0;
+      if(!o.growthCfee)o.growthCfee=growth.cfee||0;}
+    return o;};
+  return {takeoff:rp.takeoff.map(p=>fill(p,true)),landing:rp.landing.map(p=>fill(p,false))};}
+function syncRent(){if(!rp)return;
+  const r=UEModel.rentFromPoints(rpEff());
+  state.takeoffRent=r.takeoffRent;state.landingRent=r.landingRent;
+  state.takeoffFitoutM=r.takeoffFitoutM;state.landingFitoutM=r.landingFitoutM;
+  state.takeoffPts=Math.max(1,r.takeoffPts);state.landingPts=Math.max(1,r.landingPts);}
+/* 有提成点且提成基数走兜底时，月租随单量动，保本必须逐单量扫；否则引擎直通。 */
+function beSolve(){
+  const dyn=rp&&rpAll().some(p=>p.mode!=='fixed'&&p.dailyOrders==null);
+  if(!dyn)return UEModel.findBreakeven(state);
+  for(let d=1;d<=2000;d++){
+    const rr=UEModel.rentFromPoints(rpEff(d));
+    if(UEModel.compute(Object.assign({},state,{dailyOrders:d,
+      takeoffRent:rr.takeoffRent,landingRent:rr.landingRent})).profit>=0)
+      return {daily:d,monthly:d*30,feasible:true,firstCross:d,dipAfterFirst:false};}
+  return {daily:Infinity,monthly:Infinity,feasible:false,firstCross:null,dipAfterFirst:false};}
+function pageProject(){return UEModel.project(
+  Object.assign({},state,{rentPoints:rp?rpEff(null,true):undefined}),growth);}
+
+/* ===== 反推租金上限：目标第 N 年当年利润 ≥ 0 时，全程可承受的最大总月租 ===== */
+const BKS_HI=400000;
+function rentBacksolveN(N){
+  const base=rpEff(null,true);
+  const scale=k=>({takeoff:base.takeoff.map(p=>Object.assign({},p,{fixed:(p.fixed||0)*k})),
+                   landing:base.landing.map(p=>Object.assign({},p,{fixed:(p.fixed||0)*k}))});
+  const cur=UEModel.rentFromPoints(base);
+  const curTot=cur.takeoffRent+cur.landingRent;
+  const profAt=k=>{const pj=UEModel.project(Object.assign({},state,{rentPoints:scale(k)}),growth);
+    return pj.years[N-1].profit;};
+  if(profAt(0)<0)return null;                       // 免租也转不正
+  const kHi=curTot>0?BKS_HI/curTot:1e6;
+  if(profAt(kHi)>=0)return Infinity;                // 租金不构成约束
+  let lo=0,hi=kHi;
+  for(let i=0;i<44;i++){const mid=(lo+hi)/2;if(profAt(mid)>=0)lo=mid;else hi=mid;}
+  return curTot*lo;}
+
+/* ===================== 渲染 ===================== */
+function render(){
+  syncRent();
+  const r=UEModel.compute(state),win=r.profit>=0;
+  const be=beSolve();
+  /* 极低单量下利润率百分比没有意义：固定成本摊在几单上，算出来是几千个百分点。
+     低于这个量级改说「验证期」，让人去看缺口而不是比率。 */
+  const lowVol=!isFinite(r.dailyOrders)||r.dailyOrders<30;
+  const marginTxt=lowVol?L('验证期'):pctTxt(r.margin*100)+'<span class="g"></span>%';
+  const gapTxt=be.feasible?Math.max(0,Math.ceil(be.daily-r.dailyOrders)):'—';
+  const col=win?'var(--done)':'var(--block)';
+  const _vd=$('#verdict');_vd.classList.toggle('vwin',win);_vd.classList.toggle('vloss',!win);
+  const vtxt=win
+    ?`<span style="color:var(--done)">${L('UE 为正 · 月利润')} +${nW(r.profit)}<span class="g"></span>${L('万')}</span>`
+    :`<span style="color:var(--block)">${L('月亏')} ${nW(-r.profit)}<span class="g"></span>${L('万')}</span> · ${L('保本线')} ${be.feasible?be.daily:'—'}<span class="g"></span>${L('单/天')} · ${L('还差')} ${gapTxt}<span class="g"></span>${L('单/天')}`;
+  const pj=pageProject();
+  const landKpi=pj.landYear
+    ?`<div class="v" style="color:var(--doneSoft)">${L('约')}${pj.landYear}<small><span class="g"></span>${L('年转正')}</small></div>`
+    :`<div class="v" style="color:var(--blockSoft);font-size:13px;line-height:1.3;margin-top:6px">${L('5 年内未转正')}</div>`;
+  _vd.innerHTML=`<div class="vmain"><span class="ico" style="background:${col}">${win?'✓':'!'}</span>
+      ${rpHasShare()?`<span class="rmbadge">${L('租金')} ${fmt(r.rent)}</span>`:''}${vtxt}</div>
+    <div class="vkpis">
+      <div class="vk"><div class="k">${L('几年转正')}</div>${landKpi}</div>
+      <div class="vk"><div class="k">${L('可承受租金上限')}</div>${r.rentCeiling<0
+        ? `<div class="v" style="color:var(--blockSoft);font-size:13px;line-height:1.3;margin-top:6px">${L('当前单量下免租也不保本')}</div>`
+        : `<div class="v" style="color:${r.rentCeiling>=r.rent?'var(--doneSoft)':'var(--blockSoft)'}">${nW(r.rentCeiling)}<small><span class="g"></span>${L('万/月')}</small></div>`}</div>
+    </div>`;
+  renderChain(r,be,marginTxt);
+  renderCost3(r);
+  renderCostBreak(r);
+  renderBreakeven(r,be);
+  renderHeatmap(r,be);
+  buildRail(r,be,pj);
+  if(window.__setVdH)window.__setVdH();
+}
+
+function buildRail(r,be,pj){
+  const win=r.profit>=0,e=unitEconomics(curUnit);
+  const bd=r.breakdown;
+  const fixed=r.equipDep+r.venueOffice+r.networkOM+(r.other-bd.other.box);
+  const step=r.labor, varc=r.battery+bd.other.box+(r.subsidy||0);
+  const chainVal=e?((LFX?LFX.mo:e.mo)*(LFX?LFX.ac:e.acc)*(LFX?LFX.pe:e.pickRate)/30):null;
+  /* 单量被手动改离乘法链的积时，公式行要明说是改写，不能继续宣称等式成立。 */
+  const diverged=chainVal!=null&&Math.abs(r.dailyOrders-chainVal)>Math.max(0.05,chainVal*0.02);
+  const s5=pj.landYear?[`${L('约')} ${pj.landYear} ${L('年转正')}`,'gd']:[L('5 年内未转正'),'bd'];
+  const logic=[
+   e?`${L('大盘订单池')} <b>${fmt(LFX?LFX.mo:e.mo)}</b> × ${L('可承接率')} <b>${((LFX?LFX.ac:e.acc)*100).toFixed(1)}%</b> × ${L('选择率')} <b>${((LFX?LFX.pe:e.pickRate)*100).toFixed(0)}%</b> ÷ 30${diverged?`<span class="dvt">${L('手动改写')} ${r.dailyOrders.toFixed(1)}</span>`:''}`:L('输入直接给'),
+   `${L('单均')} <b>${r.revPerOrder.toFixed(2)}</b> × ${L('月单量')} <b>${fmt(r.monthlyOrders)}</b>${r.marketing>0?` + ${L('广告')} <b>${nW(r.marketing)}</b>${L('万')}`:''}`,
+   `${L('固定成本')} <b>${nW(fixed)}</b> + ${L('阶梯成本 · 人力')} <b>${nW(step)}</b> + ${L('可变成本')} <b>${nW(varc)}</b> ${L('万')}`,
+   `${L('保本线')} <b>${be.feasible?be.daily:'—'}</b> ${L('单/天')}`,
+   `${L('单量涨幅')} <b>${growth.orders.slice(1).map(v=>Math.round(v*100)).join('/')}%</b> · ${L('折旧五年不到期')}`];
+  const rows=[
+   [1,'①',L('订单池'),r.dailyOrders.toFixed(1)+`<small><span class="g"></span>${L('单/天')}</small>`,''],
+   [2,'②',L('收入'),nW(r.revenue)+`<small><span class="g"></span>${L('万/月')}</small>`,''],
+   [3,'③',L('成本'),nW(r.deliveryCost)+`<small><span class="g"></span>${L('万/月')}</small>`,''],
+   [4,'④',L('盈亏'),(win?'+':'−')+nW(Math.abs(r.profit))+`<small><span class="g"></span>${L('万/月')}</small>`,win?'gd':'bd'],
+   [5,'⑤',L('转正'),`<span style="font-size:13px">${s5[0]}</span>`,s5[1]]];
+  $('#rail').innerHTML=rows.map((a,i)=>
+    `<div class="ritem ${a[0]===curSec?'on':''} ${a[0]>=4?(a[4]==='gd'?'pv pv-gd':'pv'):''}"
+       onclick="goSec(${a[0]})" tabindex="0" role="button" aria-pressed="${a[0]===curSec}"
+       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goSec(${a[0]});}">
+      <div class="rt"><span class="no">${a[1]}</span>${a[2]}</div>
+      <div class="rc ${a[4]}">${a[3]}</div><div class="logic">${logic[i]}</div></div>`).join('');
+  setActive(curSec);}
+function setActive(n){document.querySelectorAll('.detpane .cstage').forEach((el,i)=>el.classList.toggle('active',i===n-1));}
+function goSec(n){curSec=n;
+  document.querySelectorAll('.ritem').forEach((el,i)=>{el.classList.toggle('on',i===n-1);
+    el.setAttribute('aria-pressed',i===n-1);});
+  setActive(n);
+  if(innerWidth<=860){const el=document.querySelector('.detpane .cstage.active');
+    if(el)el.scrollIntoView({block:'start',behavior:'smooth'});}
+  if(n===5&&!projAnimated){projAnimated=true;setTimeout(animateProj,40);}}
+function animateProj(){try{
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  const plot=document.querySelector('#s5 .projplot');if(!plot)return;
+  plot.style.transition='none';plot.style.clipPath='inset(0 100% 0 0)';
+  void plot.getBoundingClientRect();
+  plot.style.transition='clip-path .45s cubic-bezier(.2,.7,.3,1)';
+  plot.style.clipPath='inset(0 -8px 0 0)';
+}catch(e){}}
+
+/* ---------- ① 订单池 ② 收入 ⑤ 转正 ---------- */
+function renderChain(r,be,marginTxt){
+  const e=unitEconomics(curUnit);
+  if(e){
+    /* 本页订单池走「起飞点取餐圈」口径。同一个商圈用围栏口径统计会得到另一个数，
+       两套口径有意不同，所以两边输出都要明标用的哪一套，否则数字对不上时无从归因。 */
+    $('#s1hint').textContent=L('数据')+' · '+L('取餐圈口径');
+    const sp=e.supply,cv=sp&&sp.coverage;
+    let supLine='';
+    if(cv&&cv.near!=null){
+      const nearShops=sp.signed+sp.signing;
+      const ic=(sp.itemCov&&typeof sp.itemCov.rate==='number')?sp.itemCov:null;
+      const applied=!!(ic&&e.accSrc.indexOf('item')>=0);
+      supLine=`<div class="acsrc"><div class="acg">
+          <div class="acsub">${L('商家覆盖')}</div>
+          <div class="acrow"><span><span class="act">${L('现状')}</span>${L('仅已签')} ${sp.signed}</span><span class="acv" style="color:var(--mut2)">${(cv.now*100).toFixed(1)}%</span></div>
+          <div class="acrow"><span><span class="act">${L('近期')}</span>${L('已签+签约中')} ${nearShops}${sp.signing?'':' · '+L('当前无签约中，与现状同值')}</span><span class="acv">${(cv.near*100).toFixed(1)}%</span></div>
+          <div class="acrow"><span><span class="act">${L('目标')}</span>${L('核心商家全签')}</span><span class="acv" style="color:var(--done)">${(cv.target*100).toFixed(1)}%</span></div>
+        </div>`+
+        (applied?`<div class="acg"><div class="acsub">${L('商品覆盖')}</div>
+          <div class="acrow"><span><span class="act">×</span>${L('已上架')} ${fmt(ic.listed)} / ${L('已签可供给')} ${fmt(ic.signed_supply)}</span><span class="acv">${(ic.rate*100).toFixed(1)}%</span></div></div>
+          <div class="acrow acres"><span><span class="act">=</span>${L('可承接率')} · ${L('当前采用')}</span><span class="acv" style="color:var(--y)">${(e.acc*100).toFixed(1)}%</span></div>`:'')+
+        `<div class="acf">${L('圈内')} ${sp.shops} · ${L('数据源')} ${sp.src}</div></div>`;
+    }else if(sp){
+      const ic=(sp.itemCov&&typeof sp.itemCov.rate==='number')?sp.itemCov:null;
+      supLine=`<div class="acsrc"><div>${L('可承接率')} <b>${(e.acc*100).toFixed(0)}%</b> = <span style="color:var(--block)">${L('假定值')}</span>${bk(L('暂无订单数据，三档覆盖待算'))}</div>`+
+        (ic?`<div class="acrow" style="margin-top:6px"><span><span class="act">${L('商品覆盖')}</span>${L('已上架')} ${fmt(ic.listed)} / ${L('已签可供给')} ${fmt(ic.signed_supply)}</span><span class="acv">${(ic.rate*100).toFixed(1)}%</span></div>
+          <div class="acf" style="color:var(--block)">${L('实测值 · 不参与上方计算')}${bk(L('商家覆盖为假定值时不叠乘'))}</div>`:'')+
+        `<div class="acf">${L('圈内')} ${sp.shops}</div></div>`;}
+    const chainVal=(LFX?LFX.mo:e.mo)*(LFX?LFX.ac:e.acc)*(LFX?LFX.pe:e.pickRate)/30;
+    const dv=Math.abs(r.dailyOrders-chainVal)>Math.max(0.05,chainVal*0.02);
+    $('#c1').innerHTML=`<div class="flowrow">
+        <span class="fin">${L('大盘订单池')} <b>${fmt(LFX?LFX.mo:e.mo)}</b><span class="g"></span>${L('单/月')}</span><span class="arr">×</span>
+        <span class="fin">${L('可承接率')} <b>${((LFX?LFX.ac:e.acc)*100).toFixed(1)}%</b>${e.accSrc==='assumed'?`<span class="g"></span><span style="font-size:11px;color:var(--block)">${L('假定')}</span>`:''}</span><span class="arr">×</span>
+        <span class="fin">${L('配送方式选择率')} <b>${((LFX?LFX.pe:e.pickRate)*100).toFixed(0)}%</b><span class="g"></span><span style="font-size:11px;color:var(--block)">${L('假定')}</span></span>
+        <span class="arr">${dv?'⇢':'→'}</span>
+        <span class="fout"><span class="bigv">${r.dailyOrders.toFixed(1)}</span><span class="g"></span>${L('单/天')}</span>
+        ${dv?`<span class="dvt">${L('链路值')} ${chainVal.toFixed(1)}</span>`:''}</div>`+
+      (supLine?`<details class="fold" open style="margin-top:10px"><summary>${L('可承接率构成')}</summary><div style="margin-top:8px">${supLine}</div></details>`:'');
+  }else{
+    $('#s1hint').textContent=L('独立测算');
+    $('#c1').innerHTML=`<div class="flowrow"><span class="fin">${L('日均单量')}${bk(L('输入直接给'))}</span><span class="arr">→</span>
+      <span class="fout"><span class="bigv">${r.dailyOrders.toFixed(1)}</span><span class="g"></span>${L('单/天')}</span></div>`;}
+
+  const ip=state;
+  const revRows=[
+    [L('商家佣金'),ip.aov*ip.commissionRate*r.monthlyOrders,
+      `${(ip.aov*ip.commissionRate).toFixed(2)} /${L('单')} = ${L('客单价')} ${(+ip.aov).toFixed(2)} × ${L('佣金率')} ${(ip.commissionRate*100).toFixed(0)}%`,'var(--y)'],
+    [L('平台费'),ip.platformFee*r.monthlyOrders,`${(+ip.platformFee).toFixed(1)} /${L('单')}`,'var(--orange)'],
+    [L('C端配送费'),ip.deliveryFee*r.monthlyOrders,`${(+ip.deliveryFee).toFixed(1)} /${L('单')}`,'var(--blue)'],
+    [L('广告收入'),r.marketing,`${L('月值 · 计入收入与利润')}${curUnit?' · <span style="color:var(--block)">'+L('商圈现值为 0，待商业化数据')+'</span>':''}`,'var(--done)']];
+  $('#c2').innerHTML=`<div class="flowrow">
+      <span class="fin">${L('单均')} <b>${r.revPerOrder.toFixed(2)}</b></span><span class="arr">×</span>
+      <span class="fin">${L('月单量')} <b>${fmt(r.monthlyOrders)}</b></span><span class="arr">+</span>
+      <span class="fin">${L('广告收入')} <b>${fmt(r.marketing)}</b></span><span class="arr">→</span>
+      <span class="fout"><span class="bigv">${nW(r.revenue)}</span><span class="g"></span>${L('万/月')}</span></div>
+    <details class="fold" open style="margin-top:10px"><summary>${L('收入构成')}</summary><div style="margin-top:8px">
+      ${revRows.map(a=>{const pc=r.revenue?Math.round(a[1]/r.revenue*100):0;
+        return `<div class="clr"><span class="cdot" style="background:${a[3]}"></span><span class="cln">${a[0]}</span>
+          <span class="clbar"><i style="width:${pc}%;background:${a[3]}"></i></span>
+          <span class="clv">${fmt(a[1])}</span><span class="clp">${pc}<span class="g"></span>%</span></div>
+          <div class="cldrv">${a[2]}</div>`;}).join('')}
+      <div class="clr tot"><span class="cdot" style="background:transparent"></span><span class="cln">${L('月收入合计')}</span>
+        <span class="clbar"></span><span class="clv">${fmt(r.revenue)}</span><span class="clp"></span></div>
+      <div class="rev3"><span>${L('商家侧')} <b>${r.merchantCommission.toFixed(2)}</b> /${L('单')}</span><span class="arr">·</span>
+        <span>${L('用户侧')} <b>${(+ip.deliveryFee).toFixed(1)}</b> /${L('单')}</span><span class="arr">·</span>
+        <span style="color:var(--mut2)">${L('对外只露用户侧配送费')}</span></div></div></details>`;
+
+  const levers=`<div class="lev3">
+    <div class="lvc"><div class="li">${L('杠杆①')}</div><div class="lt">${L('配送方式选择率')}</div><div class="ld">${e?(e.pickRate*100).toFixed(0):'5'}% · ${L('对照区间 20–30%')}</div></div>
+    <div class="lvc"><div class="li">${L('杠杆②')}</div><div class="lt">${L('增设降落点')}</div><div class="ld">${L('扩大可配对的订单池')}</div></div>
+    <div class="lvc"><div class="li">${L('杠杆③')}</div><div class="lt">${L('商家商品覆盖')}</div><div class="ld">${L('沿建议名单签核心商家')}</div></div></div>`;
+  const pj=pageProject();
+  $('#c5').innerHTML=levers+`<div class="p5">${projBlock(r,pj)}${gapBlock(r)}${backsolveBlock(r,pj)}</div>`;}
+
+/* ---------- ⑤a 五年曲线 ---------- */
+function projChart(ser,oneOff){
+  const W=320,H=120,pl=16,pr=6,pt=10,pb=8;
+  const ys=ser.map(s=>s.profitY);
+  /* 值域强制包含 0：零线永远在图内，深亏曲线不会被自适应缩放画成一条体面上扬的线。 */
+  let ymin=Math.min(0,...ys),ymax=Math.max(0,...ys);
+  const pad=(ymax-ymin)*0.16||Math.abs(ymax||1)*0.2;ymin-=pad;ymax+=pad;
+  const span=(ymax-ymin)||1;
+  const xr=t=>pl+(t-1)/(ser.length-1)*(W-pl-pr);
+  const yr=v=>pt+(1-(v-ymin)/span)*(H-pt-pb);
+  const fx=t=>(xr(t)/W*100),fy=v=>(yr(v)/H*100);
+  const Q=ser.map(s=>[xr(s.t),yr(s.profitY)]);
+  // 平滑曲线：Catmull-Rom 转三次贝塞尔，柔化生硬折角
+  const sp=q=>{if(q.length<2)return 'M'+q[0][0]+','+q[0][1];
+    let d='M'+q[0][0].toFixed(1)+','+q[0][1].toFixed(1);
+    for(let i=0;i<q.length-1;i++){const a0=q[i-1]||q[i],a1=q[i],a2=q[i+1],a3=q[i+2]||a2;
+      d+='C'+(a1[0]+(a2[0]-a0[0])/6).toFixed(1)+','+(a1[1]+(a2[1]-a0[1])/6).toFixed(1)+' '+
+        (a2[0]-(a3[0]-a1[0])/6).toFixed(1)+','+(a2[1]-(a3[1]-a1[1])/6).toFixed(1)+' '+
+        a2[0].toFixed(1)+','+a2[1].toFixed(1);}
+    return d;};
+  const lineD=sp(Q);
+  const areaD=lineD+` L${xr(ser.length).toFixed(1)},${H-pb} L${xr(1).toFixed(1)},${H-pb} Z`;
+  const zy=yr(0).toFixed(1);
+  const dots=ser.map(s=>{const last=s.t===ser.length,c=s.profitY>=0?'var(--done)':'var(--block)';
+    return `<span class="pdot${last?' pdot-end':''}" style="left:${fx(s.t).toFixed(2)}%;top:${fy(s.profitY).toFixed(2)}%;background:${c}"></span>`;}).join('');
+  const xlab=ser.map(s=>`<span class="pxl" style="left:${fx(s.t).toFixed(1)}%">Y${s.t}</span>`).join('');
+  return `<div class="projwrap">
+    ${oneOff>0?`<span class="pcl" style="left:${fx(1).toFixed(1)}%;transform:none">${L('首年含装修一次性')} ${nW(oneOff)}${L('万')}</span>`:''}
+    <div class="projplot"><svg viewBox="0 0 ${W} ${H}" class="projsvg" aria-hidden="true" preserveAspectRatio="none">
+      <path d="${areaD}" fill="var(--projArea)"/>
+      <line x1="${pl-10}" y1="${zy}" x2="${W-pr}" y2="${zy}" stroke="var(--axisLine)" stroke-width="1" stroke-dasharray="4 3"/>
+      <path d="${lineD}" fill="none" stroke="var(--y)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      <span class="pzero" style="top:${fy(0).toFixed(1)}%">0</span>${dots}</div>
+    <div class="pxlrow">${xlab}</div></div>`;}
+function projBlock(r,pj){
+  const ser=pj.years.map(y=>({t:y.t,profitY:y.profit}));
+  const head=pj.landYear?`<b style="color:var(--doneSoft)">${L('约')} ${pj.landYear} ${L('年转正')}</b>`
+    :`<b style="color:var(--blockSoft)">${L('5 年内未转正')}</b>`;
+  const y5=pj.years[4],be5=UEModel.findBreakeven(y5.m.inputs);
+  const sub=pj.landYear
+    ?`Y${pj.landYear} ${L('利润')} +${nW(pj.years[pj.landYear-1].profit)}<span class="g"></span>${L('万')}/${L('年')}`
+    :`${L('第 5 年距保本')} ${be5.feasible?Math.max(0,Math.ceil(be5.daily-y5.daily)).toLocaleString():'—'}<span class="g"></span>${L('单/天')}`;
+  const dirty=JSON.stringify(growth)!==JSON.stringify(UEModel.GROWTH_DEF);
+  return `<div class="p5b">
+    <div class="p5h">${L('几年转正')} ${head}</div>
+    <div class="p5sub">${sub}</div>
+    ${projChart(ser,pj.fitoutOneOff)}
+    <div class="asm" style="margin-top:auto">
+      <span>${L('单量涨幅')} <b>${growth.orders.slice(1).map(v=>Math.round(v*100)).join('/')}%</b> · ${L('薪资')} <b>${Math.round(growth.salary*100)}%</b> · ${L('客单价')} <b>${Math.round(growth.aov*100)}%</b> · ${L('广告')} <b>${Math.round(growth.marketing*100)}%</b>/${L('年')}</span>
+      <span class="rf">${L('假定 · 待校准')}</span>${dirty?`<span class="dvt">${L('已偏离默认口径')}</span>`:''}
+      <span style="color:var(--mut2)">${L('折旧五年不到期')}</span></div></div>`;}
+function gapBlock(r){
+  const lossY=Math.max(0,-r.profit*12);
+  const cap=Math.min(lossCapAnnual,lossY);
+  const residual=Math.max(0,lossY-lossCapAnnual),tot=lossY||1;
+  const seg=(v,c)=>v>0?`<div class="gapseg" style="width:${(v/tot*100).toFixed(1)}%;background:${c}"></div>`:'';
+  const covered=lossY>0&&residual<=0;
+  const hd=lossY<=0?`<b style="color:var(--doneSoft)">${L('已盈利，无缺口')}</b>`
+    :(covered?`<b style="color:var(--doneSoft)">${L('已覆盖')}</b>`
+      :`<b style="color:var(--blockSoft)">${L('未覆盖')} ${nW(residual)}<span class="g"></span>${L('万')}</b>`);
+  return `<div class="p5b">
+    <div class="p5h">${L('转正前要垫多少钱')} · ${L('每年')} ${hd}</div>
+    <div class="gapbar">${seg(cap,'var(--mut2)')}${seg(residual,'var(--blockSoft)')}</div>
+    <div class="gaprow"><span>${L('全年亏损')}</span><b>${nW(lossY)}<span class="g"></span>${L('万')}</b></div>
+    <div class="gaprow"><span><b style="font-family:var(--mono);margin-right:4px">−</b>${L('可垫付年亏上限')}
+      <input class="ain" type="number" step="any" value="${Math.round(lossCapAnnual)}" onchange="setLossCap(this.value)"><span class="iu">/${L('年')}</span></span>
+      <b>${nW(cap)}<span class="g"></span>${L('万')}</b></div>
+    <div class="gaprow" style="border-top:1px solid var(--line);padding-top:6px;margin-top:2px">
+      <span><b style="font-family:var(--mono);margin-right:4px">=</b>${L('未覆盖')}</span>
+      <b style="color:${residual>0?'var(--blockSoft)':'var(--doneSoft)'}">${nW(residual)}<span class="g"></span>${L('万')}</b></div>
+    <div class="p5note" style="margin-top:auto">${L('上限为假定值，业务方按年定')}</div></div>`;}
+function backsolveBlock(r,pj){
+  const cellOf=R=>R===Infinity
+    ?`≥${nW(BKS_HI)}${L('万')} · <span style="font-size:11px">${L('租金不构成约束')}</span>`
+    :(R==null?`<span style="color:var(--blockSoft)">${L('免租仍亏')}</span>`:fmt(R)+`<span class="g"></span>/${L('月')}`);
+  const cells=[3,4,5].map(N=>`<div class="lvc"><div class="li">Y${N}</div>
+      <div class="lt">${cellOf(rentBacksolveN(N))}</div>
+      <div class="ld">${L('该年日均')} ${pj.years[N-1].daily.toFixed(1)}<span class="g"></span>${L('单/天')}</div></div>`).join('');
+  return `<div class="p5b bks">
+    <div class="p5h">${L('反推租金上限 · 按转正周期')}</div>
+    <div class="p5sub">${L('目标年转正时全程可承受的最大总月租')} · ${L('底线')} = ${L('当前')} <b>${fmt(r.rentCeiling)}</b>/${L('月')}</div>
+    <div class="lev3">${cells}</div></div>`;}
+function setLossCap(v){lossCapAnnual=Math.max(0,+v||0);render();}
+
+/* ---------- ③ 成本 ---------- */
+function renderCost3(r){
+  const bd=r.breakdown,tot=r.deliveryCost||1;
+  const fixed=r.equipDep+r.venueOffice+r.networkOM+(r.other-bd.other.box);
+  /* 营销补贴按单量走，归可变成本。三分之和必须等于合计，少算一笔在屏上不会有任何提示。 */
+  const step=r.labor,varc=r.battery+bd.other.box+(r.subsidy||0);
+  const row=(cls,name,v,opt)=>`<div class="c3 ${cls}"><span class="c3n"><span class="t">${name}</span>${opt?'<span class="opttag">'+opt+'</span>':''}</span>
+    <span class="c3bar"><i style="width:${Math.round(v/tot*100)}%"></i></span>
+    <span class="c3v">${nW(v)}<span class="g"></span>${L('万')}</span>
+    <span class="c3p">${Math.round(v/tot*100)}<span class="g"></span>%</span></div>`;
+  const gs=r.groundStaffEval;
+  $('#c3').innerHTML=
+    row('fix',L('固定成本'),fixed,'')+
+    row('step',L('阶梯成本 · 人力'),step,L('地面协同人力')+' · '+(gs.lmOn?L('开'):L('关')))+
+    row('varc',L('可变成本'),varc,'')+
+    renderGroundStaff(gs)+
+    `<div class="c3tier">${L('成本科目')}</div>`+
+    row('step',L('人力'),r.labor,'')+
+    row('fix',L('设备折旧'),r.equipDep,'')+
+    row('varc',L('电池'),r.battery,'')+
+    row('fix',L('场地及办公'),r.venueOffice,'')+
+    row('fix',L('其他'),r.other,'')+
+    row('fix',L('网络运维'),r.networkOM,'')+
+    (r.subsidy>0?row('varc',L('营销补贴'),r.subsidy,L('单均')+' '+(r.subsidyPerOrder||0).toFixed(2)):'')+
+    `<div class="c3" style="border-top:1px solid var(--line2);padding-top:8px;margin-top:3px">
+      <span class="c3n"><span class="t" style="color:var(--y)">${L('月配送成本合计')}</span></span>
+      <span class="c3bar"></span><span class="c3v" style="color:var(--y)">${nW(r.deliveryCost)}<span class="g"></span>${L('万')}</span>
+      <span class="c3p"></span></div>`;}
+function renderGroundStaff(gs){
+  /* 这一行的三个数必须自洽：ROI 的分母是末端两项 lmCost，不是三项之和。
+     显示三项总额再让读者拿两个数相除，得不到屏上那个 ROI。 */
+  const meets=isFinite(gs.roi)?gs.roi>=state.roiMultiple:true;
+  const col=meets?'var(--doneSoft)':'var(--blockSoft)';
+  const roi=isFinite(gs.roi)?(gs.roi<1?gs.roi.toFixed(2):gs.roi.toFixed(1)):'∞';
+  const picker=Math.max(0,(gs.costAll||0)-(gs.lmCost||0));
+  let pts='';
+  if(gs.perPoint&&gs.points&&gs.points.length){
+    const nm=(UNITS[curUnit]&&UNITS[curUnit].landNames)||[];
+    const chips=gs.points.map(q=>{const c=q.on?'var(--doneSoft)':'var(--mut2)';
+      return `<span class="mhm" style="color:${c}" title="${L('逐点')} ${(q.share*100).toFixed(1)}% · ROI ${q.roi.toFixed(2)}× · ${L('关闸留存')} ${(q.keep*100).toFixed(0)}%">
+        <b style="color:${c}">${q.on?'●':'○'}</b> ${nm[q.i]||('P'+(q.i+1))} <b style="color:${c}">${q.roi.toFixed(2)}×</b></span>`;})
+      .join('<span class="mhm" style="opacity:.4">·</span>');
+    const lost=gs.lostDaily>0.05
+      ?`<span class="mhm" style="margin-left:auto;color:var(--blockSoft)">${L('关闸丢单')} <b>${gs.lostDaily.toFixed(1)}</b><span class="g"></span>${L('单/天')}</span>`
+      :`<span class="mhm" style="margin-left:auto;opacity:.7">${L('圈内 1km 内关闸不丢单')}</span>`;
+    pts=`<div class="mhrow" style="margin-top:-5px">
+      <span class="mhm" style="color:var(--y)">${L('逐点')} <b style="color:var(--y)">${gs.openPts}/${gs.points.length}</b> ${L('开')}</span>
+      ${chips}${lost}</div>`;}
+  return `<div class="mhrow">
+    <button class="mhtg ${gs.lmOn?'on':''}" onclick="toggleGroundStaff()" title="${L('末端配送与巡游受 ROI 闸，取餐员恒计入')}">
+      <span class="dot"></span>${L('地面协同人力')} ${gs.lmOn?L('开'):L('关')}</button>
+    <span class="mhm">${L('末端成本')} <b>${nW(gs.lmCost)}</b><span class="g"></span>${L('万')} · ${L('撬动收入')} <b>${nW(gs.leverRev)}</b><span class="g"></span>${L('万')} · ROI <b style="color:${col}">${roi}×</b> · ${L('取餐员另计')} <b>${nW(picker)}</b><span class="g"></span>${L('万')}</span>
+    <span class="mhm">${L('阈值')} <input class="ain" style="width:48px" type="number" step="any" value="${state.roiMultiple}" onchange="setRoi(this.value)">×</span>
+  </div>`+pts;}
+function toggleGroundStaff(){state.groundStaff=!state.groundStaff;render();}
+function setRoi(v){state.roiMultiple=Math.max(0,+v||0);render();}
+
+function renderCostBreak(r){
+  const bd=r.breakdown;
+  const blocks=[
+    [L('人力'),r.labor,bd.labor.items.map(it=>[L(it[0]),
+      (it[3]===0&&it[1]>0)?`${it[1].toFixed(2)}${L('人')} · ${L('未计入')}`:`${it[1].toFixed(2)}${L('人')} × ${fmt(it[2])}`,it[3]]),
+      '= '+L('月薪')+' × '+L('人数')],
+    [L('设备折旧'),r.equipDep,bd.equipDep.items.map(it=>[L(it[0]),`${it[1]} × ${it[2].toFixed(0)}`,it[1]*it[2]]),
+      '= '+L('折旧单价')+' × '+L('派生数量')],
+    [L('电池'),r.battery,[[L('硬件磨损'),'',bd.battery.hardware],[L('电费'),'',bd.battery.electricity]],
+      '= '+L('每单耗电')+' × '+L('月单量')],
+    [L('场地及办公'),r.venueOffice,[[L('起飞租金'),'',bd.venueOffice.takeoffRent],[L('降落租金'),'',bd.venueOffice.landingRent],
+      [L('装修摊销'),'',bd.venueOffice.fitout],[L('场地电费'),'',bd.venueOffice.venueElec],[L('宽带'),'',bd.venueOffice.broadband]],
+      '= '+L('租金')+' + '+L('装修')+' + '+L('电费')],
+    [L('其他'),r.other,[[L('设备运维'),'',bd.other.equipOM],[L('运营物料'),'',bd.other.opsSupplies],
+      [L('流量卡'),'',bd.other.sim],[L('运营车辆'),'',bd.other.vehicle],[L('餐箱包装'),'',bd.other.box],
+      [L('保险'),'',bd.other.insurance],[L('定位服务'),'',bd.other.rtk]],'= '+L('单价')+' × '+L('数量')],
+    [L('网络运维'),r.networkOM,[[L('网络运维'),'',r.networkOM]],'= '+L('固定月费')]];
+  const ccol=['var(--y)','var(--orange)','var(--blue)','var(--orange)','var(--orange)','var(--orange)'];
+  /* 明细折叠态要跨重渲保持：调参每敲一个字符就重建这一块，
+     刚展开的明细会全部弹回收起，而「改一个数看结论怎么动」正是本页的核心动作。 */
+  const open=new Set([...document.querySelectorAll('#costBreak details[data-ds]')].filter(d=>d.open).map(d=>d.dataset.ds));
+  $('#costBreak').innerHTML=blocks.map((b,bi)=>{
+    const [nm,v,items,drv]=b,pc=Math.round(v/r.deliveryCost*100);
+    return `<div class="clr"><span class="cdot" style="background:${ccol[bi]}"></span><span class="cln">${nm}</span>
+      <span class="clbar"><i style="width:${pc}%"></i></span>
+      <span class="clv">${nW(v)}<span class="g"></span>${L('万')}</span><span class="clp">${pc}<span class="g"></span>%</span></div>
+      <div class="cldrv">${drv}</div>
+      <details class="dd" data-ds="c${bi}"${open.has('c'+bi)?' open':''}><summary>${L('明细')} ${items.length} ${L('项')}</summary>
+        ${items.map(it=>`<div class="di"><span>${it[0]}${it[1]?' · '+it[1]:''}</span><span>${fmt(it[2])}</span></div>`).join('')}</details>`;}).join('')
+    +`<div class="clr tot"><span class="cdot" style="background:transparent"></span><span class="cln">${L('月配送成本合计')}</span>
+      <span class="clbar"></span><span class="clv">${nW(r.deliveryCost)}<span class="g"></span>${L('万')}</span>
+      <span class="clp">${r.costPerOrder.toFixed(1)}<span class="g"></span>${L('/单')}</span></div>`;}
+
+/* ---------- ④ 盈亏 ---------- */
+function renderBreakeven(r,be){
+  /* 缺口方向：负表示还差，正表示已超过保本线。绝对值与顶部判决同式，否则同页两个数长得不一样。 */
+  const gap=be.feasible?(r.dailyOrders>=be.daily?Math.floor(r.dailyOrders-be.daily):-Math.ceil(be.daily-r.dailyOrders)):null;
+  const dip=be.feasible&&be.dipAfterFirst&&be.firstCross&&be.firstCross!==be.daily;
+  $('#breakeven').innerHTML=`
+    <div class="beb"><div class="t">${L('盈亏平衡单量')}</div>
+      <div class="big">${be.feasible?be.daily.toLocaleString():'—'}<small><span class="g"></span>${L('单/天')}</small></div>
+      <div class="sub">${L('当前')} <b>${r.dailyOrders.toFixed(1)}</b><span class="g"></span>${L('单/天')} · ${L('缺口')}
+        <b style="color:${gap!==null&&gap>=0?'var(--doneSoft)':'var(--blockSoft)'}">${gap===null?'—':(gap>=0?'+':'−')+Math.abs(gap).toLocaleString()}</b><span class="g"></span>${L('单/天')}
+        ${gap!==null&&gap>=0?bk(L('已转正')):bk(L('需补单量'))}<br>
+        <span style="opacity:.75">${L('保本线取最后一段连续为正的起点')}</span>
+        ${dip?`<br><span style="opacity:.75">${L('首次穿零')} ${be.firstCross}<span class="g"></span>${L('单/天')}，${L('之后还会回落')}</span>`:''}</div></div>
+    <div class="beb ceil"><div class="t">${L('可承受租金上限')}
+      <span style="font-size:9.5px;color:var(--mut2);margin-left:5px">${L('现状红线 · 当前单量')}</span></div>
+      <div class="big" style="color:${r.rentCeiling>=r.rent?'var(--doneSoft)':'var(--blockSoft)'}">${nW(r.rentCeiling)}<small><span class="g"></span>${L('万/月')}</small></div>
+      ${r.rentCeiling<0?`<div class="sub" style="color:var(--blockSoft);margin-top:4px">${L('当前单量下免租也不保本')}</div>`:''}
+      <div class="sub">${L('当前拟租金')} <b>${nW(r.rent)}</b><span class="g"></span>${L('万')} · ${L('谈判空间')}
+        <b style="color:${r.negotiationRoom>=0?'var(--doneSoft)':'var(--blockSoft)'}">${r.negotiationRoom>=0?'+':''}${nW(r.negotiationRoom)}</b><span class="g"></span>${L('万/月')}<br>
+        ${r.rentCeiling>=r.rent?L('当前租金在上限内，可承受'):L('租金需压到上限内，或抬单量与可承接率')}</div></div>`;}
+
+function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x)));const n=x/p;
+  return (n<=1?1:n<=2?2:n<=5?5:10)*p;}
+function renderHeatmap(r,be){
+  const fin=v=>(typeof v==='number'&&isFinite(v))?v:0;
+  const hi=Math.max(fin(be.feasible?be.daily:r.breakEvenDaily),fin(r.dailyOrders),80)*1.5;
+  const cstep=niceStep(hi/8)||25;
+  const cols=Array.from({length:8},(_,i)=>Math.round((i+1)*cstep));
+  const rhi=Math.max(fin(r.rent),20000)*1.6,rstep=niceStep(rhi/7)||5000;
+  const rows=Array.from({length:8},(_,i)=>Math.round(i*rstep));
+  const curCol=cols.reduce((a,b)=>Math.abs(b-r.dailyOrders)<Math.abs(a-r.dailyOrders)?b:a);
+  const curRow=rows.reduce((a,b)=>Math.abs(b-r.rent)<Math.abs(a-r.rent)?b:a);
+  /* 金框只在实际值落进轴半步内时标注。不在范围就写脚注，不去错标一个隔着几十倍的格子。 */
+  const curIn=Math.abs(curCol-r.dailyOrders)<=cstep/2&&Math.abs(curRow-r.rent)<=rstep/2;
+  $('#hmNote').textContent=curIn?'':(L('当前')+' '+r.dailyOrders.toFixed(1)+' '+L('单/天')+' · '+L('不在表格轴范围内，当前场景未标注'));
+  const color=m=>{if(m>=0){const t=Math.min(m/0.3,1);
+      return `color-mix(in srgb,var(--done) ${((0.18+t*0.6)*100).toFixed(1)}%,transparent)`;}
+    const t=Math.min(-m/0.6,1);
+    return `color-mix(in srgb,var(--block) ${((0.14+t*0.55)*100).toFixed(1)}%,transparent)`;};
+  let h='<table class="hm"><colgroup><col class="c0"><col span="8"></colgroup><thead>'
+    +'<tr><td></td><td class="hmaxis" colspan="8">'+L('日单量')+'</td></tr>'
+    +'<tr><th scope="col" class="hmc">'+L('月租金')+'</th>'+cols.map(c=>`<th scope="col">${c}</th>`).join('')+'</tr></thead><tbody>';
+  rows.forEach(rt=>{h+=`<tr><th scope="row" class="rowh">${nW(rt)}<span class="g"></span>${L('万')}</th>`+cols.map(c=>{
+    const m=UEModel.compute(Object.assign({},state,{dailyOrders:c,takeoffRent:rt,landingRent:0})).margin;
+    const cur=(curIn&&c===curCol&&rt===curRow)?'cur':'';
+    /* 深色档墨色：近黑墨压在低透明度色块上多数格远低于可读线，
+       红侧一律白字，绿侧以 m=0.21 为界换墨色，两侧最差都能过对比度线。 */
+    const inkLt=(m<0.21)?' ink-lt':'';
+    return `<td><div class="cell ${cur}${inkLt}" style="background:${color(m)}" title="${L('日单')} ${c} · ${L('租金')} ${nW(rt)}${L('万')} → ${L('利润率')} ${pctTxt(m*100)}%">${pctTxt(m*100)}<span class="g"></span>%</div></td>`;
+  }).join('')+'</tr>';});
+  h+='</tbody></table>';
+  $('#heatmap').innerHTML=h;
+  $('#hmLegend').innerHTML=L('利润率:')+
+    '<i style="background:color-mix(in srgb,var(--block) 60%,transparent)"></i>'+L('亏 ←')+
+    '<i style="background:color-mix(in srgb,var(--block) 20%,transparent)"></i>'+
+    '<i style="background:color-mix(in srgb,var(--done) 25%,transparent)"></i>'+L('→ 盈')+
+    '<i style="background:color-mix(in srgb,var(--done) 70%,transparent)"></i>　'+
+    `<span style="color:var(--y)">▢ ${L('当前场景')}</span> · ${L('绿区可转正')} · <span style="color:var(--mut2)">${L('租金轴为场地总月租')}</span>`;}
+
+/* ---------- 调参 ---------- */
+const GROUPS=[
+ {t:'A · 单量与运营',imp:'驱动人数 飞机数 柜数等派生数量',items:[
+   ['dailyOrders','日均单量','单/天',0,'key'],['takeoffPts','起飞点数','个',0,'','drv'],
+   ['landingPts','降落点数','个',0,'','drv'],['routeDist','平均航程','m'],
+   ['peakShare','峰值小时占比','%',1],['lastMileShare','送货上门占比','%',1],
+   ['lastMileLandingPts','上门降落点','个'],['droneIdle','飞机闲置率','%',1]]},
+ {t:'B · 收入参数',imp:'单均 = 客单价 × 佣金率 + 平台费 + 配送费 − 补贴',items:[
+   ['aov','实付客单价',''],['commissionRate','商家佣金率','%',1],['platformFee','平台费','/单'],
+   ['deliveryFee','C端配送费','/单'],['marketing','广告收入','/月'],['subsidyPerOrder','营销补贴','/单']]},
+ {t:'C · 场地租金 · 唯一可谈',imp:'折算后写回场地及办公科目',items:[]},
+ {t:'D · 人力月薪 · 固定',imp:'人力 = 月薪 × 人数',lock:1,items:[
+   ['salPilot','飞手',''],['salMaint','机务',''],['salPickup','取餐员',''],
+   ['salGround','地勤',''],['salLastMile','末端配送',''],['salPatrol','末端巡游','']]},
+ {t:'E · 人效',imp:'人数 = 日均单量 ÷ 人效 × 调休系数',items:[
+   ['pilotProd','飞手',''],['maintProd','机务',''],['pickupProd','取餐员',''],
+   ['groundProd','地勤',''],['lastMileProd','末端配送',''],['patrolProd','末端巡游','']]},
+ {t:'F · 设备折旧单价 · 固定',imp:'设备折旧 = 单价 × 派生数量',lock:1,items:[
+   ['depDrone','无人机',''],['depMarker','地面标识',''],['depPort','降落柜',''],['depCabinet','室外恒温柜',''],
+   ['depCharging','充电柜',''],['depStorage','机库',''],['depSpare','备品柜',''],['depBoxReturn','餐箱回收柜','']]},
+ {t:'G · 电池参数 · 固定',imp:'电池 = 每单耗电 × 月单量',lock:1,items:[
+   ['batteryPrice','电池采购价',''],['batteryCycleLife','电池循环','次'],['batteryPackEnergy','电池组能量','Wh'],
+   ['elecCost','电费','/kWh'],['coulombic','库伦系数','%',1],['baseConsume','基准耗电比',''],
+   ['marginalConsume','边际耗电','/km'],['baselineDist','基准距离','m'],['batterySafety','电池安全系数','']]},
+ {t:'H · 其他成本单价 · 固定',imp:'其他 场地电费 宽带 网络运维',lock:1,items:[
+   ['equipOM','设备运维',''],['opsSupplies','运营物料',''],['simDrone','流量卡 · 飞机',''],
+   ['simPort','流量卡 · 降落柜',''],['simHandheld','流量卡 · 手持',''],['vehiclePerTakeoff','运营车辆 · 每起飞点',''],
+   ['boxPerOrder','餐箱包装 · 每单',''],['droneInsurance','保险 · 每架',''],['rtkPerTakeoff','定位服务 · 每起飞点',''],
+   ['venueElecPerUnit','场地电费 · 每点',''],['broadband','宽带',''],['networkOM','网络运维',''],['maxDrones','飞机上限','架']]},
+ {t:'I · 五年模型 · 假定',imp:'只进第五段推演，不改月度',items:[]}];
+const RP_MODES=['fixed','pct_gmv','fixed_pct_gmv','fixed_pct_cfee'];
+const RP_LABEL={fixed:'固定租金',pct_gmv:'仅营业额提成',fixed_pct_gmv:'固定+营业额提成',fixed_pct_cfee:'固定+配送费提成'};
+
+function inputCell(arr,lock){
+  const [key,label,unit,pct,cls,drv]=arr;
+  const isDrv=drv==='drv';
+  const val=pct?(state[key]*100):state[key];
+  const shown=key==='dailyOrders'?+(+val).toFixed(1):+(+val).toFixed(4);
+  return `<div class="ic ${cls||''}${(lock||isDrv)?' lk':''}">
+    <label for="in_${key}">${L(label)}${unit?`<span class="u">${L(unit)}</span>`:''}</label>
+    <input type="number" step="any" id="in_${key}" data-k="${key}" data-pct="${pct?1:0}" value="${shown}"
+      ${(lock||isDrv)?' disabled':''}></div>`;}
+function rpTable(){
+  const eff=rpEff();
+  const rowOf=(sec,pt,i,eff1)=>{
+    const m=UEModel.pointMonthly(eff1,1)+ (0);
+    const hasFixed=pt.mode!=='pct_gmv';
+    const hasPct=pt.mode!=='fixed';
+    return `<tr><td class="rpn">${pt.name||(L(pt.nameKey)+' '+(pt.nameIdx||''))}</td>
+      <td><select onchange="setRp('${sec}',${i},'mode',this.value)">${RP_MODES.map(md=>`<option value="${md}"${pt.mode===md?' selected':''}>${L(RP_LABEL[md])}</option>`).join('')}</select></td>
+      <td><input type="number" step="any" value="${(+pt.fixed).toFixed(0)}" ${hasFixed?'':'disabled'} onchange="setRp('${sec}',${i},'fixed',this.value)"></td>
+      <td><input class="sm" type="number" step="any" value="${(pt.pct*100).toFixed(2)}" ${hasPct?'':'disabled'} onchange="setRp('${sec}',${i},'pct',this.value)"></td>
+      <td><input class="sm" type="number" step="any" value="${(pt.growthRent*100).toFixed(1)}" onchange="setRp('${sec}',${i},'growthRent',this.value)"></td>
+      <td><input type="number" step="any" value="${pt.fitoutTotal}" onchange="setRp('${sec}',${i},'fitoutTotal',this.value)"></td>
+      <td><input class="sm" type="number" step="any" value="${pt.amortMonths}" onchange="setRp('${sec}',${i},'amortMonths',this.value)"></td>
+      <td class="rpm">${fmt(UEModel.pointMonthly(eff1,1))}</td>
+      <td>${sec==='landing'&&rp.landing.length>1?`<button class="rpx" onclick="delLp(${i})">${L('删除')}</button>`:''}</td></tr>`;};
+  const body=rp.takeoff.map((pt,i)=>rowOf('takeoff',pt,i,eff.takeoff[i])).join('')
+    +rp.landing.map((pt,i)=>rowOf('landing',pt,i,eff.landing[i])).join('');
+  const r=UEModel.rentFromPoints(eff);
+  return `<div class="rpops">
+      <button onclick="addLp()">＋ ${L('增加降落点')}</button>
+      <button onclick="rpAllFixed()">${L('全部设为固定')}</button>
+      <span>${L('改行数即改降落点数')}</span></div>
+    <div class="rpwrap"><table class="rp"><thead><tr>
+      <th>${L('点位')}</th><th>${L('模式')}</th><th>${L('固定额')}</th><th>${L('提成比例')} %</th>
+      <th>${L('年涨')} %</th><th>${L('装修总额')}</th><th>${L('摊销月数')}</th><th style="text-align:right">${L('月租（算）')}</th><th></th>
+    </tr></thead><tbody>${body}</tbody></table></div>
+    <div class="rptot">${L('合计')} ${fmt(r.takeoffRent+r.landingRent)}
+      <small> · ${L('装修摊销')} ${fmt(r.takeoffFitoutM+r.landingFitoutM)}/${L('月')}</small></div>`;}
+function setRp(sec,i,field,v){
+  const pt=rp[sec][i];if(!pt)return;
+  if(field==='mode')pt.mode=v;
+  else if(field==='amortMonths'){const n=parseFloat(v);pt.amortMonths=isNaN(n)||n<1?12:Math.round(n);}
+  else if(field==='pct'||field==='growthRent'){const n=parseFloat(v);pt[field]=isNaN(n)?0:n/100;}
+  else{const n=parseFloat(v);pt[field]=isNaN(n)?0:n;}
+  syncRent();buildInputs();render();}
+function addLp(){rp.landing.push({name:null,nameKey:'降落点',nameIdx:rp.landing.length+1,mode:'fixed',
+  fixed:3000,pct:0,growthRent:0,fitoutTotal:10800,amortMonths:12,
+  dailyOrders:null,aov:null,cfee:null,growthOrders:0,growthAov:0,growthCfee:0});
+  syncRent();buildInputs();render();}
+function delLp(i){if(rp.landing.length<=1)return;rp.landing.splice(i,1);syncRent();buildInputs();render();}
+function rpAllFixed(){rpAll().forEach(p=>p.mode='fixed');syncRent();buildInputs();render();}
+function growthRows(){
+  const row=(k,lb,i)=>`<div class="ic"><label>${L(lb)}<span class="u">%</span></label>
+    <input type="number" step="any" value="${Math.round((i==null?growth[k]:growth.orders[i])*100)}"
+      onchange="setGrowth('${k}',this.value,${i==null?'null':i})"></div>`;
+  return `<div class="ig">
+    ${[1,2,3,4].map(i=>row('orders','Y'+(i+1)+' '+L('单量涨幅'),i)).join('')}
+    ${row('salary','薪资涨幅')}${row('aov','客单价涨幅')}${row('marketing','广告涨幅')}
+    <div class="ic"><label>${L('年可承受亏损上限')}</label>
+      <input type="number" step="any" value="${Math.round(lossCapAnnual)}" onchange="setLossCap(this.value)"></div></div>`;}
+function setGrowth(k,v,i){const n=parseFloat(v);if(isNaN(n))return;
+  if(k==='orders')growth.orders[i]=Math.max(-1,n/100);else growth[k]=Math.max(-1,n/100);
+  buildInputs();render();}
+function buildInputs(){
+  const af=document.activeElement,afId=af&&af.id;
+  const grp=g=>{const isC=g.t.indexOf('C ·')===0,isI=g.t.indexOf('I ·')===0;
+    return `<div class="grp"><div class="gh ${g.t.includes('唯一可谈')?'':'neg'}">${L(g.t)}<span class="ghimp">${L(g.imp)}</span></div>
+      ${isC?rpTable():''}${isI?growthRows():''}
+      <div class="ig">${g.items.map(it=>inputCell(it,g.lock)).join('')}</div></div>`;};
+  $('#inputs').innerHTML=GROUPS.filter(g=>!g.lock).map(grp).join('')
+    +`<details class="fold" style="margin-top:6px"><summary>${L('固定参数 · 不可调')}</summary>
+       <div style="margin-top:8px">${GROUPS.filter(g=>g.lock).map(grp).join('')}</div></details>`;
+  document.querySelectorAll('#inputs input[data-k]:not([disabled])').forEach(inp=>inp.oninput=e=>{
+    /* 空串不当 0：用户「删了想重打」的中间态本会把人效等字段刷成 0，
+       进而让保本无解、整张热力图退化。清空时保持上一次的值，等打完再算。 */
+    const k=e.target.dataset.k,pct=e.target.dataset.pct==='1',raw=e.target.value;
+    if(raw===''||raw==='-'||raw==='−')return;
+    let v=+raw;if(!isFinite(v))return;if(v<0)v=0;
+    state[k]=pct?v/100:v;render();});
+  if(afId){const n=document.getElementById(afId);if(n){n.focus();try{n.setSelectionRange(n.value.length,n.value.length);}catch(e){}}}}
+
+function resetAll(){
+  Object.assign(state,UEModel.DEFAULTS);
+  growth=JSON.parse(JSON.stringify(UEModel.GROWTH_DEF));
+  lossCapAnnual=PARAMS.loss_cap_annual;
+  /* 先无条件全量回默认，再由 loadUnit 叠回该商圈快照。
+     只做后半步的话，收入参数与人效这些被改过的值会留在原地，按钮就不是真的「全部恢复」。 */
+  loadUnit(curUnit);}
+
+function copyScenario(){
+  const q=new URLSearchParams();
+  q.set('d',(+state.dailyOrders).toFixed(4));
+  q.set('lp',String(Math.round(state.landingPts)));
+  q.set('rd',String(Math.round(state.routeDist)));
+  q.set('tr',(+state.takeoffRent).toFixed(2));
+  q.set('lr',(+state.landingRent).toFixed(2));
+  if(curUnit)q.set('id',curUnit);
+  const url=location.origin+location.pathname+'?'+q.toString();
+  const done=()=>{const b=$('#shareBtn');const old=b.textContent;b.textContent='✓ '+L('已复制');
+    setTimeout(()=>b.textContent=old,1600);};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt('',url));
+  else prompt('',url);}
+
+function applyStatic(){
+  $('#backLink').textContent='◂ '+L('返回选址沙盘');
+  $('#stageBadge').textContent=L('开航② · 经济性');
+  $('#brandName').innerHTML=LANG==='en'?'Unit <b>Economics</b>':'单元 <b>经济</b>台';
+  $('#brandSub').textContent=' · '+L('经营测算一张图');
+  $('#engBadge').textContent=L('引擎单源');
+  $('#engBadge').title=L('测算引擎单源 engine/ue_model.js');
+  $('#unitSel').setAttribute('aria-label',L('选择商圈'));
+  $('#shareBtn').textContent='⧉ '+L('复制当前情景链接');
+  $('#resetBtn').textContent='↺ '+L('全部恢复模型默认');
+  document.querySelectorAll('[data-h2]').forEach(el=>el.textContent=L(el.dataset.h2));
+  $('#foot').textContent=L('本页为个人作品集演示，全部数据由脚本生成，与任何真实业务无关。');
+  document.title=L('单元经济台');
+  renderThemeBtn();}
+function switchLang(lang){LANG=lang;
+  document.documentElement.lang=lang==='en'?'en':'zh-CN';
+  document.querySelectorAll('.langbtn').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));
+  applyStatic();populateUnitSel();buildInputs();render();}
+</script>
+</body>
+</html>
