@@ -1,0 +1,3210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>开航排期推演台</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+/* ============================================================
+   开航排期推演台
+   结构：两块。排期（一屏读完的判决）与地图（三栏作战面）。
+        两道门：分城表点行进地图，点位卡「看排期」回排期。
+   配色：深色写在 :root，浅色在 :root[data-theme="light"] 覆盖；
+        默认浅色（不落键即浅色），只有显式选了深色才落 ops_theme。
+        单暖色只给转正与已开航，亏损不染红。
+   ============================================================ */
+:root{
+  color-scheme:dark;
+  --bg:oklch(0.16 0.008 250);
+  --surf:oklch(0.20 0.010 250);
+  --surf2:oklch(0.235 0.010 250);
+  --line:oklch(0.28 0.010 250);
+  --line2:oklch(0.34 0.010 250);
+  --ink:oklch(0.95 0.005 250);
+  --ink2:oklch(0.68 0.010 250);
+  --ink3:oklch(0.643 0.012 250);
+  --warm:oklch(0.78 0.150 65);
+  --warmDim:oklch(0.78 0.150 65 / .18);
+  --warmFaint:oklch(0.78 0.150 65 / .08);
+  --sel:oklch(0.72 0.045 250);
+  --blue:#5E84F5;
+  --block:#FF5E5E;
+  --done:#2ED47A;
+  --shadow:oklch(0.08 0.01 250 / .55);
+  --glowK:1;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+  --z-head:80;--z-map:70;--z-drawer:100;
+}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:oklch(0.972 0.004 250);
+  --surf:oklch(1 0 0);
+  --surf2:oklch(0.988 0.003 250);
+  --line:oklch(0.905 0.006 250);
+  --line2:oklch(0.845 0.008 250);
+  --ink:oklch(0.27 0.010 250);
+  --ink2:oklch(0.48 0.010 250);
+  --ink3:oklch(0.527 0.012 250);
+  --warm:oklch(0.558 0.140 60);
+  --warmDim:oklch(0.558 0.140 60 / .16);
+  --warmFaint:oklch(0.558 0.140 60 / .07);
+  --sel:oklch(0.45 0.050 250);
+  --blue:#3557C8;
+  --block:#C42B35;
+  --done:#147A41;
+  --shadow:oklch(0.55 0.02 250 / .18);
+  --glowK:0;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{height:100%}
+body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+table{border-collapse:collapse}
+a{color:inherit}
+/* 数字与单位之间的极窄间隙。不用空格字符：数值多走等宽字体，窄空格会被撑成整格 */
+.g{display:inline-block;width:.16em}
+:root[lang="en"] .g{width:auto}
+:root[lang="en"] .g::before{content:" ";white-space:pre}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px}
+::-webkit-scrollbar-track{background:transparent}
+::selection{background:var(--warmDim)}
+:focus-visible{outline:2px solid var(--warm);outline-offset:1px}
+
+/* ===== 顶栏与 tab ===== */
+.head{position:sticky;top:0;z-index:var(--z-head);display:flex;align-items:center;gap:14px;
+  height:46px;padding:0 18px;background:var(--surf);border-bottom:1px solid var(--line)}
+.brand{font-weight:700;font-size:13.5px;white-space:nowrap}
+.brand i{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:8px}
+.tabs{display:flex;gap:2px;height:100%}
+.tabs button{position:relative;padding:0 14px;font-size:12.5px;color:var(--ink2)}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--ink);font-weight:600}
+.tabs button.on::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:2px;background:var(--ink)}
+.hsp{flex:1}
+.hbtn{font-size:11.5px;color:var(--ink2);padding:5px 9px;border-radius:3px}
+.hbtn:hover{color:var(--ink);background:var(--surf2)}
+.bk2{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--ink3);
+  text-decoration:none;padding:5px 9px;border-radius:3px;white-space:nowrap}
+.bk2:hover{color:var(--ink);background:var(--surf2)}
+.thtog{display:inline-flex;align-items:center;justify-content:center;width:28px;height:24px;
+  border-radius:3px;color:var(--ink2)}
+.thtog:hover{color:var(--warm);background:var(--surf2)}
+.thtog svg{width:15px;height:15px}
+
+/* ===== 排期页 ===== */
+.conc{max-width:1120px;margin:0 auto;padding:22px 26px 28px}
+/* 分块靠「面」：每一段坐在自己的面上，块与块之间只有留白，一条分割线都没有。
+   首块用暖色眉标，其余中性：靠一处暖色分出主次，不给每块各配一个颜色。 */
+.blk{background:var(--surf);border:1px solid var(--line);border-radius:6px;
+  padding:16px 20px 18px;margin-bottom:14px;
+  box-shadow:0 1px 0 var(--line),0 10px 24px -18px var(--shadow)}
+.sq{display:inline-flex;align-items:center;height:20px;padding:0 9px;margin-bottom:12px;
+  border-radius:3px;background:var(--surf2);border:1px solid var(--line);
+  font-size:10.5px;color:var(--ink2);letter-spacing:.3px}
+.blk.lead .sq{background:var(--warmFaint);border-color:color-mix(in oklch,var(--warm) 28%,transparent);
+  color:var(--warm)}
+.blk.plan-blk .sq{background:color-mix(in oklch,var(--blue) 8%,transparent);
+  border-color:color-mix(in oklch,var(--blue) 26%,transparent);color:var(--blue)}
+
+.verdict{display:flex;align-items:flex-end;gap:34px;flex-wrap:wrap;padding-bottom:14px;
+  justify-content:space-between;border-bottom:1px solid var(--line)}
+.verdict .cap{font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.6px;margin-bottom:5px}
+.vbig{font-family:var(--mono);font-weight:600;font-size:40px;line-height:1;color:var(--warm);letter-spacing:-.02em}
+.vbig small{font-size:15px;font-weight:400;color:var(--ink);margin-left:8px;letter-spacing:0}
+.vhi{font-family:var(--mono);font-size:9.5px;color:var(--ink3);letter-spacing:.2px;margin-top:3px}
+.vn .vhi{margin-top:1px}
+/* 模型拆解入口：实心块。底色走 warmDim（暖色低透明度派生，不是新增色相），
+   文字用 warm，与大字同一支，靠「填充 vs 文字」区分层级而不是靠再来一个颜色。 */
+.chaintab{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;align-self:center;
+  margin:0 auto;padding:9px 16px;border:none;border-radius:5px;background:var(--warmDim);
+  color:var(--warm);font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;
+  transition:background .15s linear}
+.chaintab:hover{background:color-mix(in oklch,var(--warm) 26%,transparent)}
+.vnums{display:flex;gap:30px;margin-left:auto}
+.vn{text-align:right}
+.vn .k{font-size:10px;color:var(--ink3);margin-bottom:4px}
+.vn .v{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--ink)}
+.vn .v.w{color:var(--warm)}
+.vn .v small{font-size:10.5px;color:var(--ink3);font-weight:400;margin-left:2px}
+.vn.click{cursor:pointer}
+.vn.click:hover .k,.vn.on .k{color:var(--ink2)}
+/* 分城市查看切换器：坐在判决区抬头那一行，压到与它同一档字号，不抢大字 */
+.vwsel{display:inline-flex;gap:2px;vertical-align:baseline;flex-wrap:wrap}
+.vwb{font:inherit;font-size:10.5px;color:var(--ink3);background:transparent;border:0;
+  cursor:pointer;padding:1px 5px;border-radius:3px;letter-spacing:.2px}
+.vwb:hover{color:var(--ink2);background:var(--surf2)}
+.vwb.on{color:var(--warm);background:var(--warmFaint)}
+.vrad{width:100%;font:600 11px/1.5 var(--mono);color:var(--warm);
+  background:var(--warmFaint);border:1px solid var(--warmDim);border-radius:4px;
+  padding:6px 10px;margin-bottom:10px}
+.vrad .exr{margin-left:10px;font:inherit;color:var(--warm);background:none;border:none;
+  border-bottom:1px dashed var(--warmDim);cursor:pointer;padding:0}
+
+.plan{margin-top:16px}
+.tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.tbl th{text-align:left;font-weight:400;color:var(--ink3);font-size:10px;padding:5px 10px 8px;
+  border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:6px 10px;border-bottom:1px solid var(--line);font-family:var(--mono);color:var(--ink2)}
+.tbl td.nm{font-family:var(--sans);color:var(--ink)}
+.tbl td.r,.tbl th.r{text-align:right}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr.click{cursor:pointer}
+#conc [data-go]:focus-visible{outline:2px solid var(--warm);outline-offset:-2px}
+.tbl tr.click:hover td{background:var(--surf2)}
+.tbl tr.on td{background:var(--surf2)}
+.tbl .w{color:var(--warm)}
+.tbl .dim{color:var(--ink3)}
+.offm{font-family:var(--mono);font-size:9.5px;color:var(--ink3);margin-left:4px;white-space:nowrap}
+/* 规划表：行线整片撤掉，让眉标成为这张表上唯一的横向结构。
+   只剩三条横线：两个眉标各一条底线 + 净利那条合计线。 */
+.tbl.plan td{border-bottom:none;padding-top:7px;padding-bottom:7px}
+.tbl.plan th.yh{font-family:var(--mono);font-size:12px;color:var(--ink2);text-align:right}
+.tbl.plan th.turn{color:var(--warm)}
+.tbl.plan td.turn{background:var(--warmFaint)}
+.tbl.plan td.nm{padding-top:6px;padding-bottom:6px;white-space:nowrap;line-height:1.3}
+/* 行名下面的算式：逻辑贴着它算出来的数，页面因此不需要一段散文去讲同一件事 */
+.tbl.plan td.nm i{display:block;font-family:var(--mono);font-style:normal;font-size:9.5px;
+  color:var(--ink3);margin-top:1px;letter-spacing:.1px;line-height:1.35}
+.tbl.plan tr.net td{font-weight:600;font-size:14px;border-top:1px solid var(--line2)}
+.tbl.plan tr.net td.nm i{font-weight:400;color:var(--ink3);font-size:9.5px}
+.tbl.plan tr.net td.nm{font-weight:600}
+.tbl.plan .u{font-family:var(--mono);font-size:9.5px;color:var(--ink3);text-align:right;
+  white-space:nowrap;width:76px}
+.tbl.plan td.v{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+.tbl.plan tr.net td.v{font-size:14px;font-weight:600}
+.tbl.plan tr.emrow td{border-bottom:none;padding-top:9px;padding-bottom:1px}
+.tbl.plan td.nm.sub2{color:var(--ink2);font-size:11px;padding-left:18px}
+.tbl.plan td.nm.sub2 i{display:inline;font-style:normal;font-family:var(--mono);font-size:9.5px;
+  color:var(--ink3);margin-left:7px}
+.tbl.plan td.nm.sub3{padding-left:34px;color:var(--ink2)}
+.tbl.plan tr.strow td{border-bottom:none;padding-top:3px;padding-bottom:3px;font-size:10.5px;
+  color:var(--ink3);white-space:nowrap}
+.tbl.plan tr.strow{cursor:pointer}
+.tbl.plan tr.strow:hover td{background:var(--surf2)}
+.tbl.plan tr.strow:last-child td{padding-bottom:9px}
+.tbl.plan tr.sep > td{border-top:1px solid var(--line)}
+/* 两条眉标同高，靠上下两条横线成一整行的带，不靠上留白拉开组距 */
+.tbl tr.grph > td{font-family:var(--sans);font-size:10.5px;font-weight:600;letter-spacing:.6px;
+  color:var(--ink);padding:9px 10px;background:var(--surf2);
+  border-top:1px solid var(--line2);border-bottom:1px solid var(--line2)}
+.tbl tr.hirow td{color:var(--ink3)}
+.tbl tr.hirow td.nm i{display:block;font-style:normal;font-size:9px;color:var(--ink3);margin-top:2px}
+.tbl tr.hirow.first td{border-top:1px dashed var(--line2)}
+/* 三类点位：计划 = 业务侧计划里有开航月份的 · 推荐 = 模型排出来的 · 未排期 = 没排上 */
+.tbl.plan .pln{font-family:var(--mono);font-size:8.5px;color:var(--blue);
+  border:1px solid color-mix(in oklch,var(--blue) 30%,transparent);
+  border-radius:2px;padding:0 3px;margin-left:5px;vertical-align:1px}
+.tbl.plan .pln.rec{color:var(--warm);border-color:color-mix(in oklch,var(--warm) 35%,transparent)}
+.tbl.plan .pln.unp{color:var(--ink3);border-color:var(--line2)}
+/* 索降标的是履约形态不是来源，给它自己一档：实心底、无边框 */
+.tbl.plan .pln.sd{color:var(--bg);background:var(--warm);border-color:var(--warm)}
+.segw{font-family:var(--mono);font-size:9.5px;color:var(--ink3);letter-spacing:.2px;
+  border-bottom:1px dashed var(--line2);padding-bottom:1px}
+.segt{font-family:var(--mono);font-style:normal;font-size:8.5px;color:var(--ink3);
+  border:1px solid var(--line2);border-radius:2px;padding:0 3px;margin-left:5px;
+  vertical-align:1px;letter-spacing:.2px;white-space:nowrap}
+.pyh{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.pyh b{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink)}
+.pyh span{font-size:10.5px;color:var(--ink3)}
+.qtog{font-family:var(--mono);font-size:9px;letter-spacing:.3px;white-space:nowrap;cursor:pointer;
+  color:var(--ink3);background:transparent;border:1px solid var(--line2);border-radius:3px;padding:2px 7px}
+.qtog:hover{color:var(--ink2);border-color:var(--ink3)}
+.qtog.on{color:var(--warm);border-color:var(--warm);background:var(--warmFaint)}
+.pyl{display:flex;align-items:baseline;gap:18px;margin-top:14px;padding-top:11px;
+  border-top:1px solid var(--line);flex-wrap:wrap}
+.cs{font-size:10px;color:var(--ink3);display:flex;flex-direction:column;gap:2px}
+.cs b{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--ink2)}
+.cs b.w{color:var(--warm)}
+.pyl .cs.yr{cursor:pointer;padding:2px 6px;border-radius:4px;border:1px solid transparent}
+.pyl .cs.yr:hover{background:var(--surf2)}
+.pyl .cs.yr.on{border-color:var(--warm);background:var(--warmFaint)}
+.pyl .cs.yr.on b{color:var(--warm)}
+
+/* ===== 详情 = 一张贴纸 =====
+   点表里任意一行，这块从表下面掀出来：自带底色 + 抬起阴影 + 顶部一条略深的标签条。
+   ⚠ 只此一张。里面不许再出现第二个有底色的盒子；分区仍靠 1px 细线与留白。 */
+.detail[hidden]{display:none}
+.detail{margin-top:16px;min-height:210px;display:flex;flex-direction:column;
+  background:var(--surf);border:1px solid var(--line);border-radius:5px;
+  box-shadow:0 1px 0 var(--line),0 10px 24px -14px var(--shadow);overflow:hidden}
+.dhd{display:flex;align-items:baseline;gap:10px;flex:none;
+  padding:9px 14px;background:var(--surf2);border-bottom:1px solid var(--line)}
+.dhd b{font-size:12px;font-weight:600;color:var(--ink)}
+.dhd span{font-size:10.5px;color:var(--ink3)}
+.dhd .rst{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ink3);
+  cursor:pointer;border-bottom:1px dashed var(--line2)}
+.dhd .rst:hover{color:var(--warm);border-bottom-color:var(--warm)}
+.dhd .rst+.x{margin-left:12px}
+.dhd .x{margin-left:auto;font-size:10.5px;color:var(--ink3);cursor:pointer;font-family:var(--mono)}
+.dhd .x:hover{color:var(--warm)}
+.dbd{flex:1;padding:12px 14px 14px;overflow-x:auto}
+.dp{font-size:12px;line-height:1.85;color:var(--ink2);max-width:38em;margin-bottom:9px}
+.dfx{font-family:var(--mono);font-size:10.5px;color:var(--ink3);line-height:1.9;margin-bottom:11px}
+/* 逻辑链：一步一行，量名 · 算式 · 三态。三态里只有「假定值」上暖色，它是唯一能调的那类 */
+.chain{margin-bottom:12px;max-width:880px}
+.cst{display:grid;grid-template-columns:20px 118px 1fr auto;gap:10px;align-items:baseline;
+  padding:5px 0;border-bottom:1px solid var(--line)}
+.cst:last-child{border-bottom:none}
+.cst .cn{font-family:var(--mono);font-size:10px;color:var(--ink3);font-weight:400}
+.cst .ck{font-size:11px;color:var(--ink2)}
+.cst .cf{font-family:var(--mono);font-size:10.5px;color:var(--ink3);line-height:1.7}
+.cst .cf u{text-decoration:none;display:block;color:var(--ink3);font-size:9.5px;margin-top:2px}
+.cst .c3{font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:.3px;white-space:nowrap}
+.cst .c3.k{color:var(--warm)}
+.cst.sum{border-bottom:none;padding-top:7px}
+.cst.sum .cn{color:var(--ink2)}
+.cst.sum .ck{color:var(--ink);font-weight:600}
+.cst.sum .cf{color:var(--ink2);font-size:11.5px}
+.cnote{font-family:var(--mono);font-size:10px;color:var(--ink3);line-height:1.8;max-width:880px;
+  padding-top:8px;margin-bottom:11px;border-top:1px solid var(--line)}
+.cnote b{color:var(--warm);font-weight:400}
+/* 就地调参：滑杆长在链条行里，讲这个数和拨这个数是同一处 */
+.cst .pk{display:flex;align-items:center;gap:9px;margin-top:5px;flex-wrap:wrap}
+.cst .pk input[type=range]{-webkit-appearance:none;appearance:none;width:150px;height:14px;
+  background:transparent;cursor:pointer;flex:none}
+.cst .pk input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line2);border-radius:2px}
+.cst .pk input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:10px;height:10px;border-radius:50%;background:var(--ink2);margin-top:-4px;border:none}
+.cst .pk input[type=range]:hover::-webkit-slider-thumb{background:var(--warm)}
+.cst .pk input[type=range]::-moz-range-track{height:2px;background:var(--line2);border-radius:2px}
+.cst .pk input[type=range]::-moz-range-thumb{width:10px;height:10px;border:none;border-radius:50%;background:var(--ink2)}
+.cst .pk em.pn{font-style:normal;font-size:10.5px;color:var(--ink2);width:118px;flex:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cst .pk.on em.pn{color:var(--warm)}
+.cst .pk b.pv{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink);min-width:76px}
+.cst .pk.on b.pv{color:var(--warm)}
+.cst .pk i{font-family:var(--mono);font-style:normal;font-size:9px;color:var(--ink3);white-space:nowrap}
+/* 抽屉小标题：与年度计划表的眉标同规格，只是不铺底色 */
+.dsec{font-family:var(--sans);font-size:10.5px;font-weight:600;letter-spacing:.5px;color:var(--ink);
+  margin:20px 0 0;padding-bottom:6px;border-bottom:1px solid var(--line2)}
+.dsec i{font-style:normal;font-weight:400;font-size:10px;color:var(--ink3);margin-left:9px;letter-spacing:0}
+/* 漏斗只在详情里出现 */
+.fnl{display:flex;flex-direction:column;margin-top:8px}
+.frow{display:grid;grid-template-columns:128px 1fr 96px 200px;align-items:center;gap:14px;padding:4px 0}
+.frow .fl{font-size:11px;color:var(--ink2)}
+.frow.last .fl{color:var(--ink);font-weight:600}
+.fbar{position:relative;height:12px}
+.fbar i{position:absolute;left:0;top:0;bottom:0;background:var(--ink3);opacity:.3;border-radius:2px}
+.frow.last .fbar i{background:var(--warm);opacity:1}
+.frow .fv{font-family:var(--mono);font-size:12px;text-align:right;color:var(--ink2)}
+.frow.last .fv{color:var(--warm);font-weight:600}
+.frow .fop{font-family:var(--mono);font-size:9.5px;color:var(--ink3);white-space:nowrap}
+
+@media (min-width:1600px){
+  .conc{max-width:1260px}
+  .tbl{font-size:12.5px}
+  .tbl.plan td.nm i{font-size:10.5px}
+  .tbl.plan .u{font-size:10.5px}
+  .tbl th{font-size:11px}
+  .vbig{font-size:46px}
+  .cst .cf{font-size:11.5px}
+  .cst .ck{font-size:12px}
+}
+
+/* ===== 地图视图 = 三栏 =====
+   地图跟页面主题走，深浅都要能看。浅色档不是把深色值调亮：
+   · 曜金在白底对比度只有 1.4:1，当细线和文字完全不可读，故填充档取 #E0A400、文字另走 --warm；
+   · 电蓝同理下沉；发光在白底上不产生「亮」只产生「糊」，浅色档 --glowK 整条关掉。
+   所有会随主题变的量一律走令牌，JS 侧用 cssv() 读 #map 的 computed 值，改一处两档同步。 */
+.mapv{--bcn:#FFD100;--lnd:#5E84F5;--hollow:rgba(158,168,194,.75);
+  --tbBg:rgba(13,15,26,.80);--mapBg:#07080e;--tip:#141627;--tipFg:#E9EEF9;
+  --yglow:rgba(255,209,0,.18);--rwSup:1.5;--rwLand:1.5;--rfSup:.06;--rfLand:.05;
+  --lblBg:rgba(7,11,22,.66);--lblHalo:#000;--sectorLbl:rgba(233,238,249,.5);--sectorLblF:rgba(233,238,249,.85);
+  position:fixed;left:0;right:0;bottom:0;top:46px;z-index:var(--z-map);background:var(--bg);
+  /* ⚠ color 必须显式写：变量只级联定义不改继承链，漏了这行右轨会继承别处的字色 */
+  color:var(--ink);
+  display:none;grid-template-columns:238px 1fr 312px}
+:root[data-theme="light"] .mapv{
+  --bcn:#E0A400;--lnd:#3557C8;--hollow:rgba(85,97,122,.7);
+  --tbBg:rgba(255,255,255,.86);--mapBg:#F2F2F0;--tip:#FFFFFF;--tipFg:#1B2333;
+  --yglow:rgba(240,180,0,.32);--rwSup:2.2;--rwLand:2;--rfSup:.18;--rfLand:.14;
+  --lblBg:rgba(255,255,255,.86);--lblHalo:rgba(255,255,255,.9);
+  --sectorLbl:rgba(27,35,51,.55);--sectorLblF:rgba(27,35,51,.88)}
+body.mapping .mapv{display:grid}
+body.mapping .conc{display:none}
+.mrail{border-right:1px solid var(--line);overflow-y:auto;background:var(--surf);padding:0 0 24px}
+.mrail::-webkit-scrollbar{width:0}
+.mside{border-left:1px solid var(--line);overflow-y:auto;background:var(--surf);padding:16px}
+.mside::-webkit-scrollbar{width:0}
+.mcol{position:relative;min-width:0;display:flex;flex-direction:column}
+#map{flex:1;min-height:0;background:var(--mapBg)}
+.mtop{position:absolute;top:12px;left:12px;right:12px;display:flex;gap:8px;z-index:700;pointer-events:none}
+.mtop button{pointer-events:auto;font-family:var(--mono);font-size:11px;padding:6px 11px;
+  border:1px solid var(--line2);border-radius:3px;background:var(--surf);color:var(--ink2)}
+.mtop button:hover{color:var(--ink);border-color:var(--ink3)}
+.mtop button.on{color:var(--warm);border-color:var(--warmDim)}
+.mtop .sp{flex:1}
+/* 点位三档图例。⚠ 三个色点与 .dotSched / .dotHollow / .dotPot 逐值同源，改一处三处同改 */
+.mlgd{position:absolute;top:44px;left:12px;z-index:700;pointer-events:none;
+  display:flex;gap:12px;font:600 10px/1 var(--mono);color:var(--ink2);letter-spacing:.3px}
+.mlgd span{display:flex;align-items:center;gap:4px}
+.mlgd i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.mlgd .lg1{background:var(--bcn);box-shadow:0 0 calc(6px * var(--glowK)) var(--bcn)}
+.mlgd .lg2{background:transparent;border:1.4px solid var(--hollow)}
+.mlgd .lgtog{pointer-events:auto;cursor:pointer;opacity:.45;transition:opacity .15s}
+.mlgd .lgtog.on{opacity:1}
+.mlgd .lgtog:hover{opacity:.8}
+.mlgd .lg3{width:6px;height:6px;background:transparent;
+  border:1.2px solid color-mix(in srgb,var(--sel) 70%,transparent)}
+body.fparm .mcol{cursor:crosshair}
+body.fparm .leaflet-container{cursor:crosshair}
+.lgrp{padding:13px 15px;border-bottom:1px solid var(--line)}
+.lgrp:last-child{border-bottom:none}
+.lgrp h4{font-size:10.5px;color:var(--ink3);margin-bottom:8px;font-weight:400;line-height:1.5}
+.lt{display:flex;align-items:center;gap:8px;padding:4px 5px;border-radius:3px;cursor:pointer;user-select:none}
+.lt:hover{background:var(--surf2)}
+.lt input{accent-color:var(--blue);width:12px;height:12px;flex:none;margin:0;cursor:pointer}
+.lt .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.lt .ramp{width:16px;height:6px;border-radius:3px;display:inline-block;flex:none}
+.lt .lb{font-size:11px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
+.lt .cnt{font-family:var(--mono);font-size:9.5px;color:var(--ink3)}
+.kwrap{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.kchip{background:var(--surf2);border:1px solid var(--line);border-radius:4px;padding:7px 9px}
+.kchip .v{font-family:var(--mono);font-size:14.5px;font-weight:600;color:var(--warm)}
+.kchip .v small{font-size:9.5px;font-weight:400;color:var(--ink3);margin-left:2px}
+.kchip .k{font-size:9.5px;color:var(--ink3);margin-top:2px;white-space:nowrap}
+.neg{color:var(--block)!important}
+.pos2{color:var(--done)!important}
+
+/* 时间轴浮层：玻璃浮层 + 播放 + 拖拽游标 + 点火 flare */
+#timebar{position:absolute;left:12px;right:12px;bottom:12px;z-index:600;background:var(--tbBg);
+  backdrop-filter:blur(10px);border:1px solid var(--line2);border-radius:8px;padding:9px 14px 8px;
+  box-shadow:0 10px 34px var(--shadow)}
+.tbhead{display:flex;align-items:center;gap:11px;margin-bottom:3px}
+.tbt{font-size:11px;color:var(--ink2);font-weight:600}
+#play{width:24px;height:24px;border-radius:50%;border:1px solid var(--line2);font-size:9px;flex:none;
+  color:var(--ink2);transition:.15s}
+#play:hover{border-color:var(--warm);color:var(--warm)}
+#qlab{font-family:var(--mono);font-weight:600;font-size:13px;color:var(--warm)}
+#concl{margin-left:auto;font-size:11px;color:var(--ink2);text-align:right;line-height:1.5}
+#concl b{color:var(--ink);font-family:var(--mono)}
+#concl .mvem{color:var(--warm);font-weight:600}
+#concl .ok{color:var(--done)}
+#tlw{position:relative;height:56px}
+#tls{position:absolute;inset:0;width:100%;height:100%;cursor:ew-resize}
+.tlflare{transform-box:fill-box;transform-origin:center;animation:tlfl .9s cubic-bezier(.15,.6,.25,1) both}
+@keyframes tlfl{0%{transform:scale(.6);opacity:.95}100%{transform:scale(4.6);opacity:0}}
+.igr{position:absolute;inset:0;border-radius:50%;border:2px solid var(--warm);pointer-events:none;
+  animation:igring .95s cubic-bezier(.15,.6,.25,1) both}
+@keyframes igring{0%{transform:scale(1);opacity:0}14%{opacity:.9}100%{transform:scale(7.5);opacity:0}}
+
+/* 右轨 */
+.mside h3{font-size:14px;font-weight:600;margin-bottom:4px}
+.mside .sub{font-size:11px;color:var(--ink3);line-height:1.75;margin-bottom:12px}
+.mrow{display:flex;justify-content:space-between;gap:12px;padding:8px 0;
+  border-bottom:1px solid var(--line);font-size:11.5px;color:var(--ink2)}
+.mrow span:last-child{font-family:var(--mono);color:var(--ink);text-align:right}
+.mrow.warm span:last-child{color:var(--warm)}
+.mrow.pick{color:var(--warm);font-weight:600}
+.mbtn{display:block;width:100%;text-align:center;margin-top:14px;padding:8px 0;border:1px solid var(--line2);
+  border-radius:3px;font-size:11.5px;color:var(--ink2)}
+.mbtn:hover{color:var(--warm);border-color:var(--warmDim)}
+.bk{display:inline-block;font-size:10.5px;color:var(--ink3);margin-bottom:10px;cursor:pointer}
+.bk:hover{color:var(--ink)}
+.tg{font-family:var(--mono);font-size:9px;border:1px solid var(--line2);border-radius:2px;
+  padding:0 4px;color:var(--ink3);white-space:nowrap}
+.tg.sdtg{color:var(--warm);border-color:var(--warm)}
+.note{font-size:10.5px;color:var(--ink3);line-height:1.7;margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--line)}
+.warnrow{font-size:10.5px;color:var(--warm);line-height:1.6;margin-top:10px}
+.ucard{border:1px solid var(--line);border-radius:5px;padding:11px 12px;margin-bottom:10px;
+  cursor:pointer;background:var(--surf)}
+.ucard:hover{border-color:var(--warmDim)}
+.ucard .uh{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.ucard .un{font-weight:600;font-size:12.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;color:var(--ink)}
+.ucard .un::before{content:"● ";color:var(--warm);font-size:8px;vertical-align:1.5px}
+.ucard .uq{font-family:var(--mono);font-size:9.5px;color:var(--ink3);white-space:nowrap}
+.ucard .uq.on{color:var(--warm)}
+.ucard .chips{display:flex;gap:6px}
+.ucard .uc{flex:1;background:var(--surf2);border:1px solid var(--line);border-radius:3px;
+  padding:5px 7px;min-width:0}
+.ucard .uc .v{font-family:var(--mono);font-size:12px;font-weight:600;white-space:nowrap;color:var(--ink)}
+.ucard .uc .v small{font-size:9px;font-weight:400;color:var(--ink3)}
+/* ⚠ 别给 .k 加 white-space:nowrap：三个芯片 flex:1 平分右轨宽度，长标签会溢出被裁掉 */
+.ucard .uc .k{font-size:8.5px;color:var(--ink3);margin-top:2px;line-height:1.35;
+  overflow-wrap:anywhere;word-break:break-word}
+.ucard .uf{display:flex;justify-content:space-between;font-size:10px;color:var(--ink3);margin-top:7px}
+.ucard .ucov{font-size:9.5px;line-height:1.5;color:var(--ink3);margin-top:7px;
+  padding-top:6px;border-top:1px dashed var(--line)}
+.ucard .ucov b{font-family:var(--mono);font-weight:600;color:var(--ink2)}
+/* 增删：✕ 常驻不 hover 才现 —— 右轨是决策面，藏起来的操作等于没有 */
+.ucard .ux{flex:none;border:0;background:transparent;cursor:pointer;padding:0 2px;
+  font-size:11px;line-height:1;color:var(--ink3);font-family:var(--mono)}
+.ucard .ux:hover{color:var(--warm)}
+.ucard.off{opacity:.5}
+.ucard.off .un{text-decoration:line-through;text-decoration-thickness:1px}
+.exb{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-family:var(--mono);font-size:10px;color:var(--warm);
+  background:var(--warmFaint);border:1px solid var(--line);border-radius:4px;
+  padding:6px 9px;margin-bottom:9px}
+.exb .rst{cursor:pointer;color:var(--ink3);border-bottom:1px dashed var(--line2)}
+.exb .rst:hover{color:var(--warm);border-bottom-color:var(--warm)}
+.exb .exr{margin-left:10px;font:inherit;color:var(--warm);background:none;border:none;
+  border-bottom:1px dashed var(--warmDim);cursor:pointer;padding:0}
+.exb.busy{color:var(--ink2)}
+.wrow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);
+  font-size:11px;color:var(--ink2)}
+.wrow input[type=range]{flex:1;accent-color:var(--blue);height:14px;margin:0;min-width:0}
+.wrow .wv{font-family:var(--mono);font-size:10.5px;color:var(--ink);width:52px;text-align:right;flex:none}
+.lland{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.lland .lnm{flex:1;min-width:60px;font-size:11.5px;color:var(--ink);outline:none;
+  border-bottom:1px dashed transparent;cursor:text}
+.lland .lnm:hover{border-bottom-color:var(--line2)}
+.lland .lnm:focus{border-bottom-color:var(--warm)}
+.lland .cc2{flex:0 0 100%;font-family:var(--mono);font-size:9px;color:var(--ink3);
+  letter-spacing:.3px;padding-left:23px}
+.lland .idx{width:16px;height:16px;border-radius:50%;background:rgba(94,132,245,.16);color:var(--blue);
+  font-family:var(--mono);font-size:9px;display:flex;align-items:center;justify-content:center;flex:none}
+.lland input[type=range]{flex:1;accent-color:var(--blue);height:12px;margin:0;min-width:24px}
+.lland .rv{font-family:var(--mono);font-size:9.5px;color:var(--ink);width:40px;text-align:right;flex:none}
+.lland .del{color:var(--ink3);font-size:12px;padding:0 3px;flex:none}
+.lland .del:hover{color:var(--warm)}
+.addrow{display:flex;gap:6px;margin-top:9px}
+.addrow input[type=text]{flex:1;min-width:0;font:10.5px var(--mono);color:var(--ink);background:var(--surf2);
+  border:1px solid var(--line2);border-radius:3px;padding:5px 7px;outline:none}
+.addrow button,.wbtn{font-size:10.5px;padding:5px 9px;border:1px solid var(--line2);border-radius:3px;
+  color:var(--ink2);white-space:nowrap}
+.addrow button:hover,.wbtn:hover{color:var(--ink);border-color:var(--ink3)}
+.wbtn.on{color:var(--warm);border-color:var(--warmDim)}
+.wbtn.join{width:100%;margin-top:9px;border-color:var(--warm);color:var(--warm)}
+.devi{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--warm);margin-top:9px;
+  padding:6px 8px;border:1px solid var(--warmDim);border-radius:3px}
+.devi a{color:var(--warm);text-decoration:underline;cursor:pointer;margin-left:auto}
+.wsec{font-size:10px;color:var(--ink3);margin:13px 0 3px;letter-spacing:.4px}
+/* 圈边拖拽手柄：拖它即改半径。形状是横向胶囊不是圆点 ——
+   同色圆点等于凭空多一个点位，横向也把「沿半径左右拖」这件事说清楚了 */
+.rgrip{width:12px;height:6px;border-radius:3px;border:1.2px solid var(--mapBg);cursor:ew-resize;
+  position:relative;opacity:.85;transition:opacity .12s var(--ease),transform .12s var(--ease);
+  box-shadow:0 0 0 1px var(--shadow),0 1px 4px var(--shadow)}
+.rgrip:hover{opacity:1;transform:scale(1.25)}
+.rgrip.sup{background:var(--bcn)}
+.rgrip.land{background:var(--lnd)}
+.rgtag{position:absolute;left:50%;bottom:11px;transform:translateX(-50%);white-space:nowrap;
+  font:700 9px/1 var(--mono);letter-spacing:.3px;padding:2px 5px;border-radius:4px;
+  background:var(--tip);border:1px solid var(--line2);box-shadow:0 2px 6px var(--shadow)}
+.rgrip.sup .rgtag{color:var(--bcn)}
+.rgrip.land .rgtag{color:var(--lnd)}
+/* 底图署名常驻：公开底图服务的条款要的是可见的署名，别关掉它 */
+.leaflet-control-attribution{font-size:9px;line-height:1.5;padding:1px 6px;border-radius:6px 0 0 0;
+  background:rgba(7,8,14,.42);color:var(--ink3);font-family:var(--sans);box-shadow:none}
+.leaflet-control-attribution a{color:var(--ink3);text-decoration:none}
+.leaflet-control-attribution a:hover{color:var(--ink2);text-decoration:underline}
+:root[data-theme="light"] .leaflet-control-attribution{background:rgba(255,255,255,.62)}
+.leaflet-tooltip.lbl{background:var(--tip);border:1px solid var(--line2);
+  box-shadow:0 3px 12px var(--shadow);font-family:var(--mono);font-size:11px;
+  color:var(--tipFg);border-radius:8px;padding:4px 8px}
+.leaflet-tooltip.lbl::before{display:none}
+.sector-label{font-family:var(--mono);font-size:11px;color:var(--sectorLbl);font-weight:700;
+  letter-spacing:.5px;text-shadow:0 1px 4px var(--lblHalo);white-space:nowrap;pointer-events:none;
+  background:none;border:none;box-shadow:none;text-align:center;
+  transition:font-size .25s,color .25s,opacity .25s}
+.sector-label.focus{color:var(--sectorLblF)}
+.sector-label.dim{opacity:.25}
+/* 信标三件：起飞信标 · 静默信标 · 降落点。发光半径一律 calc(Npx * var(--glowK))，浅色档关掉 */
+.beaconHub{width:8px;height:8px;border-radius:50%;background:var(--bcn);color:var(--bcn);
+  position:relative;cursor:pointer;
+  box-shadow:0 0 0 2.5px var(--yglow),0 0 calc(9px * var(--glowK)) var(--bcn)}
+.beaconHub::after{content:"";position:absolute;inset:-5px;border-radius:50%;pointer-events:none;
+  border:1.2px solid color-mix(in srgb,var(--bcn) 55%,transparent);animation:hpulse 2.2s infinite}
+@keyframes hpulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+.beaconQuiet{width:7px;height:7px;border-radius:50%;background:var(--bcn);color:var(--bcn);
+  position:relative;cursor:pointer;
+  box-shadow:0 0 0 2.5px var(--yglow),0 0 calc(9px * var(--glowK)) var(--bcn)}
+.beaconQuiet::after{content:"";position:absolute;inset:-4.5px;border-radius:50%;pointer-events:none;
+  border:1.2px solid color-mix(in srgb,var(--bcn) 55%,transparent);animation:hpulse 2.2s infinite}
+.beaconLand{width:11px;height:11px;border-radius:50%;background:var(--lnd);
+  box-shadow:0 0 0 2.5px color-mix(in srgb,var(--lnd) 30%,transparent),
+             0 0 calc(12px * var(--glowK)) var(--lnd)}
+.beaconFree{width:11px;height:11px;border-radius:50%;background:var(--sel);color:var(--sel);
+  position:relative;cursor:pointer;box-shadow:0 0 0 3px var(--warmFaint)}
+.dotSched{width:8px;height:8px;border-radius:50%;background:var(--bcn);cursor:pointer;
+  box-shadow:0 0 calc(8px * var(--glowK)) var(--bcn)}
+.dotHollow{width:7px;height:7px;border-radius:50%;background:transparent;cursor:pointer;
+  border:1.4px solid var(--hollow)}
+/* 潜在点位取电蓝空心环：金是真实经营点位，蓝是数据算出来的东西 */
+.dotPot{width:6px;height:6px;border-radius:50%;background:transparent;cursor:pointer;
+  border:1px solid color-mix(in srgb,var(--sel) 40%,transparent)}
+.bLabel{position:absolute;left:11px;top:50%;transform:translateY(-50%);white-space:nowrap;
+  font:700 9px/1 var(--mono);letter-spacing:.3px;word-spacing:-2px;color:var(--warm);
+  text-shadow:0 1px 4px var(--lblHalo);background:var(--lblBg);padding:2px 5px;border-radius:5px;
+  border:1px solid var(--yglow)}
+.bLabel.mut{color:var(--ink2);border-color:var(--line)}
+
+/* ===== 口径抽屉 ===== */
+.drawer{position:fixed;top:0;right:0;bottom:0;left:auto;width:min(720px,94vw);background:var(--surf);
+  border-left:1px solid var(--line2);z-index:var(--z-drawer);overflow-y:auto;padding:24px 26px 56px;
+  transform:translateX(100%);transition:transform .26s var(--ease);box-shadow:-24px 0 60px -30px var(--shadow)}
+.drawer.on{transform:none}
+.dwrap{max-width:none}
+.drawer h2{font-size:15px;font-weight:600;margin-bottom:8px}
+.drawer .close{position:absolute;top:20px;right:22px;color:var(--ink3);font-size:15px;line-height:1}
+.drawer .close:hover{color:var(--ink)}
+.scrim{position:fixed;inset:0;background:oklch(0.10 0.01 250 / .5);z-index:99;
+  opacity:0;pointer-events:none;transition:opacity .2s linear}
+.scrim.on{opacity:1;pointer-events:auto}
+.vnote{font-size:11px;color:var(--ink3);line-height:1.7;margin-bottom:6px}
+.dtbl{width:100%;font-size:11.5px;margin-top:14px;table-layout:fixed}
+.dtbl col.c1{width:170px}.dtbl col.c3{width:76px}
+.dtbl th{font-size:10px;color:var(--ink3);font-weight:400;text-align:left;padding:7px 9px 7px 0;
+  border-bottom:1px solid var(--line2)}
+.dtbl th.st3,.dtbl td.st3{text-align:right;padding-right:0}
+.dtbl td{padding:9px 9px 3px 0;vertical-align:top;line-height:1.75}
+.dtbl td.p{font-family:var(--mono);white-space:normal;overflow-wrap:break-word}
+.dtbl .fl1{line-height:1.85}
+.dtbl .fl2{display:block;font-size:10px;color:var(--ink3);line-height:1.7;margin-top:1px}
+.dtbl .fno{color:var(--warm);font-family:var(--mono);margin-right:4px}
+/* 三层分节标题。通栏一行，靠留白与暖色左条分层；不加横线 */
+.dtbl tr.fsec td{padding-top:22px;padding-bottom:6px;border-bottom:none}
+.dtbl tr.fsec:first-child td{padding-top:2px}
+.dtbl tr.fsec b{display:inline-block;font-size:13px;color:var(--ink);
+  border-left:3px solid var(--warm);padding-left:8px;line-height:1.2}
+.dtbl tr.fsec span{margin-left:10px;font-size:11px;color:var(--ink3)}
+.dtbl tr.fsub td{padding:16px 0 2px;border-bottom:none}
+.dtbl tr.fsub b{font-size:11px;font-weight:600;color:var(--ink2);letter-spacing:.6px}
+.dtbl tr.fsub i{font-style:normal;margin-left:8px;font-size:10px;color:var(--ink3);letter-spacing:0}
+/* 右列三级缩进：正文顶格，从属子句退一级，数字推导退两级并降一档色 */
+.dtbl .d1{display:block;padding-left:1.8em}
+.dtbl .d2{display:block;padding-left:3.6em;color:var(--ink2)}
+.dtbl tr.fdn td{padding:2px 9px 2px 0;border-bottom:none;line-height:1.6;
+  color:var(--ink3);font-size:11px}
+.dtbl .dn{color:var(--warm);font-family:var(--mono);margin-right:5px;vertical-align:top}
+.dtbl .dnt{display:inline-block;vertical-align:top}
+/* 角标是悬停卡片：卡片浮起来不撑开版面，读完移开即收。
+   ⚠ 热区是外层 .annw，含卡片本身 —— 只挂在角标上的话，指针滑向卡片的途中就掉了 */
+.dtbl .annw{position:relative;display:inline-block}
+.dtbl .ann{display:inline-block;margin-left:4px;width:10px;height:10px;line-height:9px;
+  text-align:center;font-size:7px;vertical-align:super;cursor:help;border-radius:50%;
+  color:var(--warm);border:1px solid currentColor;font-family:var(--mono);user-select:none}
+.dtbl .annw:hover .ann{background:var(--warm);color:var(--bg)}
+.dtbl .annbox{position:absolute;z-index:40;left:calc(100% + 6px);bottom:calc(100% + 4px);
+  width:280px;padding:9px 11px;font-size:10px;line-height:1.75;color:var(--ink2);text-align:left;
+  background:var(--surf2);border:1px solid var(--line2);border-radius:3px;
+  box-shadow:0 6px 20px -6px var(--shadow);opacity:0;visibility:hidden;transition:opacity .12s}
+.dtbl .annbox::before,.dtbl .annbox::after{content:'';position:absolute;left:var(--tipx,8px);
+  border:6px solid transparent}
+.dtbl .annbox::before{top:100%;border-top-color:var(--line2)}
+.dtbl .annbox::after{top:calc(100% - 1px);border-top-color:var(--surf2)}
+.dtbl .annw:hover .annbox,.dtbl .annbox:hover{opacity:1;visibility:visible}
+.dtbl tr.n td{padding:0 0 10px;border-bottom:1px solid var(--line);font-size:11px;color:var(--ink3)}
+.st{font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:2px;
+  border:1px solid currentColor;white-space:nowrap}
+.st.f,.st.d{color:var(--ink3)}
+.st.a{color:var(--warm)}
+.errbar{margin:40px auto;max-width:560px;padding:16px 18px;border:1px solid var(--block);
+  border-radius:6px;color:var(--block);font-size:12.5px;line-height:1.8}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+@media (max-width:1080px){
+  .mapv{grid-template-columns:210px 1fr}
+  .mside{display:none}
+  .verdict{gap:22px}
+  .vnums{margin-left:0}
+}
+</style>
+<script>/* 主题预置，先于首屏绘制，避免选了浅色时闪一下深色。
+   默认浅色，只有显式选了深色才落键，不跟随系统。五个页面共用 ops_theme 这一个键。 */
+(function(){try{if(localStorage.getItem('ops_theme')!=='dark')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();
+</script>
+</head>
+<body>
+<header class="head">
+  <!-- ⚠ 这个 <i> 是状态不是招牌，由 syncBrand() 写，所以不带 data-tx ——
+       applyStatic 会把每个 [data-tx] 按属性重置，带着它切一次语言就被打回默认串。
+       切语言时的重写改由 applyStatic 末尾调 syncBrand() 负责。 -->
+  <span class="brand"><span data-tx="开航排期推演台">开航排期推演台</span><i id="brandScope">OP · 全域</i></span>
+  <nav class="tabs">
+    <button id="tabC" class="on" data-tx="排期">排期</button>
+    <button id="tabM" data-tx="地图">地图</button>
+  </nav>
+  <div class="hsp"></div>
+  <a class="bk2" href="../ops-deck/"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><span data-tx="返回经营门户">返回经营门户</span></a>
+  <button class="hbtn" id="lgBtn">EN</button>
+  <button class="thtog" id="thTog" type="button"><svg id="thIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg></button>
+</header>
+
+<main class="conc" id="conc">
+  <div class="blk lead"><div class="sq" data-tx="经营线">经营线</div>
+    <section class="verdict" id="verdict"></section></div>
+  <div class="blk plan-blk"><div class="sq" data-tx="年度计划">年度计划</div>
+    <section class="plan" id="plan"></section></div>
+  <section class="detail" id="detail" hidden></section>
+</main>
+
+<div class="mapv" id="mapv">
+  <div class="mrail" id="mrail"></div>
+  <div class="mcol">
+    <div style="position:relative;flex:1;min-height:0"><div id="map" style="position:absolute;inset:0"></div>
+      <div class="mtop">
+        <button id="bFlow" class="on" data-tx="订单流向">订单流向</button>
+        <button id="bFit" data-tx="全域">全域</button>
+        <button id="bFree" data-tx="＋ 新增起飞点" hidden>＋ 新增起飞点</button>
+        <span class="sp"></span>
+      </div>
+      <!-- 点位三档图例。保持一行、无边框、跟着 mtop 走，别长成一块图例面板。
+           ⚠ 三个色点必须与 .dotSched / .dotHollow / .dotPot 逐值同源，改样式两处同改。 -->
+      <div class="mlgd" id="mlgd"></div>
+      <div id="timebar">
+        <div class="tbhead">
+          <button id="play">▶</button>
+          <span class="tbt" data-tx="开航推演">开航推演</span>
+          <span id="qlab"></span>
+          <span id="concl"></span>
+        </div>
+        <div id="tlw"><svg id="tls"></svg></div>
+      </div>
+    </div>
+  </div>
+  <div class="mside" id="mside"></div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script id="ue-model">/*UE_MODEL_START*/
+/* ============================================================================
+ * 单元经济测算引擎 —— 全站唯一口径单源
+ *
+ * 浏览器：window.UEModel   Node：globalThis.UEModel
+ * 用法：  UEModel.compute({dailyOrders: 200, landingPts: 4, takeoffRent: 9000, ...})
+ *         UEModel.findBreakeven(cfg)            → 真实保本线
+ *         UEModel.rentFromPoints(rentPoints[,y]) → 逐点租金折算成标量
+ *         UEModel.project(cfg[, growth])         → 五年逐年推演
+ *
+ * 结构要点
+ *   收入 = 单均配送收入(客单价×佣金率 + 平台费 + C端配送费) × 月单量 + 广告收入
+ *   成本 = 人力 + 设备折旧 + 电池 + 场地办公 + 其他 + 网络运维 + 营销补贴
+ *   驱动 = 日均单量。人力与设备都是阶梯量(ceil)，所以利润对单量非单调。
+ *   租金 = 逐点四模式(固定 / 仅营业额提成 / 固定+营业额提成 / 固定+配送费提成)
+ *          在 rentFromPoints 独立折算后写回标量，compute 只消费标量。
+ *
+ * 三页共用这一份文件，由 scripts/inject_ue.py 注入到各页的
+ * /*UE_MODEL_START* / … /*UE_MODEL_END* / 标记区。改公式只改这里，改完重新注入。
+ *
+ * 演示说明：本文件里的全部参数取值均为虚构演示值，与任何真实业务无关。
+ * ==========================================================================*/
+(function (g) {
+  'use strict';
+  var ceil = Math.ceil, min = Math.min, max = Math.max, pow = Math.pow;
+
+  /* —— 默认参数。★ 标的是业务输入，其余是规格常量。全部为虚构演示值 —— */
+  var DEFAULTS = {
+    // A 单量与运营（★业务输入）
+    takeoffPts: 1,            // 起飞点数量
+    landingPts: 4,            // 降落点数量（有逐点租金表时 = 表行数派生）
+    routeDist: 2500,          // 平均航线距离 m（单程）
+    dailyOrders: 200,         // ★日均单量 = 全部成本的驱动
+    peakShare: 0.12,          // 峰值小时单量占比
+    lastMileLandingPts: 2,    // 送货上门降落点数（末端配送人数下限）
+    lastMileShare: 0.30,      // 送货上门订单占比
+    // B 收入参数（★业务输入）
+    aov: 52,                  // 实付客单价
+    commissionRate: 0.18,     // 商家佣金率
+    platformFee: 2,           // 平台费 /单
+    deliveryFee: 11,           // C端配送费 /单
+    marketing: 8000,          // 广告收入 /月（计入收入与利润）
+    subsidyPerOrder: 0,       // 营销补贴 /单（我方承担，调用方按视图传档）
+    // C 场地成本（★唯一真正可谈的成本）
+    takeoffRent: 9000,
+    landingRent: 12000,
+    takeoffFitoutPerPt: 3500, // 起飞点每点装修月摊
+    landingFitoutPerPt: 900,  // 降落点每点装修月摊
+    // 人效与调休（规格）
+    annualLeaveDays: 30, weeklyOffDays: 52,   // restFactor = 365/(365-30-52)
+    pilotProd: 280, maintProd: 460, groundProd: 110,
+    pickupProd: null,         // 取餐人效：null = 按取餐方式取值；显式数值优先
+    pickupType: 'Ride',
+    pickupProdByType: { Ride: 30, Walk: 50, Other: 40 },
+    lastMileProd: 32, patrolProd: 180,
+    patrolMinOrders: 180,     // 日均低于此值不配末端巡游
+    groundCapPerTakeoff: 4,
+    // 人力月薪
+    salPilot: 9200, salMaint: 8600, salPickup: 3400, salGround: 4500,
+    salLastMile: 3400, salPatrol: 3400,
+    // 设备配比（规格）
+    droneSpeed: 10,           // m/s 巡航
+    takeoffLandingMin: 4,     // 起降阶段合计分钟
+    droneIdle: 0.3,           // 闲置率（充电与维护）
+    maxDrones: 24,            // 单起飞点机队上限
+    markerPerTakeoff: 6,
+    cabinetPerOrders: 150,    // 恒温柜：每 150 日单 1 个
+    cabinetMaxPerTakeoff: 4,
+    chargingPerCabinet: 2,
+    storagePerDrones: 2,
+    // 设备月折旧单价
+    depDrone: 640, depMarker: 45, depPort: 2900, depCabinet: 300,
+    depCharging: 120, depStorage: 85, depSpare: 115, depBoxReturn: 44,
+    // 电池（规格）
+    batteryPrice: 1700, batteryCycleLife: 600, batteryPackEnergy: 390,
+    elecCost: 0.41, coulombic: 0.93,
+    baseConsume: 0.35, marginalConsume: 0.08, baselineDist: 1700, batterySafety: 0.75,
+    // 其他成本（规格）
+    equipOM: 1000, opsSupplies: 900,
+    simDrone: 580, simPort: 580, simHandheld: 480,
+    vehiclePerTakeoff: 600, boxPerOrder: 0.3,
+    droneInsurance: 130, rtkPerTakeoff: 200,
+    venueElecPerUnit: 300, broadband: 1000, networkOM: 1000,
+    daysPerMonth: 30,         // 月度视图 30；五年视图 project 内用 365/12
+
+    /* 地面协同人力：取餐 + 末端配送 + 末端巡游。
+       总开关 groundStaff 管取餐员（没有它餐到不了起飞点，不是划不划算的选项），
+       末端两项另受 ROI 闸 lastMileSwitch 管，逐单量判。 */
+    groundStaff: true,
+    roiMultiple: 2,           // 末端 ROI 阈值倍数（假定值，待校准）
+    lastMileSwitch: 'auto',   // auto 按 ROI 逐单量判 / on 恒计入 / off 恒不计
+    equipDepOn: true,
+
+    /* 逐点末端闸。不传 landingPools 时整段不启用，退回商圈级单闸。
+         landingPools: [{ share, bands:[≤1km 占比, 1–2km 占比] }, …]
+       归属口径 = 最近点：一单只归离它最近且在圈内的那个降落点，不重复计。 */
+    landingPools: null,
+
+    /* 关闸的标价：某个降落点关掉末端配送后只能柜取，该点上门订单按距离的留存率。
+       这不是绝对自提意愿，是改变履约形态时的相对调整 —— 因为配送方式选择率的口径
+       是「在大网配送与无人机配送之间选无人机的概率」，本身混合了柜取与上门两种形态。
+       只取两档：≤1km 视为不丢单，1–2km 取 0.5，超出本就在降落圈外。 */
+    lmKeepBands: [{ maxKm: 1.0, keep: 1.00 }, { maxKm: 2.0, keep: 0.50 }]
+  };
+
+  /* 营销补贴分档（假定值）。取值随站龄走，调用方按视图取档，不要在引擎里写死一个数。 */
+  var SUBSIDY_TIERS = { steady: 2.5, firstYear: 7.5, firstHalf: 10 };
+
+  /* 商圈上下文覆盖：起飞点就在商场里，取餐是楼内步行，人效远高于跑单口径。 */
+  var DISTRICT_OVERRIDES = { pickupProd: 80, peakShare: 0.12 };
+
+  function compute(o) {
+    var p = Object.assign({}, DEFAULTS, o || {});
+    var rest = 365 / (365 - p.annualLeaveDays - p.weeklyOffDays);
+    var monthlyOrders = p.dailyOrders * p.daysPerMonth;
+    var peakHourVol = p.dailyOrders * p.peakShare;
+    var lastMileDaily = p.dailyOrders * p.lastMileShare;
+
+    /* 单均收入前移：末端 ROI 闸在人力段就要用它。 */
+    var merchantCommission = p.aov * p.commissionRate + p.platformFee;
+    var revPerOrder = merchantCommission + p.deliveryFee;
+    /* 净单均 = 毛单均 − 我方承担的补贴。末端 ROI 闸的分子只许用它：
+       闸问的是多派这一班末端人力撬动的订单值不值这份人力，而订单拖进来的补贴是
+       逐单流出，不管报表上它坐在收入减项还是成本行。分子分母必须同口径。 */
+    var revPerOrderNet = revPerOrder - p.subsidyPerOrder;
+    var pickupProd = (p.pickupProd != null) ? p.pickupProd
+      : (p.pickupProdByType[p.pickupType] != null ? p.pickupProdByType[p.pickupType] : p.pickupProdByType.Other);
+
+    /* —— 逐点末端闸 ——
+       ① 每个降落点各判各的 ROI，分子分母都只算该点的上门订单与末端人力；
+       ② 关闸的点只能柜取，该点上门订单按 lmKeepBands 留存率打折，收入与成本一起减。
+       必须同时减收入：只删成本不删收入的话，关一个点永远是净赚，保本线只会降，
+       那不是经济性变好，是模型少算一笔账。
+       ROI 用该点未打折的需求算 —— 问的是在这里开末端值不值，开着就不丢单。 */
+    var lmPts = null, demandDaily = p.dailyOrders;
+    if (Array.isArray(p.landingPools) && p.landingPools.length) {
+      var shTot = 0, i;
+      for (i = 0; i < p.landingPools.length; i++) shTot += (+p.landingPools[i].share || 0);
+      var even = !(shTot > 0);
+      lmPts = p.landingPools.map(function (q, idx) {
+        var sh = even ? 1 / p.landingPools.length : (+q.share || 0) / shTot;
+        var dI = demandDaily * sh;
+        var lmDI = dI * p.lastMileShare;
+        // 逐点人数下限 = 1。商圈级的 lastMileLandingPts 在这一档不参与，
+        // 否则低单量下每个点都 2 人起，ROI 被除散，逐点化会退化成全关。
+        var staff = max(1, ceil(lmDI / p.lastMileProd)) * rest;
+        var costI = staff * p.salLastMile;
+        var leverI = dI * p.daysPerMonth * p.lastMileShare * revPerOrderNet;
+        var roiI = costI > 0 ? leverI / costI : Infinity;
+        var onI = !!p.groundStaff && (p.lastMileSwitch === 'on' ? true
+          : p.lastMileSwitch === 'off' ? false : roiI >= p.roiMultiple);
+        var bd = q.bands || [1], bsum = 0, keep = 0, k;
+        for (k = 0; k < p.lmKeepBands.length; k++) bsum += (+bd[k] || 0);
+        if (bsum <= 0) keep = p.lmKeepBands[0].keep;
+        else for (k = 0; k < p.lmKeepBands.length; k++)
+          keep += ((+bd[k] || 0) / bsum) * p.lmKeepBands[k].keep;
+        return { i: idx, share: sh, daily: dI, lmDaily: lmDI, staff: staff, cost: costI,
+                 leverRev: leverI, roi: roiI, on: onI, keep: keep,
+                 lostDaily: onI ? 0 : lmDI * (1 - keep) };
+      });
+      var lost = 0;
+      for (i = 0; i < lmPts.length; i++) lost += lmPts[i].lostDaily;
+      p.dailyOrders = demandDaily - lost;
+      monthlyOrders = p.dailyOrders * p.daysPerMonth;
+      peakHourVol = p.dailyOrders * p.peakShare;
+      lastMileDaily = p.dailyOrders * p.lastMileShare;
+    }
+
+    // —— 机队规模 ——
+    var cycleMin = p.routeDist * 2 / p.droneSpeed / 60 + p.takeoffLandingMin;
+    var tripsPerHr = 60 / cycleMin;
+    var peakDrones = peakHourVol > 0 ? ceil(peakHourVol / tripsPerHr) : 0;
+    var fleetLimit = p.maxDrones * p.takeoffPts;   // 上限随起飞点数放大
+    var drones = min(ceil(peakDrones * (1 + p.droneIdle)), fleetLimit);
+
+    // —— 人力（阶梯用工 × 调休系数）——
+    var nPilot = ceil(p.dailyOrders / p.pilotProd) * rest;
+    var nMaint = ceil(p.dailyOrders / p.maintProd) * rest;
+    var nPickup = ceil(p.dailyOrders / pickupProd) * rest;
+    var nGround = min(ceil(p.dailyOrders / p.groundProd), p.groundCapPerTakeoff * p.takeoffPts) * rest;
+    var lmOpenN = 0, lmOpenDaily = 0, z;
+    if (lmPts) for (z = 0; z < lmPts.length; z++) if (lmPts[z].on) {
+      lmOpenN++; lmOpenDaily += lmPts[z].lmDaily;
+    }
+    var nLastMile = lmPts
+      ? (lmOpenN ? max(lmOpenN, ceil(lmOpenDaily / p.lastMileProd)) * rest : 0)
+      : max(p.lastMileLandingPts, ceil(lastMileDaily / p.lastMileProd)) * rest;
+    var nPatrol = p.dailyOrders < p.patrolMinOrders ? 0 : ceil(p.dailyOrders / p.patrolProd) * rest;
+
+    var cPilot = nPilot * p.salPilot, cMaint = nMaint * p.salMaint, cGround = nGround * p.salGround;
+    /* 三项地面人力的原值始终算出（供 ROI 判决），计入 labor 分两层门控：
+         取餐员   只随总开关 groundStaff
+         末端两项 受 ROI 闸，分母只算这两项，与分子（上门订单收入）同口径，逐单量判
+       分母若混进取餐员，ROI 会恒在 1 以下、闸恒关，取餐员被一起剔除，
+       等于模型认为餐是自己飞到起飞点的。 */
+    var cPickupRaw = nPickup * p.salPickup,
+        cLastMileRaw = nLastMile * p.salLastMile,
+        cPatrolRaw = nPatrol * p.salPatrol;
+    var gsOn = p.groundStaff ? 1 : 0;
+    var cPickup = cPickupRaw * gsOn;
+
+    /* 逐点档下 nLastMile 只含开闸点的人力，全关时是 0，直接拿它当分母商圈级 ROI 会变 Infinity。
+       所以逐点档的商圈级 ROI 改成把每个点都当作开着的合计，语义仍是
+       「在这个商圈铺末端配送划不划算」，且恒有定义。逐点的真实判决在 lmPts[].on 上。 */
+    var lmCost, lmLeverRev;
+    if (lmPts) {
+      var cAll = 0, rAll = 0;
+      for (z = 0; z < lmPts.length; z++) { cAll += lmPts[z].cost; rAll += lmPts[z].leverRev; }
+      lmCost = cAll + cPatrolRaw;
+      lmLeverRev = rAll;
+    } else {
+      lmCost = cLastMileRaw + cPatrolRaw;
+      lmLeverRev = monthlyOrders * p.lastMileShare * revPerOrderNet;
+    }
+    var lmRoi = lmCost > 0 ? lmLeverRev / lmCost : Infinity;
+    var lmAdvise = lmRoi >= p.roiMultiple;
+    var lmOn = lmPts ? (gsOn && lmOpenN > 0 ? 1 : 0)
+      : gsOn && (p.lastMileSwitch === 'on' ? 1
+        : p.lastMileSwitch === 'off' ? 0 : (lmAdvise ? 1 : 0));
+    var cLastMile = cLastMileRaw * lmOn, cPatrol = cPatrolRaw * lmOn;
+    var staffCostAll = cPickupRaw + cLastMileRaw + cPatrolRaw;
+    var labor = cPilot + cMaint + cPickup + cGround + cLastMile + cPatrol;
+
+    // —— 设备折旧 ——
+    var nMarker = p.takeoffPts * p.markerPerTakeoff;
+    var nPort = p.landingPts;
+    var nCabinet = min(ceil(p.dailyOrders / p.cabinetPerOrders), p.cabinetMaxPerTakeoff * p.takeoffPts);
+    var nCharging = nCabinet * p.chargingPerCabinet;
+    var nStorage = ceil(drones / p.storagePerDrones);
+    var nSpare = p.takeoffPts;
+    var nBoxReturn = p.landingPts;
+    var equipDepRaw = drones * p.depDrone + nMarker * p.depMarker + nPort * p.depPort
+      + nCabinet * p.depCabinet + nCharging * p.depCharging + nStorage * p.depStorage
+      + nSpare * p.depSpare + nBoxReturn * p.depBoxReturn;
+    var equipDep = p.equipDepOn ? equipDepRaw : 0;
+
+    // —— 电池（随航程）——
+    var consumeRatio = p.baseConsume + (p.routeDist / 1000 - p.baselineDist / 1000) * p.marginalConsume;
+    var batHwPerOrder = consumeRatio / p.batterySafety * (p.batteryPrice / p.batteryCycleLife);
+    var batElecPerOrder = consumeRatio * p.batteryPackEnergy / p.coulombic * p.elecCost / 1000;
+    var batteryHw = batHwPerOrder * monthlyOrders;
+    var batteryElec = batElecPerOrder * monthlyOrders;
+    var battery = batteryHw + batteryElec;
+
+    // —— 场地与办公 ——
+    var rent = p.takeoffRent + p.landingRent;
+    var takeoffFitoutM = (p.takeoffFitoutM != null) ? p.takeoffFitoutM : p.takeoffPts * p.takeoffFitoutPerPt;
+    var landingFitoutM = (p.landingFitoutM != null) ? p.landingFitoutM : p.landingPts * p.landingFitoutPerPt;
+    var fitout = takeoffFitoutM + landingFitoutM;
+    var venueElec = p.venueElecPerUnit * (p.landingPts + p.takeoffPts);
+    var venueOffice = rent + fitout + venueElec + p.broadband;
+
+    // —— 其他成本 ——
+    var nHandheld = (p.handheldCount != null) ? p.handheldCount : ceil(nGround + nPickup);
+    var simDroneC = ceil(drones) * p.simDrone,
+        simPortC = ceil(nPort) * p.simPort,
+        simHandheldC = nHandheld * p.simHandheld;
+    var simTotal = simDroneC + simPortC + simHandheldC;
+    var vehicle = p.takeoffPts * p.vehiclePerTakeoff;
+    var box = monthlyOrders * p.boxPerOrder;
+    var insurance = drones * p.droneInsurance;
+    var rtk = p.takeoffPts * p.rtkPerTakeoff;
+    var other = p.equipOM * p.takeoffPts + p.opsSupplies * p.takeoffPts
+      + simTotal + vehicle + box + insurance + rtk;
+
+    /* 营销补贴单列成科目，不并进「其他」：它是当前最大的一笔逐单流出，
+       并进去以后在成本结构里就看不见了。 */
+    var subsidy = p.subsidyPerOrder * monthlyOrders;
+    var deliveryCost = labor + equipDep + battery + venueOffice + other + p.networkOM + subsidy;
+
+    // —— 收入 ——
+    var revDelivery = revPerOrder * monthlyOrders;
+    var revenue = revDelivery + p.marketing;
+
+    // —— 利润 ——
+    var profit = revenue - deliveryCost;
+    var margin = revenue ? profit / revenue : 0;
+    var costPerOrder = monthlyOrders ? deliveryCost / monthlyOrders : 0;
+    var profitPerOrder = revPerOrder - costPerOrder;
+
+    /* 局部估计的平衡点：可变成本只算电池与餐箱，其余视为固定。
+       远低于平衡点时会严重低估，真实保本走 findBreakeven。 */
+    var varCostPerOrder = monthlyOrders > 0 ? (battery + box) / monthlyOrders : 0;
+    var contributionPerOrder = revPerOrder - varCostPerOrder;
+    var breakEvenMonthly = contributionPerOrder > 0 ? deliveryCost / contributionPerOrder : Infinity;
+    var breakEvenDaily = breakEvenMonthly / p.daysPerMonth;
+
+    /* 成本反向倒推：给定单量、其余成本已知时，仍能保本的最大可承受月租金。
+       这是谈判锚点 —— 不正向填租金算盈亏，而由收益反推能承受多少。 */
+    var nonRentCost = deliveryCost - rent;
+    var rentCeiling = revenue - nonRentCost;
+    var negotiationRoom = rentCeiling - rent;
+
+    return {
+      inputs: p, restFactor: rest,
+      monthlyOrders: monthlyOrders, dailyOrders: p.dailyOrders,
+      peakHourVol: peakHourVol, drones: drones, peakDrones: peakDrones,
+      revPerOrder: revPerOrder, revPerOrderNet: revPerOrderNet,
+      merchantCommission: merchantCommission,
+      revDelivery: revDelivery, marketing: p.marketing, revenue: revenue,
+      labor: labor, equipDep: equipDep, battery: battery, venueOffice: venueOffice,
+      other: other, networkOM: p.networkOM, subsidy: subsidy,
+      subsidyPerOrder: p.subsidyPerOrder, deliveryCost: deliveryCost,
+      rent: rent, nonRentCost: nonRentCost,
+      profit: profit, margin: margin, costPerOrder: costPerOrder, profitPerOrder: profitPerOrder,
+      varCostPerOrder: varCostPerOrder, breakEvenMonthly: breakEvenMonthly,
+      breakEvenDaily: breakEvenDaily,
+      rentCeiling: rentCeiling, negotiationRoom: negotiationRoom,
+      /* 这是读数不是入参。任何一个字段都不许回填进 cfg 再喂给跨单量的扫描与推演 ——
+         那会把某一个单量上的判决冻结着用到整条扫描上。
+         要 ROI 的分母就用 lmCost（末端两项），要三项总额就用 costAll，两者别混算。 */
+      groundStaffEval: {
+        on: !!p.groundStaff, costAll: staffCostAll, lmCost: lmCost, leverRev: lmLeverRev,
+        roi: lmRoi, advise: lmAdvise, lmOn: !!lmOn, pickupOn: !!gsOn,
+        perPoint: !!lmPts, openPts: lmPts ? lmOpenN : null, points: lmPts,
+        demandDaily: demandDaily, effDaily: p.dailyOrders,
+        lostDaily: lmPts ? demandDaily - p.dailyOrders : 0
+      },
+      breakdown: {
+        labor: { total: labor, items: [
+          ['飞手', nPilot, p.salPilot, cPilot], ['机务', nMaint, p.salMaint, cMaint],
+          ['取餐员', nPickup, p.salPickup, cPickup], ['地勤', nGround, p.salGround, cGround],
+          ['末端配送', nLastMile, p.salLastMile, cLastMile], ['末端巡游', nPatrol, p.salPatrol, cPatrol]
+        ] },
+        equipDep: { total: equipDep, items: [
+          ['无人机 A1', drones, p.depDrone], ['地面标识', nMarker, p.depMarker],
+          ['降落柜', nPort, p.depPort], ['室外恒温柜', nCabinet, p.depCabinet],
+          ['充电柜', nCharging, p.depCharging], ['机库', nStorage, p.depStorage],
+          ['备品柜', nSpare, p.depSpare], ['餐箱回收柜', nBoxReturn, p.depBoxReturn]
+        ] },
+        battery: { total: battery, hardware: batteryHw, electricity: batteryElec, consumeRatio: consumeRatio },
+        venueOffice: { total: venueOffice, rent: rent, takeoffRent: p.takeoffRent, landingRent: p.landingRent,
+          fitout: fitout, takeoffFitout: takeoffFitoutM, landingFitout: landingFitoutM,
+          venueElec: venueElec, broadband: p.broadband },
+        other: { total: other, sim: simTotal, simDrone: simDroneC, simPort: simPortC, simHandheld: simHandheldC,
+          vehicle: vehicle, box: box, insurance: insurance, rtk: rtk,
+          equipOM: p.equipOM * p.takeoffPts, opsSupplies: p.opsSupplies * p.takeoffPts }
+      }
+    };
+  }
+
+  /* ==========================================================================
+   * 逐点租金层 —— 独立于 compute 的纯函数。
+   * UI 维护 rentPoints → rentFromPoints 折算 → 写回四个标量 → compute 与全部
+   * 既有消费方（热力图 / 反推 / URL 载荷）零改动。
+   * RentPoint = { name, mode, fixed, pct, growthRent, fitoutTotal, amortMonths,
+   *               dailyOrders, aov, cfee, growthOrders, growthAov, growthCfee }
+   * ========================================================================*/
+  var RENT_MODES = ['fixed', 'pct_gmv', 'fixed_pct_gmv', 'fixed_pct_cfee'];
+  function modeHasFixed(m) { return m === 'fixed' || m === 'fixed_pct_gmv' || m === 'fixed_pct_cfee'; }
+  function modeHasGmv(m) { return m === 'pct_gmv' || m === 'fixed_pct_gmv'; }
+  function modeHasCfee(m) { return m === 'fixed_pct_cfee'; }
+
+  function pointMonthly(pt, yearIdx) {
+    var y = yearIdx || 1;
+    var fixedM = modeHasFixed(pt.mode) ? (pt.fixed || 0) * pow(1 + (pt.growthRent || 0), y - 1) : 0;
+    var d = (pt.dailyOrders || 0) * pow(1 + (pt.growthOrders || 0), y - 1);
+    var aov = (pt.aov || 0) * pow(1 + (pt.growthAov || 0), y - 1);
+    var cf = (pt.cfee || 0) * pow(1 + (pt.growthCfee || 0), y - 1);
+    var base = (modeHasGmv(pt.mode) ? d * aov : 0) + (modeHasCfee(pt.mode) ? d * cf : 0);
+    return fixedM + base * (pt.pct || 0) * 365 / 12;
+  }
+  function pointFitoutM(pt) {
+    var mo = pt.amortMonths || 12;
+    return mo > 0 ? (pt.fitoutTotal || 0) / mo : 0;
+  }
+  function rentFromPoints(rp, yearIdx) {
+    var to = (rp && rp.takeoff) || [], la = (rp && rp.landing) || [];
+    var r = { takeoffRent: 0, landingRent: 0, takeoffFitoutM: 0, landingFitoutM: 0,
+              takeoffPts: to.length || 1, landingPts: la.length };
+    to.forEach(function (pt) { r.takeoffRent += pointMonthly(pt, yearIdx); r.takeoffFitoutM += pointFitoutM(pt); });
+    la.forEach(function (pt) { r.landingRent += pointMonthly(pt, yearIdx); r.landingFitoutM += pointFitoutM(pt); });
+    return r;
+  }
+  /* 商圈快照 → 默认逐点表（全固定、均摊）。
+     恒等式：rentFromPoints(defaultRentPoints(u)) ≡ 快照里的四个标量。 */
+  function defaultRentPoints(u, fitoutT, fitoutL) {
+    var lands = u.lands || 0, names = u.landNames || [];
+    var per = lands ? +((u.landingRent || 0) / lands).toFixed(2) : 0;
+    var arr = [];
+    for (var i = 0; i < lands; i++) arr.push({
+      name: names[i] || null, nameKey: '降落点', nameIdx: i + 1,
+      mode: 'fixed', fixed: per, pct: 0, growthRent: 0,
+      fitoutTotal: fitoutL != null ? fitoutL : 10800, amortMonths: 12,
+      dailyOrders: null, aov: null, cfee: null, growthOrders: 0, growthAov: 0, growthCfee: 0
+    });
+    return {
+      takeoff: [{
+        name: u.hubName || null, nameKey: '起飞点', nameIdx: null,
+        mode: 'fixed', fixed: (u.takeoffRent != null ? u.takeoffRent : DEFAULTS.takeoffRent),
+        pct: 0, growthRent: 0,
+        fitoutTotal: fitoutT != null ? fitoutT : 42000, amortMonths: 12,
+        dailyOrders: null, aov: null, cfee: null, growthOrders: 0, growthAov: 0, growthCfee: 0
+      }],
+      landing: arr
+    };
+  }
+
+  /* ==========================================================================
+   * 五年逐年推演
+   *   年 = 日均 × 365（daysPerMonth 取 365/12）；设备逐年重算；折旧五年不到期；
+   *   装修计入首年一次性（月度视图仍按 amortMonths 摊，两个口径并存）；
+   *   租金随逐点表逐年推演（固定部分复利，提成部分随该年营业额或配送费）。
+   * ========================================================================*/
+  var GROWTH_DEF = {
+    orders: [0, 0.12, 0.12, 0.10, 0.10],
+    salary: 0.03, aov: 0.03, marketing: 0.10,
+    commission: 0, platformFee: 0, cfee: 0
+  };
+  function project(o, gr) {
+    var base = Object.assign({}, o || {});
+    var G = Object.assign({}, GROWTH_DEF, gr || {});
+    var orders = G.orders && G.orders.length ? G.orders : GROWTH_DEF.orders;
+    var d0 = (base.dailyOrders != null) ? base.dailyOrders : DEFAULTS.dailyOrders;
+    var rp = base.rentPoints || null;
+    var fitout1 = 0;
+    if (rp) {
+      (rp.takeoff || []).concat(rp.landing || []).forEach(function (pt) { fitout1 += pt.fitoutTotal || 0; });
+    } else {
+      var tfM = (base.takeoffFitoutM != null) ? base.takeoffFitoutM
+        : ((base.takeoffPts != null ? base.takeoffPts : DEFAULTS.takeoffPts) * DEFAULTS.takeoffFitoutPerPt);
+      var lfM = (base.landingFitoutM != null) ? base.landingFitoutM
+        : ((base.landingPts != null ? base.landingPts : DEFAULTS.landingPts) * DEFAULTS.landingFitoutPerPt);
+      fitout1 = (tfM + lfM) * 12;
+    }
+    var pick = function (k) { return (base[k] != null) ? base[k] : DEFAULTS[k]; };
+    var aov0 = pick('aov'), mkt0 = pick('marketing'), cr0 = pick('commissionRate'),
+        pf0 = pick('platformFee'), df0 = pick('deliveryFee');
+    var salKeys = ['salPilot', 'salMaint', 'salPickup', 'salGround', 'salLastMile', 'salPatrol'];
+    var sal0 = {}; salKeys.forEach(function (k) { sal0[k] = pick(k); });
+
+    var years = [], landYear = null, daily = d0, totRev = 0, totCost = 0, totProfit = 0;
+    for (var t = 1; t <= 5; t++) {
+      if (t > 1) daily = daily * (1 + (orders[t - 1] || 0));
+      var f = pow(1 + G.salary, t - 1);
+      var cfgY = Object.assign({}, base, {
+        rentPoints: undefined,
+        dailyOrders: daily,
+        daysPerMonth: 365 / 12,
+        aov: aov0 * pow(1 + G.aov, t - 1),
+        marketing: mkt0 * pow(1 + G.marketing, t - 1),
+        commissionRate: cr0 * pow(1 + G.commission, t - 1),
+        platformFee: pf0 * pow(1 + G.platformFee, t - 1),
+        deliveryFee: df0 * pow(1 + G.cfee, t - 1),
+        equipDepOn: true,
+        takeoffFitoutM: 0, landingFitoutM: 0
+      });
+      salKeys.forEach(function (k) { cfgY[k] = sal0[k] * f; });
+      if (rp) {
+        var r = rentFromPoints(rp, t);
+        cfgY.takeoffRent = r.takeoffRent; cfgY.landingRent = r.landingRent;
+        if (o == null || o.takeoffPts == null) cfgY.takeoffPts = r.takeoffPts;
+        if (o == null || o.landingPts == null) cfgY.landingPts = r.landingPts;
+      }
+      var m = compute(cfgY);
+      var rev = m.revenue * 12;
+      var cost = m.deliveryCost * 12 + (t === 1 ? fitout1 : 0);
+      var pr = rev - cost;
+      if (landYear == null && pr >= 0) landYear = t;
+      totRev += rev; totCost += cost; totProfit += pr;
+      years.push({ t: t, daily: daily, annualOrders: daily * 365, monthlyOrders: m.monthlyOrders,
+        revenue: rev, cost: cost, profit: pr, margin: rev ? pr / rev : 0, rent: m.rent * 12, m: m });
+    }
+    return { years: years, landYear: landYear,
+      totals: { revenue: totRev, cost: totCost, profit: totProfit },
+      fitoutOneOff: fitout1, growth: G };
+  }
+
+  /* ==========================================================================
+   * 真实保本线
+   *   compute().breakEvenDaily 是局部估计（成本冻结在当前单量），远低于平衡点时严重低估。
+   *   这里把成本随单量的阶梯上升也算进去，逐单量扫描。
+   *
+   *   判据 = 持续为正，取最后一段连续为正的起点，不取首次穿越：
+   *   利润对单量非单调（人力是 ceil 阶梯、收入是线性，每上一级台阶利润掉一次），
+   *   首次穿零的那个单量未必稳得住。
+   *   因此必须扫满 CAP，不许一穿越就 return，也不许用二分 ——
+   *   非单调下二分会落进某个孤立的正区间里。
+   * ========================================================================*/
+  function findBreakeven(o) {
+    var cfg = o || {};
+    var dpm = cfg.daysPerMonth || DEFAULTS.daysPerMonth;
+    var CAP = 3000;
+    /* 机队运力上限：只报不拦。封顶之后引擎还在按单量加收入、不再加飞机，
+       成本摊薄让保本线仍然解得出来，但那个单量这套机队飞不了。
+       判据用真实运力（封顶后在飞架数 × 每架每小时趟数 ÷ 峰值占比），
+       不是「飞机数撞顶」那一刻 —— 撞顶只是成本停涨点。 */
+    var p0 = Object.assign({}, DEFAULTS, cfg);
+    var cyc = p0.routeDist * 2 / p0.droneSpeed / 60 + p0.takeoffLandingMin;
+    var tph = 60 / cyc;
+    var flying = (p0.maxDrones * p0.takeoffPts) / (1 + p0.droneIdle);
+    var fleetCapDaily = p0.peakShare > 0 ? Math.floor(flying * tph / p0.peakShare) : null;
+
+    var stable = null, firstCross = null;
+    for (var d = 1; d <= CAP; d++) {
+      if (compute(Object.assign({}, cfg, { dailyOrders: d })).profit >= 0) {
+        if (firstCross === null) firstCross = d;
+        if (stable === null) stable = d;
+      } else {
+        stable = null;
+      }
+    }
+    if (stable === null) {
+      return { daily: Infinity, monthly: Infinity, feasible: false,
+               firstCross: firstCross, dipAfterFirst: firstCross !== null,
+               fleetCapDaily: fleetCapDaily, overFleet: false };
+    }
+    return { daily: stable, monthly: stable * dpm, feasible: true,
+             firstCross: firstCross, dipAfterFirst: firstCross !== null && firstCross !== stable,
+             fleetCapDaily: fleetCapDaily,
+             overFleet: fleetCapDaily != null && stable > fleetCapDaily };
+  }
+
+  var API = {
+    DEFAULTS: DEFAULTS, GROWTH_DEF: GROWTH_DEF, SUBSIDY_TIERS: SUBSIDY_TIERS,
+    DISTRICT_OVERRIDES: DISTRICT_OVERRIDES, RENT_MODES: RENT_MODES,
+    compute: compute, findBreakeven: findBreakeven,
+    rentFromPoints: rentFromPoints, defaultRentPoints: defaultRentPoints,
+    pointMonthly: pointMonthly, project: project
+  };
+  g.UEModel = API;
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+/*UE_MODEL_END*/</script>
+<script>
+'use strict';
+/* ===== 中英切换 =====
+   ⚠ 取词函数必须叫 tx，绝不能叫 L：L 是 Leaflet 全局对象，同名会让 L.map is not a function。
+   ⚠ EN 字典的键就是中文原串，改文案要中英成对改。字典写在所有渲染代码之前。 */
+const LGKEY='ops_lang';
+let LANG=(()=>{try{return localStorage.getItem(LGKEY)==='en'?'en':'zh'}catch(e){return 'zh'}})();
+const EN={
+ '开航排期推演台':'Launch Rollout Deck','排期':'Schedule','地图':'Map',
+ '返回经营门户':'Back to Ops Portal','经营线':'Operating line','年度计划':'Annual plan',
+ '全域':'All cities','OP · 全域':'OP · all cities',
+ '年转正':'breakeven','推演期内不转正':'No breakeven in horizon','转正':'Breakeven',
+ '模型拆解':'Model breakdown','五段 · 从大盘到开航序列':'five steps · market to launch sequence',
+ '转正前累计亏损':'Cumulative loss before breakeven','净利':'Net','继续扩点':'Keep expanding',
+ '经营推演':'Projection','新开点位':'New sites','累计点位':'Cumulative sites',
+ '日均单量':'Daily orders','收入':'Revenue','支出':'Cost','其中 营销补贴':'of which marketing subsidy',
+ '点位计划':'Site plan','年度收益':'Year P&L','个':'','点位':'sites',
+ '上期累计 + 本期新开':'carried over + opened this period',
+ '圈内订单池 × 覆盖 × 选择率':'pool in range × coverage × opt-in',
+ '配送收入 + 商业化收入':'delivery revenue + monetisation',
+ '六个成本科目 + 营销补贴':'six cost lines + marketing subsidy',
+ '已计入上面的支出，不另加':'already inside the cost line above, not additional',
+ '收入 − 支出':'revenue − cost','单/日':'/day','单/天':'/day','万/年':'k/y','万/月':'k/mo',
+ '万':'k','季度拆分':'By quarter','看全年':'Full year','不排新点位':'No new sites',
+ '外推':'extrapolated','含外推':'part extrapolated','开航':'launch','个月转正':'months to positive',
+ '已开':'Already live','个点位':'sites','全年净利':'net for the year',
+ '计划':'Planned','推荐':'Model pick','未排期':'not scheduled','索降':'Sling',
+ '业务侧计划里的点位，不是模型选出来的':'From the business launch plan, not picked by the model',
+ '模型按经济性排出来的点位，不在业务侧的计划里':'Picked by the model on economics, not in the business plan',
+ '主表是不再新开点位那一条':'the main table is the no-further-launches case',
+ '收起':'Close','改了':'changed','项':'','复位':'reset',
+ '达标点位按什么顺序、什么速度开':'The order and pace at which cleared sites are released',
+ '从候选到排期':'From candidate to schedule','中间乘掉了哪几项':'What gets multiplied away in between',
+ '配送随单量、商业化随点位数':'Delivery scales with orders, monetisation with site count',
+ '大头是固定成本，与单量无关':'Mostly fixed cost, independent of volume',
+ '唯一纯按单量走的支出':'The only cost that scales purely with volume',
+ '哪一年转正，为什么':'The breakeven year and what causes it',
+ '逐年推演结果':'Year-by-year results','往后几年':'Later years',
+ '这个数怎么算出来的':'What this number is, and is not',
+ '转正年靠不靠谱':'Does the breakeven year hold',
+ '每个参数各调 25%，哪几个会改结论':'Move each input 25% up and down, and see which ones change it',
+ '上下各调 25%，结论会怎么变':'Move it 25% up and down, and see how far the outcome shifts',
+ '逐点位明细':'Site-by-site detail',
+ '算多久回本':'How long to pay back',
+ '把还没开的点位按「就在这一年年初开航」重跑一遍，看几个月月利润转正':'Every unopened site is re-run as if it launched at the start of that year, to see how many months until monthly profit turns positive',
+ '排队':'Queue','转正快的先开，同一档里累计投入小的先开':'Sites that break even sooner go first; within a tier, the one with the smaller cumulative outlay goes first',
+ '产能闸':'Capacity gate','资金闸':'Funding gate','超过这个月数不排':'Too slow to schedule',
+ '当年新开':'Opened that year','排队里够格的，取到产能先用完为止':'take from the queue until capacity runs out',
+ '开航季按名次顺铺 Q1 至 Q4':'Launch quarters fill Q1 to Q4 in rank order',
+ '年':'Year','产能':'Capacity','新开':'new','候选点位':'Candidate sites','候选':'Candidates',
+ '按真实订单起讫点算出的可服务上限':'upper bound of serviceable orders, computed from origin-destination data',
+ '逐点过引擎':'Run each through the engine',
+ '覆盖与选择率两条爬坡 → 逐月利润轨迹':'two ramps, coverage and opt-in, then a monthly profit trajectory',
+ '转正月数':'months to breakeven','配送利润减补贴首次转正的月份':'the first month delivery profit minus subsidy turns positive',
+ '与净利行的转正不是同一个判据':'a different test from the breakeven on the net row',
+ '梯队':'Tier','达标':'Cleared','观察池':'Watchlist','已排期':'Scheduled','城市':'City',
+ '可服务大盘':'Serviceable market','圈内可服务':'In-range serviceable','可承接':'Addressable',
+ '我们的日均':'Our daily orders','今天能接多少':'What we could take today',
+ '按稳态水位算，不含爬坡':'at the steady-state level, before the ramp',
+ '四座城合计':'four cities','排期内':'Scheduled','水位':'Penetration',
+ '单均配送收入':'Revenue per order','配送收入':'Delivery revenue','商业化':'Monetisation',
+ '商业化收入':'Monetisation','合计':'Total',
+ '开航点位数 × 媒体包价 × 售出率':'live sites × media package × sell-through',
+ '软件与解决方案的收入不在这条线里':'software and solution revenue is not on this line',
+ '六科目':'six cost lines','场地':'Site','人力':'Labour','营销补贴':'Marketing subsidy',
+ '人力 · 设备折旧 · 电池 · 场地办公 · 其他 · 网络运维':'labour · depreciation · batteries · site and office · other · network ops',
+ '支出科目':'Cost line','设备折旧':'Equipment depreciation','电池':'Batteries',
+ '场地办公':'Site & office','其他':'Other','网络运维':'Network ops','补贴':'Subsidy',
+ '末年占比':'Share in final year','单均成本':'Cost per order','单':'order',
+ '每个起飞点的固定成本与单量无关':'A hub costs the same whatever the volume',
+ '单量越大，单均成本越低':'cost per order falls as volume grows',
+ '单均补贴':'subsidy per order','月单量':'monthly orders','与支出的关系':'How it relates to cost',
+ '上面那行支出已经含它':'the cost line above already contains it',
+ '随单量走，不随点位数走':'scales with orders, not with the number of sites',
+ '占支出':'share of cost','单均':'per order',
+ '怎么算转正':'Breakeven test','首个「当年净利 ≥ 0」的年份':'first year with net ≥ 0',
+ '含商业化与补贴，与点位梯队的判据不同':'includes monetisation and subsidy, a different test from the site tiers',
+ '收入随单量增长，固定成本不随单量增长':'revenue rises with volume, the fixed floor does not',
+ '两者相交的那一年就转正':'they cross in the breakeven year',
+ '算法':'How it is taken','转正年之前各年净利相加':'Net profit of every year before the breakeven year, added up',
+ '已计入支出':'Already spread into cost','设备折旧与装修摊销按月计入':'Equipment depreciation and fit-out amortise monthly',
+ '未计入':'Not on this line','押金与一次性采购':'Deposits and one-off purchases',
+ '结论':'Conclusion','经营口径的累计亏损，不等于开航到转正需要准备的资金':'A cumulative accounting loss, not the cash needed to carry the business from launch to breakeven',
+ '计入累计亏损':'In cumulative loss','计入':'counted',
+ '「外推」= 那一年不排点位，按城市推':'Extrapolated = no site plan that year, city level only',
+ '看的是哪个盘':'Which book this is','怎么测的':'Method',
+ '每个参数上下各调 25%，其余不动，整条轨迹重新跑一遍':'Each input is moved 25% up and down with everything else held, and the whole trajectory is re-run',
+ '会改变转正年的':'Inputs that move it','一个都没有':'none of them',
+ '对规模的影响':'On the scale side','末年净利最多差':'last-year net swings by at most',
+ '只有这几个会改变转正年，其余只影响规模':'Only these move the timing, the rest only change scale',
+ '这个幅度内转正年不变，规模变化很大':'Timing holds up across this range, scale does not',
+ '±25% 是统一测试幅度':'±25% is a uniform test range',
+ '三个半径与单均收入不在表内':'the three radii and revenue per order are not in this table',
+ '参数':'Parameter','下调至':'Lowered to','上调至':'Raised to','末年净利波动':'Swing in last-year net',
+ '转正年变成':'Breakeven becomes','当前值':'Current','会改变转正年':'Moves breakeven year',
+ '能':'yes','不能':'no','会变':'it moves','不变':'it holds','现在':'now','调低':'lowered','调高':'raised',
+ '调到':'Adjusted to','每个参数都调 25%，各项之间才可比':'the same 25% for every input, so the results are comparable',
+ '排名':'Rank','全部参数里第':'No.','位':'of all inputs','敏感度计算中':'Measuring sensitivity',
+ '这个参数不在敏感度表里':'This input is not in the sensitivity table',
+ '评估转正月数':'Months to breakeven','开航季':'Launch quarter','爬坡后日均':'Ramped daily',
+ '保本线':'Breakeven volume','静态账过线':'Passes the static account','静态账':'Static account',
+ /* —— 参数名与它们的一句话来历 —— */
+ '配送方式选择率':'Delivery-mode opt-in rate','全域无实测，全链最缺锚的一项':'no measurement anywhere, the weakest anchored input in the chain',
+ '商家商品覆盖':'Merchant and item coverage','逐点位各有自己的天花板，这里整组缩放':'each site has its own ceiling; this scales the whole set',
+ '覆盖爬坡周期':'Coverage ramp','从开航爬到稳态要多久':'How long from launch to steady state',
+ '选择率爬坡周期':'Opt-in ramp','从开航爬到稳态要多久':'How long from launch to steady state',
+ '营销补贴稳态':'Subsidy once it settles','爬坡结束后每单还补多少':'what stays on each order once the ramp ends',
+ '营销补贴起点':'Subsidy at launch','开航头几个月的单均补贴':'per-order subsidy in the first months',
+ '补贴高档持续':'Subsidy holds at launch level','起点值维持几个月才开始收敛':'How many months it holds before tapering',
+ '场地租金':'Site rent','逐城租金系数，整组缩放':'a per-city coefficient, scaled as a set',
+ '降落点租金':'Landing rent','一份付费合同都没有，全是假定':'not one paid contract, all assumed',
+ '年开点上限':'Sites per year','设备到货与部署人力能支撑的开航数':'how many launches the fleet and headcount can carry',
+ '观察池阈值':'Watchlist threshold','转正月数超过它的点位当年不排期':'sites slower than this are not scheduled',
+ '覆盖率天花板':'Coverage ceiling','外推段唯一的新拍值：这座城最终能吃多少':'the only new assumption in the extrapolated segment: how much of the city is ultimately servable',
+ '媒体包价':'Media package','每个开航点位每月一个包':'one package per live site per month',
+ '商业化售出率终点':'Sell-through at steady state','爬满之后卖得掉几个包':'Share once the ramp completes',
+ '事实':'Fact','可推导':'Derived','假定值':'Assumed','三态':'State',
+ /* —— 地图侧 —— */
+ '数据概览':'Overview','图层控制':'Layers','公网POI · 供给侧':'Public POI · supply',
+ '公网POI · 需求侧':'Public POI · demand','禁飞区':'No-fly zones',
+ '需求热力 (送货)':'Demand heat','供给热力 (取货)':'Supply heat','订单流向':'Order flows',
+ '区域围栏':'Area boundaries','别墅区围栏':'Villa zones','潜在供给商家 (餐饮)':'Merchants (F&B)',
+ '大型商场':'Large malls','中型/社区商场':'Mid malls','小型/社区中心':'Small centres',
+ '公寓/住宅':'Apartments','酒店':'Hotels','写字楼/商业':'Offices','学校':'Schools',
+ '公园':'Parks','别墅':'Villas','红区 (管制)':'Red · controlled','粉区 (军事)':'Pink · military',
+ '橙区 (限制)':'Amber · restricted',
+ '已开航':'Live','计划内':'In plan','潜在':'Potential','当季净利':'Net this quarter',
+ '开航推演':'Rollout replay','选点地图':'Siting map',
+ '点地图上的城市进去，或直接放一个自由点':'Click a city to zoom in, or drop a free site',
+ '退回全域':'Back to all cities','返回点位列表':'Back to sites','进入工作台':'Open workbench',
+ '日均订单池':'Daily order pool','未乘转化':'pre-conversion','月利润 含补贴':'Monthly profit incl. subsidy',
+ '降落点':'Landing points','圈定率':'Capture rate','其中索降':'of which sling',
+ '未开航':'not open yet','这一季还没开航':'not open in this quarter','排期口径':'as scheduled',
+ '日均':'Daily','已排除':'excluded','放回排期':'put back in the plan','从排期里去掉':'take out of the plan',
+ '强制开航':'Force launch','取消强制开航':'Undo force launch','强制':'forced',
+ '手动加入':'added by hand','移除这个手动点位':'remove this hand-added site',
+ '加入排期':'Add to the plan','自由放点':'Free site','清除':'Clear','测算中':'Computing',
+ '该处附近没有可履约订单':'No fulfillable orders nearby','该点无可服务池':'No serviceable pool here',
+ '坐标不合法':'Invalid coordinates','＋ 地图点选':'+ Pick on map',
+ '点选中，点击地图放降落点':'Click the map to drop a landing point','添加':'Add',
+ '＋ 新增起飞点':'+ Add a hub','点地图选位置':'Click the map to place it',
+ '供给圈半径':'Pickup radius','可拖拽':'draggable','点击改名':'Click to rename',
+ '按屏上几何试算':'What-if on the geometry above','圈内可服务池':'Serviceable pool in range',
+ '已偏离排期口径':'Deviates from the scheduled caliber','重置回口径':'Reset to caliber',
+ '看排期':'See the schedule','该点位不在明细网格覆盖范围内，工作台只读':'This site sits outside the detailed grid, so the workbench is read-only',
+ '没有降落点，先加一个':'No landing points yet. Add one.',
+ '起降点为业务既定，不是模型选的':'Hubs and landing points are set by the business, not the model',
+ '模型自动推荐 · 可拖拽':'model-recommended · draggable',
+ '业务既定':'Planned','算法候选':'Model candidate',
+ /* —— 抽屉 —— */
+ '模型公式链':'The model chain','点位选择模型':'How sites are chosen',
+ '候选点位如何确定':'How candidate sites are determined','经济性模型':'Unit economics',
+ '单点位收支与开航排序':'Per-site economics and launch ordering','增长逻辑':'How the plan extends',
+ '排期边界与外推':'The scheduling boundary and the extrapolation',
+ '准入门槛':'Eligibility','可服务量':'Serviceable pool','确定降落点':'Landing points',
+ '单量模型':'ORDER VOLUME','收支逻辑':'REVENUE AND COST','开航排序':'LAUNCH ORDER',
+ '推演边界':'PROJECTION BOUNDARY','开航后爬坡':'POST-LAUNCH RAMPS',
+ '从城市大盘逐层收窄到点位日均':'narrowing from the city market down to site daily orders',
+ '月账怎么算，什么时候转正':'how the monthly account works and when a site breaks even',
+ '谁先开，谁不进序列':'which sites open first and which never enter the sequence',
+ '三条曲线':'Three curves','两条曲线与一档补贴':'two curves and one subsidy taper',
+ '月收入':'Monthly revenue','月成本':'Monthly cost','当月盈亏':'Monthly P&L',
+ '点位转正':'Site breakeven','排序判据':'Ranking','不进序列的':'Left out','两道闸':'Two gates',
+ '转正口径':'What turning positive means','层级':'Level','判据':'Test','含商业化':'Incl. monetisation',
+ '否':'No','是':'Yes','分城转正':'Turning positive by city','假定值一览':'Assumption register',
+ '暖色是假定值，可调的那几项在正文参数区':'Warm type marks assumptions; the adjustable ones sit in the parameter area',
+ '「转正」在三个层级上判据不同，不是同一个数':'Turning positive is tested differently at three levels, they are not the same number',
+ '首个「月配送利润 − 补贴 ≥ 0」的月':'first month where delivery profit minus subsidy ≥ 0',
+ '首个「当年经营净利 ≥ 0」的年':'first year where operating net ≥ 0',
+ '纯配送口径 · 决定这个点位进不进梯队、排不排得上期':'Delivery only, this is what decides whether a site enters a tier and gets scheduled',
+ '该城已开点位加总 · 含补贴与商业化':'Sum of live sites in that city, including subsidy and monetisation',
+ '各城加总 · 软件与解决方案售卖不进这条线':'Sum across cities; software and solution sales stay out of this line',
+ '个点位已排期':'sites scheduled','推演期内无点位达标':'no site qualifies within the horizon',
+ '载入数据失败':'Could not load the data','请确认数据文件已生成':'Check that the data files have been generated',
+ /* —— 补齐：模板里用到但上面没登记的串。中英成对是硬规矩，改文案两边一起改 —— */
+ '主题':'Theme','浅色':'Light','深色':'Dark','切换到深色':'Switch to dark','切换到浅色':'Switch to light',
+ '客单价':'AOV','佣金率':'commission','平台费':'platform fee','配送费':'delivery fee',
+ '稳态':'steady state','首':'first','个月':'mo','/单':'/order','/月/点':'/mo/site',
+ '城合计':'cities','天':'days','过线':'passes','未过线':'below the bar','不转正':'never',
+ '起飞点租金 × 城市系数 + 降落点租金 × 点数':'hub rent × city coefficient + landing rent × count',
+ '飞手 · 机务 · 取餐 · 地勤 · 末端配送 · 巡游，全部是阶梯量':'pilots · maintenance · collection · ground · last mile · patrol, every one a step function',
+ '页面实时推演与数据文件对不上，已按数据文件显示':'The live projection disagrees with the data file; the data file governs',
+ '半径已改':'Radii changed','取餐圈':'Pickup ring','降落圈':'Landing ring',
+ '恢复默认半径':'Reset radii','个降落点':'landing points',
+ '索降降到门口，不占柜位，覆盖按别墅围栏求交':'Sling lowers to the door, needs no cabinet, and its coverage is the range disc intersected with villa zones',
+ '一格周边取餐圈内的日均起点单量要够得上门槛':'Daily origin orders inside a cell’s pickup ring have to clear a floor',
+ '取餐圈半径':'Pickup radius','降落圈半径':'Landing radius','航程':'Range',
+ '对通过门槛的每一格，算它可服务范围内有多少订单':'For each cell that clears the floor, count the orders inside its serviceable range',
+ '订单按起点坐标落进经纬网格再聚合。可服务量不是单格的量，是以格心为心、半径一个取餐圈内所有格的合计；两端都要落在圈里，一端在取餐圈、另一端在航程加降落圈之内。':'Orders are bucketed by origin coordinate into a lat-lng grid. The serviceable pool is not one cell’s volume: it is the sum over every cell inside a pickup ring centred on that cell, and both ends must fall inside — the origin in the pickup ring, the drop within range plus the landing ring.',
+ '可服务 = 起点落在取餐圈内':'Serviceable = origin inside the pickup ring',
+ '且 收货点落在「航程 + 降落圈半径」内':'and delivery point inside range + landing ring radius',
+ '上界，假定降落点摆在最有利的位置':'An upper bound, assuming landing points sit in the most favourable positions',
+ '起飞点确定之后，按需求密度确定降落圈心':'Once the takeoff point is fixed, landing ring centres follow demand density',
+ '降落点数量由经济性决定':'The number of landing points is decided on economics',
+ '该城每天由平台配送完成的订单':'Delivery orders the platform completes in that city each day',
+ '受取餐距离与飞行航程约束':'bounded by pickup distance and flight range',
+ '圈内可服务量':'Serviceable pool in range','可服务半径内的单量':'The orders inside the serviceable radius',
+ '受降落点位置与个数约束':'bounded by landing point placement and count',
+ '可承接单量':'Addressable orders','降落端接得住的订单':'The orders the landing side can absorb',
+ '受两条爬坡曲线约束':'bounded by the two ramp curves',
+ '点位日均单量':'Site daily orders','可承接单量再乘两条爬坡曲线':'Addressable orders times the two ramp curves',
+ '覆盖(t) 与 选择率(t) 都是 S 形爬坡：前期慢、中段快、末期收敛，t 是开航后第几个月。覆盖的终点逐点位各有一个天花板，选择率的终点是全域一个数。两条曲线相乘就是那一个月的折减系数。':'Coverage(t) and opt-in(t) are both S-shaped ramps — slow, then fast, then converging — where t is the number of months since launch. Coverage ends at a ceiling that differs per site; opt-in ends at one number for the whole domain. Multiplying the two gives that month’s reduction factor.',
+ '个月走完':'months to complete',
+ '单均配送收入 × 月单量':'Per-order delivery revenue × monthly orders',
+ '七项科目相加':'Seven cost items added together',
+ '月收入 减去 月成本':'Monthly revenue less monthly cost',
+ '点位层只计配送收入，商业化收入计入城市层':'Site level counts delivery revenue only; monetisation sits at city level',
+ '开航之后第一个当月盈亏不为负的月份':'The first month after launch whose monthly P&L is not negative',
+ '只看当月盈亏，不看累计盈亏':'The month alone decides it, not the cumulative position',
+ '首要看转正月数，早的先开航':'Breakeven month comes first, and the earlier one opens first',
+ '业务侧已定的点位先落位，也照样占一个产能名额':'Sites the business has already committed to are placed first, and they still take a capacity slot',
+ '跑满评估期仍不转正的进入观察池，不参与排期':'Sites that never break even over the evaluation window go to the watchlist and are not scheduled',
+ '年开点上限':'Sites per year','营销补贴从':'the marketing subsidy falls from','降到':'to',
+ '个月不降':'months before it starts tapering',
+ '切点之后不再排点位':'no site-level plan after the cut','年内':'and before','年起':'onwards',
+ '逐个点位排期':'Sites are scheduled one by one',
+ '不再排点位，改按城市整体外推，只给区间':'No per-site scheduling; the projection moves to city level and reports a range only',
+ '下沿 = 停开新点位，已开的把爬坡跑完，不引入任何新拍值。上沿 = 下沿 + 继续扩点，每城给一个覆盖率天花板，那是这一段唯一的新拍值，余量从切点线性铺到推演期末。⚠ 上沿的三个成本系数只由切点那一个月拟合，换一个拟合月就能反号，所以上沿只能读作方向，不能读作量级。':'Lower bound = no new sites, the ones already open finish their ramps, and nothing new is assumed. Upper bound = lower bound plus continued expansion, with each city given a coverage ceiling — the only new assumption in this segment — and the remaining headroom spread linearly from the cut-off to the end of the horizon. ⚠ The three cost coefficients behind the upper bound are fitted on the single month at the cut-off, and a different fitting month flips their sign, so read the upper bound as a direction rather than a magnitude.',
+ '再往后供需格局不可预测，点位级推演误差过大':'Beyond that the supply-demand picture is unpredictable and site-level projection is too imprecise',
+ '骑手取餐可接受的距离':'how far a rider will go to collect',
+ '放大会压选择率，也会把腿拉长':'enlarging it cuts opt-in and stretches the leg',
+ '满载加三级风的实测值取整':'measured at full load in wind, rounded down',
+ '客单价 × 佣金率 + 平台费 + 配送费，三件都写在引擎里':'AOV × commission + platform fee + delivery fee, all three live in the engine',
+ '订单窗口':'Order window','起讫明细的取数窗':'the window the origin-destination detail covers',
+ '转正年':'Breakeven year'};
+const tx=s=>LANG==='en'&&EN[s]!==undefined?EN[s]:s;
+/* 语序在两种语言里不同的各给一个构造器，别硬拼 */
+const xLandY=y=>LANG==='en'?('breaks even '+y):(y+' 年转正');
+/* 转正年可能是 null（这一档推演期内始终不转正）。直接往模板里塞就在屏上印出「null」 */
+const xLand=y=>y==null?tx('推演期内不转正'):y;
+const xSched=(o,p)=>LANG==='en'?(o+' → '+p):(o+' 开航 → '+p+' 转正');
+const xOpYear=(y,v,ok,land)=>LANG==='en'
+  ?(y+' operating line <b>'+v+'</b> · '+(ok?'<span class="ok">positive from '+land+'</span>':'investment phase'))
+  :(y+' 年经营线 <b>'+v+'</b> · '+(ok?'<span class="ok">'+land+' 年起不亏</span>':'投入期'));
+/* 模板里裸写的中文标点在 EN 下会串味，标点也得跟着语言走 */
+const PU=k=>(LANG==='en'
+  ?{c:': ',d:', ',s:'; ',p:'.',arrow:' → ',times:' × ',sp:' ',dot:' · '}
+  :{c:'：',d:'，',s:'；',p:'。',arrow:'　→　',times:'　×　',sp:'　',dot:' · '})[k];
+
+/* ===== 主题 =====
+   默认浅色，只在深色时落键，不跟随系统。五个页面共用 ops_theme 这一个键。 */
+const THKEY='ops_theme';
+const TH_ICON={
+ light:'<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/><path d="M12 1.5v2.7M12 19.8v2.7M4.5 4.5l1.9 1.9M17.6 17.6l1.9 1.9M1.5 12h2.7M19.8 12h2.7M4.5 19.5l1.9-1.9M17.6 6.4l1.9-1.9" stroke="currentColor" stroke-width="2.2"/>',
+ dark:'<path d="M20.6 14.9A8.7 8.7 0 1 1 9.1 3.4a6.9 6.9 0 0 0 11.5 11.5z" fill="currentColor" stroke="none"/>'};
+function thMode(){try{return localStorage.getItem(THKEY)==='dark'?'dark':'light';}catch(e){return 'light';}}
+function renderThemeBtn(){const m=thMode(),ic=document.getElementById('thIco'),bt=document.getElementById('thTog');
+  if(!ic||!bt)return; ic.innerHTML=TH_ICON[m];
+  bt.setAttribute('aria-label',tx('主题')+' · '+tx(m==='light'?'浅色':'深色'));
+  bt.title=tx(m==='light'?'切换到深色':'切换到浅色');}
+function applyTheme(){const m=thMode();
+  if(m==='light')document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  renderThemeBtn();
+  applyMapTheme();}
+function cycleTheme(){const nx=thMode()==='light'?'dark':'light';
+  try{nx==='dark'?localStorage.setItem(THKEY,'dark'):localStorage.removeItem(THKEY);}catch(e){}
+  applyTheme();}
+
+/* ===== 数与单位 ===== */
+const fmt=n=>Math.round(n||0).toLocaleString('en-US');   /* 锁 locale：不锁的话换台机器千分位会变 */
+const sgnf=n=>((n||0)>=0?'+':'')+fmt(n);
+const pc1=v=>((v||0)*100).toFixed(1)+'%';
+const pct=v=>((v||0)*100).toFixed(Math.abs(v)<0.1?1:0)+'%';
+/* 钱一律以「万」呈现，不写货币符号也不写币种代码；英文档换算成 k */
+const money=v=>(LANG==='en'?(v||0)/1000:(v||0)/10000).toFixed(1);
+const sgnm=v=>((v||0)>=0?'+':'')+money(v);
+const uY=()=>LANG==='en'?'k/y':'万/年';
+const uM=()=>LANG==='en'?'k/mo':'万/月';
+/* 数字与单位之间的极窄间隙。不用空格字符 */
+const G='<span class="g"></span>';
+const kmD=(aLat,aLng,bLat,bLng)=>{
+  const dx=(aLng-bLng)*111.32*Math.cos((aLat+bLat)/2*Math.PI/180),dy=(aLat-bLat)*110.57;
+  return Math.hypot(dx,dy);};
+const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+/* ===== 数据 ===== */
+let R=null,MD=null,OD=null;
+const CITY=id=>R.cities.find(c=>c.id===id)||{nm:id};
+const SITE=id=>R.sites.find(s=>s.id===id);
+const BAKED=id=>(R.ladder.find(l=>l.id===id)||{});
+
+/* ===== 推演器 =====
+   页面自己跑一遍六十个月的轨迹，不把结果写死在数据里：默认参数下与 rollout.json 的
+   months 逐位相同（跑 verifyBaked() 自检），拨任何一个参数即整条链重算。
+   ⚠ 这条「默认参数下两边同值」的前提是实测过的，不是假设。对不上就退回烘焙值并在屏上说清楚。 */
+const PARAMS_LIVE=[
+ {k:'selEnd',t:'配送方式选择率',min:.05,max:.50,step:.01,fmt:v=>pc1(v),st:'假定值',
+  why:'全域无实测，全链最缺锚的一项'},
+ {k:'covK',t:'商家商品覆盖',min:.5,max:1.5,step:.05,fmt:v=>'×'+v.toFixed(2),st:'假定值',
+  why:'逐点位各有自己的天花板，这里整组缩放',scale:true},
+ {k:'covMo',t:'覆盖爬坡周期',min:6,max:48,step:3,fmt:v=>Math.round(v)+G+tx('个月'),st:'假定值',
+  why:'从开航爬到稳态要多久'},
+ {k:'selMo',t:'选择率爬坡周期',min:6,max:48,step:3,fmt:v=>Math.round(v)+G+tx('个月'),st:'假定值',
+  why:'从开航爬到稳态要多久'},
+ {k:'sub1',t:'营销补贴稳态',min:0,max:12,step:.5,fmt:v=>v.toFixed(1)+G+tx('/单'),st:'假定值',
+  why:'爬坡结束后每单还补多少'},
+ {k:'sub0',t:'营销补贴起点',min:0,max:20,step:.5,fmt:v=>v.toFixed(1)+G+tx('/单'),st:'假定值',
+  why:'开航头几个月的单均补贴'},
+ {k:'subFlat',t:'补贴高档持续',min:0,max:12,step:1,fmt:v=>Math.round(v)+G+tx('个月'),st:'假定值',
+  why:'起点值维持几个月才开始收敛'},
+ {k:'rentK',t:'场地租金',min:.4,max:1.8,step:.05,fmt:v=>'×'+v.toFixed(2),st:'假定值',
+  why:'逐城租金系数，整组缩放',scale:true},
+ {k:'landRent',t:'降落点租金',min:0,max:9000,step:500,fmt:v=>fmt(v)+G+tx('/月/点'),st:'假定值',
+  why:'一份付费合同都没有，全是假定'},
+ {k:'capK',t:'年开点上限',min:.25,max:3,step:.25,fmt:v=>'×'+v.toFixed(2),st:'假定值',
+  why:'设备到货与部署人力能支撑的开航数',scale:true},
+ {k:'obsMo',t:'观察池阈值',min:24,max:60,step:3,fmt:v=>Math.round(v)+G+tx('个月'),st:'假定值',
+  why:'转正月数超过它的点位当年不排期'},
+ {k:'covCapK',t:'覆盖率天花板',min:.5,max:2,step:.1,fmt:v=>'×'+v.toFixed(1),st:'假定值',
+  why:'外推段唯一的新拍值：这座城最终能吃多少',scale:true},
+ {k:'pack',t:'媒体包价',min:0,max:60000,step:1000,fmt:v=>money(v)+G+uM(),st:'假定值',
+  why:'每个开航点位每月一个包'},
+ {k:'sell1',t:'商业化售出率终点',min:0,max:1,step:.05,fmt:v=>pc1(v),st:'假定值',
+  why:'爬满之后卖得掉几个包'}];
+/* 参数默认值只有一个来源 = 数据里的 params，页面不留第二份。
+   ⚠ 整组缩放那几项（covK/rentK/capK/covCapK）推演器里没有对应项，默认 1 = 不缩放 */
+function PDEF(k){
+  const p=R.params;
+  const d={selEnd:p.sels[1],covK:1,covMo:p.cov_months,selMo:p.sel_months,
+    sub1:p.subsidy_steady,sub0:p.subsidy_launch,subFlat:p.subsidy_flat_months,
+    rentK:1,landRent:3000,capK:1,obsMo:p.obs_months,covCapK:1,
+    pack:p.monet_pack,sell1:p.monet_sell[1]};
+  return d[k];}
+let PSET={},PSEQ=0,SCACHE={},CURK=null,CURS=null,SENS=null,SENSPREV=null;
+const pget=k=>PSET[k]!=null?PSET[k]:PDEF(k);
+function paramsNow(){const o={};PARAMS_LIVE.forEach(d=>{o[d.k]=pget(d.k)});return o;}
+/* ⚠ 拨一次滑杆，敏感度就得重跑两倍参数个数的推演。这期间不清空上一轮结果：
+   清空会让整张参数表的排序在你手底下塌一次再长回来，比慢更难受。 */
+function bump(){PSEQ++;SCACHE={};CURK=null;CURS=null;if(SENS)SENSPREV=SENS;SENS=null;}
+
+/* 会话态：手动排除 / 强制开航 / 手动加进来的点位。刷新即丢，与「新增点位无持久化」同规矩 */
+let DROP=[],FORCE={},MANUAL=[];
+const forcedOf=id=>!!FORCE[id];
+const exceptionsOn=()=>DROP.length||Object.keys(FORCE).length||MANUAL.length;
+
+const ramp=(t,mo,end)=>{if(t<=0)return 0;const K=R.params.ramp_k,x=Math.min(1,t/mo);
+  return end*(1-Math.exp(-K*x))/(1-Math.exp(-K));};
+function siteCfg(s,P){
+  const D=UEModel.DEFAULTS,big=(s.city==='c1'||s.city==='c2');
+  return Object.assign({},D,{
+    /* ⚠ 取餐人效必须显式给：引擎默认按取餐方式派生，与这条线的口径不是一个数 */
+    pickupProd:80,
+    landingPts:s.landings,routeDist:Math.trunc(s.avg_leg_km*1000),
+    takeoffRent:Math.round(s.rent_takeoff*P.rentK),
+    landingRent:Math.round(P.landRent*s.landings*P.rentK),
+    marketing:0,
+    salPilot:Math.trunc(D.salPilot*(big?1:.9)),
+    salMaint:Math.trunc(D.salMaint*(big?1:.9))});}
+function runSite(s,P){
+  const cfg=siteCfg(s,P),out=[];let cum=0,pos=null,peak=0;
+  const covEnd=Math.min(1,s.cov_ceiling*P.covK),step=R.params.subsidy_step;
+  for(let t=1;t<=60;t++){
+    const cov=ramp(t,P.covMo,covEnd),sel=ramp(t,P.selMo,P.selEnd);
+    const daily=s.pool_monthly*cov*sel/30;
+    /* 补贴按站龄递减：开航头几个月高，之后线性收敛到稳态 */
+    const sub=t<=P.subFlat?P.sub0:Math.max(P.sub1,P.sub0-(t-P.subFlat)*step);
+    const m=UEModel.compute(Object.assign({},cfg,{dailyOrders:Math.max(.1,daily),
+      subsidyPerOrder:Math.round(sub*100)/100}));
+    cum+=m.profit;if(cum<0)peak=Math.max(peak,-cum);
+    if(pos===null&&m.profit>=0)pos=t;
+    /* ⚠ 字段名照引擎的：总成本叫 deliveryCost（= 七项相加），不叫 cost；
+       设备折旧 equipDep、场地办公 venueOffice、网络运维 networkOM。
+       写错一个不会报错，只会让那一列静静地变成 NaN，再被 Math.round 印成空格。 */
+    out.push({t:t,daily:daily,profit:m.profit,rev:m.revenue,cost:m.deliveryCost,orders:m.monthlyOrders,
+      cs:{labor:m.labor,equip:m.equipDep,battery:m.battery,venue:m.venueOffice,other:m.other,
+          netom:m.networkOM,sub:m.subsidy}});}
+  return {months:out,pos:pos,peak:peak};}
+const tierOfPos=(pos,obs)=>!pos?'OBS':(pos<=18?'T1':pos<=30?'T2':pos<=44?'T3':(pos<=obs?'30+':'OBS'));
+const CSK=['labor','equip','battery','venue','other','netom','sub'];
+const CS0=()=>({labor:0,equip:0,battery:0,venue:0,other:0,netom:0,sub:0});
+const ZEROY=()=>({new:[],cum:0,live:0,daily:0,orders:0,rev:0,cost:0,mkt:0,cs:CS0()});
+const netOf=d=>d?((d.rev||0)+(d.mkt||0)-(d.cost||0)):0;
+const YSPAN=()=>{const b=R.params.base_year;return [0,1,2,3,4].map(i=>String(b+i));};
+const QSPAN=()=>{const b=R.params.base_year,a=[];
+  for(let y=0;y<5;y++)for(let q=1;q<=4;q++)a.push((b+y)+'Q'+q);return a;};
+/* 商业化随开航点位数走：每个已开点位每月一个媒体包，售出率随站龄线性爬坡 */
+const sellAt=(t,P)=>{const s0=R.params.monet_sell[0];
+  return P.pack*(s0+(P.sell1-s0)*Math.min(1,t/P.covMo));};
+
+function project(P){
+  const by=R.params.base_year,ys=YSPAN(),qs=QSPAN();
+  const all=R.sites.concat(MANUAL);
+  const runs={};all.forEach(s=>{runs[s.id]=runSite(s,P)});
+  /* 排队 = 白名单先落位，其余按转正月份；两道闸：年开点上限、观察池阈值 */
+  const order=all.slice().sort((a,b)=>
+    (a.planned?0:1)-(b.planned?0:1)||((runs[a.id].pos||999)-(runs[b.id].pos||999))||(a.id<b.id?-1:1));
+  const cap=R.params.cap_per_year.map(v=>Math.max(1,Math.round(v*P.capK)));
+  const slot=[0,0,0,0,0],pts={},sched=[];
+  order.forEach(s=>{
+    const r=runs[s.id],tier=tierOfPos(r.pos,P.obsMo);
+    pts[s.id]={tier:tier,pos:r.pos,peak:r.peak,openQ:null,openY:null,
+      planned:!!s.planned,forced:forcedOf(s.id),manual:!!s.manual};
+    if(DROP.indexOf(s.id)>=0)return;
+    const ok=s.planned||forcedOf(s.id)||(r.pos&&r.pos<=P.obsMo);
+    if(!ok)return;
+    for(let y=0;y<5;y++){
+      if(slot[y]>=cap[y])continue;
+      slot[y]++;
+      /* 开航季：默认参数下沿用数据里那一档，好与 rollout.json 对得上；
+         点位被参数挪走了年份就按名次顺铺 Q1 至 Q4 */
+      const bk=BAKED(s.id);
+      const q=(bk.open_year===by+y&&bk.open_q)?+bk.open_q.slice(-1):1+((slot[y]-1)%4);
+      pts[s.id].openY=by+y;pts[s.id].openQ=(by+y)+'Q'+q;
+      sched.push({s:s,q:q,y:by+y});
+      break;}});
+  /* 逐月桶：UAE 档与每座城走同一个函数，分城查看才不会是另一套代码、另一套口径 */
+  const mk=()=>({y:{},q:{},mon:[]});
+  const V={ALL:mk()};R.cities.forEach(c=>{V[c.id]=mk()});
+  Object.keys(V).forEach(k=>{ys.forEach(y=>V[k].y[y]=ZEROY());qs.forEach(q=>V[k].q[q]=ZEROY());
+    for(let i=0;i<60;i++)V[k].mon.push({orders:0,rev:0,cost:0,mkt:0,cs:CS0(),pool:0,daily:0});});
+  const addTo=(b,m,mk2)=>{b.rev+=m.rev;b.cost+=m.cost;b.mkt+=mk2;b.orders+=m.orders;b.live=1;
+    CSK.forEach(k=>b.cs[k]+=m.cs[k]);};
+  sched.forEach(x=>{
+    const launch=(x.y-by)*12+(x.q-1)*3+1,ms=runs[x.s.id].months,ck=x.s.city;
+    const qq={};
+    for(let t=1;t<=60;t++){
+      const cm=launch+t-1;if(cm<1||cm>60)continue;
+      const m=ms[t-1],mk2=sellAt(t,P);
+      const y=String(by+Math.floor((cm-1)/12)),q=y+'Q'+(1+Math.floor(((cm-1)%12)/3));
+      [V.ALL,V[ck]].forEach(vv=>{
+        addTo(vv.y[y],m,mk2);addTo(vv.q[q],m,mk2);
+        const mo=vv.mon[cm-1];mo.orders+=m.orders;mo.rev+=m.rev;mo.cost+=m.cost;mo.mkt+=mk2;
+        mo.pool+=x.s.pool_monthly;mo.daily+=m.daily;CSK.forEach(k=>mo.cs[k]+=m.cs[k]);
+        /* 年末与季末的日均：年度轴上的「日均单量」讲的是那一年跑到年底的水平 */
+        if((cm-1)%12===11)vv.y[y].daily+=m.daily;
+        if((cm-1)%3===2)vv.q[q].daily+=m.daily;});
+      qq[q]={d:Math.round(m.daily),net:m.rev+mk2-m.cost,rev:m.rev,cost:m.cost};}
+    pts[x.s.id].q=qq;
+    V.ALL.y[String(x.y)].new.push(x.s.id);V[ck].y[String(x.y)].new.push(x.s.id);
+    V.ALL.q[pts[x.s.id].openQ].new.push(x.s.id);V[ck].q[pts[x.s.id].openQ].new.push(x.s.id);});
+  Object.keys(V).forEach(k=>{let run=0;ys.forEach(y=>{run+=V[k].y[y].new.length;V[k].y[y].cum=run;});
+    let rq=0;qs.forEach(q=>{rq+=V[k].q[q].new.length;V[k].q[q].cum=rq;});});
+  /* 转正年 = 首个「有已开点位且当年净利 ≥ 0」的年。
+     ⚠ 一个点位都没开的年份净利为零，那不是不亏，是还没开始，别读成那一年转正 */
+  const landOf=v=>{const ys2=YSPAN();for(const y of ys2){if(v.y[y].live&&netOf(v.y[y])>=0)return +y;}return null;};
+  const land={};Object.keys(V).forEach(k=>land[k]=landOf(V[k]));
+  const counts={T1:0,T2:0,T3:0,'30+':0,OBS:0};
+  Object.keys(pts).forEach(id=>{counts[pts[id].tier]=(counts[pts[id].tier]||0)+1});
+  const S={pts:pts,V:V,land:land,counts:counts,cap:cap,sched:sched,runs:runs,P:P,
+    cutY:sched.length?Math.max.apply(null,sched.map(x=>x.y)):by};
+  S.hi=segTwo(S,P);
+  return S;}
+/* ===== 两段式 =====
+   下沿 = 切点之后不再新开点位、已开的把爬坡跑完，一个新拍值都不引入，就是主表那一条。
+   上沿 = 下沿 + 继续扩点：每座城给一个覆盖率天花板，余量从切点线性铺到推演期末。
+   ⚠ 上沿的三个系数只由切点那一个月的实算拟合，换一个拟合月就能反号，
+     所以上沿只能读作方向，不能读作量级。上沿也不一定比下沿好 ——
+     单位覆盖的月固定投入高过打平线的城市，继续扩点就是净亏损。 */
+function segTwo(S,P){
+  const by=R.params.base_year,ys=YSPAN(),cutY=S.cutY;
+  if(cutY>=by+4)return null;
+  const cutEnd=(cutY-by+1)*12;                    /* 切点年最后一个月的序号 */
+  const water=R.params.cov_steady*P.covK*P.selEnd;
+  const out={};
+  Object.keys(S.V).forEach(k=>{
+    const v=S.V[k],m=v.mon[cutEnd-1];
+    const pool=k==='ALL'?R.cities.reduce((a,c)=>a+c.pool_monthly,0):CITY(k).pool_monthly;
+    const ceil=k==='ALL'
+      ? R.cities.reduce((a,c)=>a+c.pool_monthly*c.cov_ceiling,0)/pool
+      : CITY(k).cov_ceiling;
+    if(!m||!m.orders||!pool)return;
+    const cov=m.pool/pool,head=Math.max(0,Math.min(1,ceil*P.covCapK)-cov);
+    const revPer=m.rev/m.orders;
+    const varPer=(m.cs.battery+m.cs.sub)/m.orders;
+    const phi=(m.cs.labor+m.cs.equip+m.cs.venue+m.cs.other+m.cs.netom)/Math.max(1e-9,cov);
+    const Y={},Q={};ys.forEach(y=>Y[y]=Object.assign(ZEROY(),{live:v.y[y].live}));
+    QSPAN().forEach(q=>Q[q]=Object.assign(ZEROY(),{live:v.q[q].live}));
+    ys.forEach(y=>{['rev','cost','mkt','daily','orders','cum','live'].forEach(f=>Y[y][f]=v.y[y][f]);
+      Y[y].new=v.y[y].new;});
+    QSPAN().forEach(q=>{['rev','cost','mkt','daily','orders','cum','live'].forEach(f=>Q[q][f]=v.q[q][f]);});
+    for(let cm=cutEnd+1;cm<=60;cm++){
+      const f=(cm-cutEnd)/(60-cutEnd),addCov=head*f;
+      const addOrd=pool*addCov*water,addRev=addOrd*revPer,addCost=addOrd*varPer+addCov*phi;
+      const y=String(by+Math.floor((cm-1)/12)),q=y+'Q'+(1+Math.floor(((cm-1)%12)/3));
+      Y[y].rev+=addRev;Y[y].cost+=addCost;Q[q].rev+=addRev;Q[q].cost+=addCost;
+      if((cm-1)%12===11)Y[y].daily+=addOrd/30.4;
+      if((cm-1)%3===2)Q[q].daily+=addOrd/30.4;}
+    let land=null;for(const y of ys){if(Y[y].live&&netOf(Y[y])>=0){land=+y;break;}}
+    out[k]={y:Y,q:Q,land:land,fit:{cov:cov,head:head,phi:phi,varPer:varPer,revPer:revPer,ceil:Math.min(1,ceil*P.covCapK)}};});
+  return {cutY:cutY,view:out};}
+/* scen() 每次渲染要被调上百次，所以缓存按 O(1) 的版本号命中，不做序列化 */
+function scen(){const k='v'+PSEQ;
+  if(k===CURK&&CURS)return CURS;
+  const s=SCACHE[k]||(SCACHE[k]=project(paramsNow()));
+  CURK=k;CURS=s;return s;}
+/* 自检：默认参数下页面自己跑的轨迹必须与数据里的 months 逐位相同。
+   对不上就说明两边口径漂了，屏上要如实说，别静默给一份来路不明的数。 */
+let BAKED_OK=true;
+function verifyBaked(){
+  try{
+    const P=paramsNow(),s=R.sites[0],r=runSite(s,P),b=R.months[s.id];
+    for(let t=0;t<60;t++)if(Math.abs(Math.round(r.months[t].profit)-b[t].profit)>1){BAKED_OK=false;return;}
+  }catch(e){BAKED_OK=false;}}
+
+/* ===== 视图态 ===== */
+/* 解析期就要登记、但内容依赖数据的那几块（分城明细、逐参数明细）挂在这里，
+   数据回来之后一次性跑。⚠ 声明必须在任何 push 之前，const 有暂时性死区。 */
+const R_ready_hooks=[];
+let VIEW='ALL',PY=null,PQ=false,DPICK=null;
+const PLAN_Y=()=>String(R.params.base_year);
+const vw=()=>scen().V[VIEW];
+const vwHi=()=>{const h=scen().hi;return h&&h.view[VIEW]?h.view[VIEW]:null;};
+const YB=()=>vw().y;
+const years=()=>YSPAN();
+const landNow=()=>scen().land[VIEW];
+const seg2Y=y=>{const h=scen().hi;return !!h&&+y>h.cutY;};
+/* 开航是按年排的，所以不存在「半年可核半年外推」的混合年；这一条留着是为了
+   将来切到按季排期时有地方落，现在恒假。 */
+const segMixY=()=>false;
+/* 城市名走数据自带的中英两份，不进 EN 字典 —— 字典的键是中文原串，
+   而这几个名字是数据，改数据不该回来改字典。 */
+const cName=c=>(LANG==='en'&&c&&c.nm_en)?c.nm_en:(c?c.nm:'');
+const vName=k=>k==='ALL'?tx('全域'):cName(CITY(k));
+
+/* ============================================================
+   排期页
+   主体是一张逐年规划表：年份作列，链条作行（新开 → 累计 → 日均 → 收 → 支 → 净）。
+   一张表把「开多少 / 做多大 / 赚不赚」放进同一个坐标系，列与列可比、行与行是因果。
+   漏斗与成本明细退成表里每一行点开的详情，不再各占一段。
+   ⚠ 别再往「给页面加第五段」的方向长。要加东西先想它能不能挂进表的某一行或某一列。
+   ============================================================ */
+const PLANROWS=[
+ ['row_new','新开点位','',d=>String((d.new||[]).length),'个'],
+ ['row_cum','累计点位','上期累计 + 本期新开',d=>String(d.cum),'个'],
+ /* 上面两行讲开了几个点位，下面几行讲这些点位赚不赚钱，是两件事。
+    分组只留空隙加一条眉标，不画第二条横线 —— 这张表本来就每行一条细线的时候读起来像表断了。 */
+ ['row_daily','日均单量','圈内订单池 × 覆盖 × 选择率',d=>fmt(d.daily),'单/日','gap'],
+ ['row_rev','收入','配送收入 + 商业化收入',d=>money(d.rev+d.mkt),'万/年'],
+ ['row_cost','支出','六个成本科目 + 营销补贴',d=>money(d.cost),'万/年'],
+ /* 「其中」这个词是防重复相加的：补贴已经在上面那行支出里，主表再列一遍是让读表的人
+    多做一次「这个要不要加」的判断，所以写全「其中 营销补贴」并在副标里说明。 */
+ ['row_sub','其中 营销补贴','已计入上面的支出，不另加',d=>money(d.cs.sub),'万/年'],
+ ['row_op','净利','收入 − 支出',d=>sgnm(netOf(d)),'万/年']];
+
+/* 判决区三个数各自可点，落到讲得清它的那一块。
+   ⚠ 三个 data-go 必须互不相同：pick() 同 id 再点是收起，两个数共用一个 id 时
+     点第二个等于把第一个关掉，看起来像控件坏了。 */
+/* ⚠ 单位跟着这个数的口径走：逐年那两个是「万/年」，累计亏损是一个存量，只能写「万」 */
+const vnum=(go,k,v,cls,sub,unit)=>`<div class="vn click" data-go="${go}" role="button" tabindex="0" aria-controls="detail">
+    <div class="k">${k}</div><div class="v ${cls||''}">${v}<small>${G}${tx(unit||'万/年')}</small></div>${
+      sub?`<div class="vhi">${sub}</div>`:''}</div>`;
+/* 分城市查看的切换器：放在判决区抬头那一行，因为切的正是这句判决讲的是谁。
+   ⚠ 只列有点位排上的城市，一个点位都没排上的城切过去是一屏零，不如不给入口。
+   ⚠ 三个 KPI、年度计划、季度拆分、逐年表全部跟着切，不切一半。 */
+function vwSel(){
+  const s=scen();
+  const opts=['ALL'].concat(R.cities.filter(c=>R.sites.concat(MANUAL)
+    .some(p=>p.city===c.id&&(s.pts[p.id]||{}).openQ)).map(c=>c.id));
+  return `<span class="vwsel">`+opts.map(o=>
+    `<button class="vwb${o===VIEW?' on':''}" data-vw="${o}">${vName(o)}</button>`).join('')+`</span>`;}
+function renderVerdict(){
+  const s=scen(),ys=years(),ld=landNow(),H=vwHi();
+  /* 转正前累计亏损 = 转正年之前各年净利相加，也就是累计 P&L 的谷底。
+     ⚠ 不是「逐年取负数再加」：转正之后再出现的亏损年不该被折进「转正前」这个标签里。 */
+  const preLoss=ys.filter(k=>!ld||+k<ld).reduce((a,k)=>a+netOf(YB()[k]),0);
+  const py=YB()[PLAN_Y()]?PLAN_Y():ys[0];
+  const ey=ys[ys.length-1];
+  const vh=H&&H.y[ey]?netOf(H.y[ey]):null,ve=netOf(YB()[ey]);
+  const ldHi=H?H.land:null;
+  const dirty=!BAKED_OK?`<div class="vrad">${tx('页面实时推演与数据文件对不上，已按数据文件显示')}</div>`:'';
+  document.getElementById('verdict').innerHTML=dirty+`
+    <div>
+      <div class="cap">${vwSel()}</div>
+      <div class="vbig">${ld?`${ld}<small>${tx('年转正')}</small>`:`<small>${tx('推演期内不转正')}</small>`}</div>
+      ${H?`<div class="vhi">${tx('继续扩点')}${PU('sp')}${ldHi?xLandY(ldHi):tx('推演期内不转正')}</div>`:''}
+    </div>
+    <button class="chaintab" data-cal="1" aria-haspopup="dialog">
+      <span>${tx('模型拆解')}</span><i>${tx('五段 · 从大盘到开航序列')}</i></button>
+    <div class="vnums">
+      ${vnum('preloss',tx('转正前累计亏损'),money(preLoss),'','','万')}
+      ${vnum('row_op',py+' '+tx('净利'),sgnm(netOf(YB()[py])),netOf(YB()[py])>=0?'w':'')}
+      ${ey===py?'':vnum('years',ey+' '+tx('净利'),sgnm(ve),ve>=0?'w':'',
+        vh!=null&&Math.abs(vh-ve)>1?tx('继续扩点')+PU('sp')+sgnm(vh):'')}
+    </div>`;}
+
+/* 逐年规划表：年份作列、链条作行。行可点（讲这一行怎么算），转正那一列高亮。 */
+function planTable(){
+  const s=scen(),ys=years(),ld=landNow(),H=vwHi();
+  const head=ys.map(y=>`<th class="r yh ${+y===ld?'turn':''}">${y}${+y===ld?' '+tx('转正'):''}${
+      seg2Y(y)?`<i class="segt">${tx(segMixY()?'含外推':'外推')}</i>`:''}</th>`).join('');
+  const body=PLANROWS.map(r=>(r[5]==='gap'
+      ?`<tr class="grph"><td colspan="${ys.length+2}">${tx('年度收益')}</td></tr>`:'')
+    +(r[0]==='row_new'?`<tr class="grph"><td colspan="${ys.length+2}">${tx('点位计划')}</td></tr>`:'')
+    +`<tr><td class="nm">${tx(r[1])}</td>`
+    +ys.map(y=>`<td class="r ${r[0]==='row_op'&&netOf(YB()[y])>=0?'w':''} ${+y===ld?'turn':''}">${r[3](YB()[y])}</td>`).join('')
+    +`<td class="r u">${tx(r[4])}</td></tr>`).join('');
+  /* 第二段的另一头。主表整条走下沿（切点之后不再新开点位、已开的把爬坡跑完），零拍值；
+     上沿单独两行挂在下面。
+     ⚠ 不把带塞进每一格 —— 七行五列全变成「A 至 B」，读表的人会失焦；真正要看带的
+       只有单量与净利这两行。
+     ⚠ 第一段那几列写「—」不写数：那几年两条口径本来就是同一个数，写上去等于说它有带。 */
+  const hiRows=!H?'':[['日均单量',d=>fmt(d.daily),'单/日'],['净利',d=>sgnm(netOf(d)),'万/年']]
+    .map((r,i)=>`<tr class="hirow${i===0?' first':''}"><td class="nm">${
+      tx('继续扩点')+PU('sp')+tx(r[0])}${i===0?`<i>${tx('主表是不再新开点位那一条')}</i>`:''}</td>`
+      +ys.map(y=>`<td class="r">${seg2Y(y)&&H.y[y]?r[1](H.y[y]):'—'}</td>`).join('')
+      +`<td class="r u">${tx(r[2])}</td></tr>`).join('');
+  return `<table class="tbl plan"><tr><th>${tx('经营推演')}</th>${head}<th class="r"></th></tr>${body}${hiRows}</table>`;}
+
+/* 那一年开了哪几个点位，按城市分组。
+   ⚠ 分城视图下只列该城的点位：上面判决讲的是这座城，下面却列全域的点位，
+     那是最容易被当成数据错的一种不一致。 */
+function planSites(y){
+  const s=scen(),list=R.sites.concat(MANUAL).map(p=>({p:p,o:s.pts[p.id]||{}}))
+    .filter(x=>x.o.openQ&&x.o.openQ.slice(0,4)===String(y))
+    .filter(x=>VIEW==='ALL'||x.p.city===VIEW);
+  const byC={};list.forEach(x=>{(byC[x.p.city]=byC[x.p.city]||[]).push(x)});
+  Object.keys(byC).forEach(c=>byC[c].sort((a,b)=>a.o.openQ<b.o.openQ?-1:1));
+  return byC;}
+/* 三类点位的徽标：计划 = 业务侧计划里给了开航月份的 · 推荐 = 模型按经济性排出来的。
+   ⚠ 别把「推荐」也标成蓝色：蓝标一直是「这是业务定的」那一档的颜色，
+     两类混同一个色，读者就分不出哪些是承诺、哪些是模型的建议。 */
+const siteTag=(p,o)=>(o.planned?` <span class="pln">${tx('计划')}</span>`
+    :o.manual?` <span class="pln unp">${tx('手动加入')}</span>`
+    :` <span class="pln rec">${tx('推荐')}</span>`)
+  +(o.forced?` <span class="pln unp">${tx('强制')}</span>`:'')
+  +(p.winch>0?` <span class="pln sd" title="${tx('其中索降')} ${p.winch}">${tx('索降')}${p.winch}</span>`:'');
+function renderPlan(){
+  const s=scen(),ys=years();
+  const y=YB()[PY]?PY:PLAN_Y();
+  const cols=PQ?['Q1','Q2','Q3','Q4'].map(q=>y+q):[y];
+  const bk=c=>PQ?(vw().q[c]||ZEROY()):YB()[c];
+  const byC=planSites(y);
+  const NC=cols.length;
+  /* 列数要跟着模式走：全年模式表是 4 列（名字 + 值 colspan 2 + 单位），
+     季度模式是 NC + 2 列。最后一格用 colspan 把余下的列吃掉，写死 colspan 会把表撑歪。 */
+  const TOTC=NC===1?4:NC+2;
+  const siteRows=Object.keys(byC).map(c=>{
+    const cy=(scen().V[c]||{y:{}}).y[y]||ZEROY();
+    return `<tr class="emrow"><td class="nm sub2" colspan="${TOTC}">${cName(CITY(c))}<i>${
+      tx('全年净利')} ${sgnm(netOf(cy))}${G}${tx('万/年')}</i></td></tr>`
+      +byC[c].map(x=>{
+        const pos=x.o.pos!=null?x.o.pos+G+tx('个月转正'):tx('推演期内不转正');
+        /* 季度模式下开航要落进它自己那一季的列，转正回到最末一列自己占一格。
+           此前把开航固定在第二格、转正靠 colspan 铺到末尾，屏上读成
+           「Q3 开航的点位标在 Q1 底下」，是错的对应。
+           ⚠ 单元格数必须凑满 TOTC：名字 1 + 季度 NC + 转正 1。 */
+        const cells=PQ
+          ?cols.map(q=>`<td class="r">${x.o.openQ===q?x.o.openQ+' '+tx('开航'):''}</td>`).join('')
+            +`<td class="r">${pos}</td>`
+          :`<td class="r">${x.o.openQ} ${tx('开航')}</td><td class="r" colspan="${TOTC-2}">${pos}</td>`;
+        return `<tr class="click strow" data-map="${x.p.id}" role="button" tabindex="0"
+            title="${x.o.planned?tx('业务侧计划里的点位，不是模型选出来的'):tx('模型按经济性排出来的点位，不在业务侧的计划里')}">
+          <td class="nm sub3">${x.p.nm}${siteTag(x.p,x.o)}</td>${cells}</tr>`;}).join('');}).join('');
+  /* 年度轴开始之前就已经开航的点位挂在「累计点位」底下 —— 那一行的副标本来就写着
+     「上期累计 + 本期新开」，正好把差的这几个补上。本数据里首年即轴起点，通常为空。 */
+  const carried=y===ys[0]?R.sites.concat(MANUAL).map(p=>({p:p,o:scen().pts[p.id]||{}}))
+    .filter(x=>x.o.openQ&&x.o.openQ.slice(0,4)<String(y))
+    .filter(x=>VIEW==='ALL'||x.p.city===VIEW):[];
+  const carrRows=!carried.length?'':`<tr class="emrow"><td class="nm sub2" colspan="${TOTC}">${
+      tx('已开')}<i>${carried.length}${G}${tx('个点位')}</i></td></tr>`
+    +carried.map(x=>`<tr class="click strow" data-map="${x.p.id}" role="button" tabindex="0">
+      <td class="nm sub3">${x.p.nm}</td><td class="r" colspan="${TOTC-2}">${x.o.openQ} ${tx('开航')}</td>
+      <td class="r">${x.o.pos!=null?x.o.pos+G+tx('个月转正'):tx('推演期内不转正')}</td></tr>`).join('');
+  const head=PQ?`<tr><th>${tx('经营推演')}</th>${cols.map(c=>`<th class="r">${c.slice(4)}</th>`).join('')
+      }<th class="r"></th></tr>`:'';
+  const rowHTML=r=>{
+    const row=`<tr class="click ${r[0]==='row_op'?'net':''}${r[0]==='row_cum'?' sep':''}" data-go="${r[0]}"
+      role="button" tabindex="0" aria-controls="detail">
+      <td class="nm">${tx(r[1])}${r[2]?`<i>${tx(r[2])}</i>`:''}</td>`
+      +cols.map(c=>`<td class="r v"${NC===1?' colspan="2"':''}>${r[3](bk(c))}</td>`).join('')
+      +`<td class="u">${tx(r[4])}</td></tr>`;
+    // 点位清单挂在「新开点位」底下，它是那一行的明细；已开那批挂「累计点位」底下
+    return r[0]==='row_new'?row+siteRows:r[0]==='row_cum'?row+carrRows:row;};
+  const cut=PLANROWS.findIndex(r=>r[5]==='gap');
+  const grph=t=>`<tr class="grph"><td colspan="${TOTC}">${tx(t)}</td></tr>`;
+  const body=`<tbody>${head}${grph('点位计划')}${PLANROWS.slice(0,cut).map(rowHTML).join('')}</tbody>`
+    +`<tbody>${grph('年度收益')}${PLANROWS.slice(cut).map(rowHTML).join('')}</tbody>`;
+  /* 年份贴纸可点：点一下整块换成那一年，包括点位清单与季度展开。当前年高亮 */
+  const strip=ys.map(k=>`<span class="cs yr${k===y?' on':''}" role="button" tabindex="0" data-py="${k}"
+      >${k}<b class="${netOf(YB()[k])>=0?'w':''}">${sgnm(netOf(YB()[k]))}</b></span>`).join('');
+  document.getElementById('plan').innerHTML=`
+    <div class="pyh"><b>${y}</b>${seg2Y(y)?`<span class="segw">${tx('不排新点位')}</span>`:''}
+      <button class="qtog${PQ?' on':''}" data-pq="1">${PQ?tx('看全年'):tx('季度拆分')}</button>
+      <button class="qtog${DPICK==='robust'?' on':''}" data-go="robust" role="button" tabindex="0"
+        aria-controls="detail">${tx('转正年靠不靠谱')}</button></div>
+    <table class="tbl plan">${body}</table>
+    <div class="pyl">${strip}</div>`;}
+
+/* ===== 详情面板 =====
+   逻辑链渲染：一步一行 = 序号 · 量名 · 算式（可带一行出处小字）· 三态。
+   三态只有「假定值」上暖色，因为它是唯一留给上级调参的那一类。
+   第 6 个字段 = 参数 key：给了就在这一行底下直接长出滑杆，调参和讲这个数的地方是同一处。 */
+const NUM=['①','②','③','④','⑤','⑥'];
+function knob(k){
+  const d=PARAMS_LIVE.find(x=>x.k===k);if(!d)return '';
+  const v=pget(k),S=SENS||SENSPREV,sv=S&&S.ok?S.rows.find(r=>r.k===k):null;
+  const on=PSET[k]!=null;
+  return `<span class="pk${on?' on':''}">
+    <em class="pn">${tx(d.t)}</em>
+    <input type="range" min="${d.min}" max="${d.max}" step="${d.step}" value="${v}" data-pk="${k}" aria-label="${tx(d.t)}">
+    <b class="pv">${d.fmt(v)}</b>
+    <i>${sv?'±'+Math.round(sv.amp*100)+'%'+(sv.moves?' · '+tx('会改变转正年'):''):''}</i></span>`;}
+function chain(steps,sum){
+  const row=(n,k,f,st,sub,pk)=>`<div class="cst${n==='='?' sum':''}">
+    <b class="cn">${n}</b><div class="ck">${tx(k)}</div>
+    <div class="cf">${f}${sub?`<u>${tx(sub)}</u>`:''}${
+      pk?(Array.isArray(pk)?pk.map(knob).join(''):knob(pk)):''}</div>
+    <div class="c3 ${st==='假定值'?'k':''}">${st?tx(st):''}</div></div>`;
+  return `<div class="chain">`+steps.map((x,i)=>row(NUM[i],x[0],x[1],x[2],x[3],x[4])).join('')
+    +(sum?row('=',sum[0],sum[1],''):'')+`</div>`;}
+const note=t=>`<div class="cnote">${t}</div>`;
+const sec=(t,hint)=>`<div class="dsec">${tx(t)}${hint?`<i>${tx(hint)}</i>`:''}</div>`;
+
+/* 漏斗锚在同一个时点：今天的大盘 + 稳态水位。
+   ⚠ 别用「今天的池子」除「某一年的日均」反解水位 —— 那两端不在同一个时点。 */
+function funnelOf(){
+  const s=scen(),P=s.P;
+  const cs=VIEW==='ALL'?R.cities:R.cities.filter(c=>c.id===VIEW);
+  const mkt=cs.reduce((a,c)=>a+c.pool_monthly,0)/30;
+  const sched=R.sites.concat(MANUAL).filter(p=>(s.pts[p.id]||{}).openQ)
+    .filter(p=>VIEW==='ALL'||p.city===VIEW);
+  const pool=sched.reduce((a,p)=>a+p.pool_monthly,0)/30;
+  const cov=sched.length?sched.reduce((a,p)=>a+Math.min(1,p.cov_ceiling*P.covK)*p.pool_monthly,0)
+    /Math.max(1,sched.reduce((a,p)=>a+p.pool_monthly,0)):R.params.cov_steady*P.covK;
+  return {mkt:mkt,pool:pool,cov:cov,capped:pool*cov,ours:pool*cov*P.selEnd,
+    sel:P.selEnd,sites:sched.length,cities:cs.length};}
+function funnelBars(){
+  const f=funnelOf(),W=f.mkt||1;
+  const rows=[[tx('可服务大盘'),f.mkt,f.cities+G+tx('城合计')],
+    [tx('圈内可服务'),f.pool,tx('排期内')+' '+f.sites+G+tx('个点位')],
+    [tx('可承接'),f.capped,'× '+tx('商家商品覆盖')+' '+pc1(f.cov)],
+    [tx('我们的日均'),f.ours,'× '+tx('配送方式选择率')+' '+pc1(f.sel)]];
+  return `<div class="fnl">`+rows.map((r,i)=>`<div class="frow ${i===3?'last':''}">
+      <div class="fl">${r[0]}</div>
+      <div class="fbar"><i style="width:${Math.max(.4,r[1]/W*100)}%"></i></div>
+      <div class="fv">${fmt(r[1])}</div>
+      <div class="fop">${r[2]}</div></div>`).join('')+'</div>';}
+function funnelBody(){
+  const f=funnelOf();
+  return chain([
+    ['可服务大盘',fmt(f.mkt)+G+tx('单/日')+PU('dot')+tx('四座城合计'),'事实'],
+    ['圈内可服务',fmt(f.pool)+G+tx('单/日')+PU('dot')+tx('排期内')+' '+f.sites+G+tx('个点位'),'可推导'],
+    ['商家商品覆盖',pc1(f.cov)+PU('sp')+tx('稳态'),'假定值','逐点位各有自己的天花板，这里整组缩放',['covK','covMo']],
+    ['配送方式选择率',pc1(f.sel)+PU('sp')+tx('稳态'),'假定值','全域无实测，全链最缺锚的一项',['selEnd','selMo']]
+  ],['日均单量','① × ③ × ④'])
+  +sec('今天能接多少','按稳态水位算，不含爬坡')+funnelBars();}
+
+const DET={
+  row_new:{t:'新开点位',s:'达标点位按什么顺序、什么速度开',body(){
+    const s=scen(),ys=years();
+    const rows=ys.map(y=>`<tr><td class="nm">${y}</td><td class="r">${s.cap[ys.indexOf(y)]}</td>
+      <td class="r w">${(YB()[y].new||[]).length}</td><td class="r">${YB()[y].cum}</td></tr>`).join('');
+    return chain([
+      ['算多久回本',tx('把还没开的点位按「就在这一年年初开航」重跑一遍，看几个月月利润转正'),'可推导'],
+      ['排队',tx('转正快的先开，同一档里累计投入小的先开'),'可推导'],
+      ['产能闸','N(y) = '+s.cap.join(' · '),'假定值','',['capK']],
+      ['超过这个月数不排','> '+pget('obsMo')+G+tx('个月')+PU('arrow')+tx('观察池'),'假定值','',['obsMo']]
+    ],['当年新开',tx('排队里够格的，取到产能先用完为止')])
+    +note(tx('开航季按名次顺铺 Q1 至 Q4'))
+    +`<table class="tbl"><tr><th>${tx('年')}</th><th class="r">${tx('产能')}</th><th class="r">${tx('新开')}</th>
+        <th class="r">${tx('累计点位')}</th></tr>${rows}</table>`;}},
+  row_cum:{t:'累计点位',s:'从候选到排期',body(){
+    const s=scen(),c=s.counts,pass=(c.T1|0)+(c.T2|0)+(c.T3|0);
+    const rows=R.cities.map(ct=>{
+      const all=R.sites.concat(MANUAL).filter(p=>p.city===ct.id);
+      let ps=0,op=0;all.forEach(p=>{const o=s.pts[p.id]||{};
+        if(o.tier&&o.tier!=='OBS')ps++;if(o.openQ)op++;});
+      return `<tr class="click" data-go="city_${ct.id}" role="button" tabindex="0" aria-controls="detail">
+        <td class="nm">${cName(ct)}</td><td class="r">${all.length}</td><td class="r">${ps}</td>
+        <td class="r ${op?'w':''}">${op||'—'}</td>
+        <td class="r ${s.land[ct.id]?'w':''}">${s.land[ct.id]?xLandY(s.land[ct.id]):tx('推演期内不转正')}</td></tr>`;}).join('');
+    return chain([
+      ['候选点位',R.sites.length+G+tx('个')+PU('dot')+tx('按真实订单起讫点算出的可服务上限'),'事实'],
+      ['逐点过引擎',tx('覆盖与选择率两条爬坡 → 逐月利润轨迹'),'可推导'],
+      ['转正月数',tx('配送利润减补贴首次转正的月份'),'可推导','与净利行的转正不是同一个判据'],
+      ['梯队','T1 ≤ 18 · T2 ≤ 30 · T3 ≤ 44 · > '+pget('obsMo')+PU('arrow')+tx('观察池'),'假定值','',['obsMo']]
+    ],['累计点位',tx('上期累计 + 本期新开')+PU('arrow')+pass+G+tx('达标')+' + '+(c.OBS|0)+G+tx('观察池')])
+    +`<table class="tbl"><tr><th>${tx('城市')}</th><th class="r">${tx('候选')}</th><th class="r">${tx('达标')}</th>
+        <th class="r">${tx('已排期')}</th><th class="r">${tx('转正')}</th></tr>${rows}</table>`;}},
+  row_daily:{t:'日均单量',s:'中间乘掉了哪几项',body(){return funnelBody();}},
+  row_rev:{t:'收入',s:'配送随单量、商业化随点位数',body(){
+    const D=UEModel.DEFAULTS,rpo=D.aov*D.commissionRate+D.platformFee+D.deliveryFee;
+    const rows=years().map(y=>{const d=YB()[y];
+      return `<tr><td class="nm">${y}</td><td class="r">${money(d.rev)}</td><td class="r">${money(d.mkt)}</td>
+        <td class="r w">${money(d.rev+d.mkt)}</td></tr>`;}).join('');
+    return chain([
+      ['单均配送收入',tx('客单价')+' '+D.aov+' × '+tx('佣金率')+' '+pc1(D.commissionRate)
+        +' + '+tx('平台费')+' '+D.platformFee+' + '+tx('配送费')+' '+D.deliveryFee
+        +PU('arrow')+rpo.toFixed(2),'可推导'],
+      ['配送收入','① × '+tx('月单量'),'可推导'],
+      ['商业化',tx('开航点位数 × 媒体包价 × 售出率'),'假定值','',['pack','sell1']]
+    ],['收入','② + ③'])
+    +note(tx('软件与解决方案的收入不在这条线里'))
+    +`<table class="tbl"><tr><th>${tx('年')}</th><th class="r">${tx('配送收入')}</th>
+        <th class="r">${tx('商业化收入')}</th><th class="r">${tx('合计')}</th></tr>${rows}</table>`
+    +`<div class="cnote">${tx('万/年')}</div>`;}},
+  row_cost:{t:'支出',s:'大头是固定成本，与单量无关',body(){
+    const ys=years();
+    const CSLB={labor:'人力',equip:'设备折旧',battery:'电池',venue:'场地办公',
+      other:'其他',netom:'网络运维',sub:'补贴'};
+    const last=ys[ys.length-1],lastCost=YB()[last].cost||0;
+    const rows=CSK.map(k=>{
+      const share=lastCost?(YB()[last].cs||{})[k]/lastCost:0;
+      return `<tr><td class="nm">${tx(CSLB[k])}</td>`
+        +ys.map(y=>`<td class="r">${money((YB()[y].cs||{})[k]||0)}</td>`).join('')
+        +`<td class="r">${pc1(share)}</td></tr>`;}).join('')
+      +`<tr><td class="nm w">${tx('合计')}</td>`
+        +ys.map(y=>`<td class="r w">${money(YB()[y].cost)}</td>`).join('')+`<td class="r w">100%</td></tr>`
+      /* ⚠ 分母必须用该年真实完单量，不能用年末日均 × 365 —— 年末日均是峰值，
+         那么算会把分母放大一倍多，而下面那句注脚正好写着「单量越大单均成本越低」，
+         等于表在否定自己的说明。 */
+      +`<tr><td class="nm">${tx('单均成本')}</td>`
+        +ys.map(y=>{const d=YB()[y];
+          return `<td class="r">${d.orders?fmt(d.cost/d.orders):'—'}</td>`;}).join('')
+        +`<td class="r">—</td></tr>`;
+    return chain([
+      ['六科目',tx('人力 · 设备折旧 · 电池 · 场地办公 · 其他 · 网络运维'),'可推导'],
+      ['场地',tx('起飞点租金 × 城市系数 + 降落点租金 × 点数'),'假定值','',['rentK','landRent']],
+      ['人力',tx('飞手 · 机务 · 取餐 · 地勤 · 末端配送 · 巡游，全部是阶梯量'),'可推导'],
+      ['营销补贴',tx('单均')+PU('sp')+pget('sub0').toFixed(1)+PU('arrow')+pget('sub1').toFixed(1),
+        '假定值','',['sub1','sub0','subFlat']]
+    ],['支出','① + ④'])
+    +note(tx('每个起飞点的固定成本与单量无关')+' <b>→</b> '+tx('单量越大，单均成本越低'))
+    +`<table class="tbl"><tr><th>${tx('支出科目')} <small>${tx('万/年')}</small></th>${
+        ys.map(y=>`<th class="r">${y}</th>`).join('')}<th class="r">${tx('末年占比')}</th></tr>${rows}</table>`;}},
+  row_sub:{t:'补贴',s:'唯一纯按单量走的支出',body(){
+    const ys=years();
+    const rows=ys.map(y=>{const d=YB()[y],sub=(d.cs||{}).sub||0;
+      return `<tr><td class="nm">${y}</td><td class="r">${money(sub)}</td>
+        <td class="r">${d.orders?(sub/d.orders).toFixed(2):'—'}</td>
+        <td class="r">${d.cost?pct(sub/d.cost):'—'}</td></tr>`;}).join('');
+    return chain([
+      ['算法',tx('单均补贴')+PU('times')+tx('月单量'),'假定值',
+        tx('首')+' '+pget('subFlat')+G+tx('个月')+' '+pget('sub0').toFixed(1)
+        +PU('arrow')+tx('稳态')+' '+pget('sub1').toFixed(1),['sub1','sub0','subFlat']],
+      ['与支出的关系',tx('上面那行支出已经含它'),'可推导']
+    ],['补贴',tx('随单量走，不随点位数走')])
+    +`<table class="tbl"><tr><th>${tx('年')}</th><th class="r">${tx('补贴')} <small>${tx('万/年')}</small></th>
+        <th class="r">${tx('单均')}</th><th class="r">${tx('占支出')}</th></tr>${rows}</table>`;}},
+  row_op:{t:'净利',s:'哪一年转正，为什么',body(){
+    const ys=years(),ld=landNow();
+    const rows=ys.map(y=>{const d=YB()[y];
+      return `<tr><td class="nm">${y}${+y===ld?' <span class="w">'+tx('转正')+'</span>':''}</td>
+        <td class="r">${money(d.rev+d.mkt)}</td><td class="r">${money(d.cost)}</td>
+        <td class="r ${netOf(d)>=0?'w':''}">${sgnm(netOf(d))}</td></tr>`;}).join('');
+    return chain([
+      ['收入',tx('配送收入')+' + '+tx('商业化收入'),'可推导'],
+      ['支出',tx('六科目')+' + '+tx('营销补贴'),'可推导'],
+      ['怎么算转正',tx('首个「当年净利 ≥ 0」的年份'),'假定值','含商业化与补贴，与点位梯队的判据不同']
+    ],['净利','① − ②'+(ld?PU('arrow')+ld+G+tx('年转正'):'')])
+    +note(tx('收入随单量增长，固定成本不随单量增长')+' <b>→</b> '+tx('两者相交的那一年就转正'))
+    +`<table class="tbl"><tr><th>${tx('年')}</th><th class="r">${tx('收入')}</th><th class="r">${tx('支出')}</th>
+        <th class="r">${tx('净利')} <small>${tx('万/年')}</small></th></tr>${rows}</table>`;}},
+  years:{t:'往后几年',s:'逐年推演结果',body(){
+    return note(tx('「外推」= 那一年不排点位，按城市推'))+planTable();}},
+  /* 这一块是为了拦一个误读：判决区那个负数很容易被读成「到转正只要准备这么多钱」。
+     装修与机队都在这条线里（前者摊进场地办公，后者走设备折旧），不在的只有押金与一次性采购。
+     差别是权责发生制与现金，不是科目缺失。 */
+  preloss:{t:'转正前累计亏损',s:'这个数怎么算出来的',body(){
+    const ys=years(),ld=landNow();
+    const rows=ys.map(y=>{const d=YB()[y],n=netOf(d),inc=!ld||+y<ld;
+      return `<tr><td class="nm">${y}</td><td class="r ${n>=0?'w':''}">${sgnm(n)}</td>
+        <td class="r">${inc?tx('计入'):'—'}</td></tr>`;}).join('');
+    return chain([
+      ['算法',tx('转正年之前各年净利相加'),'可推导'],
+      ['已计入支出',tx('设备折旧与装修摊销按月计入'),'可推导'],
+      ['未计入',tx('押金与一次性采购'),'']
+    ],['结论',tx('经营口径的累计亏损，不等于开航到转正需要准备的资金')])
+    +`<table class="tbl"><tr><th>${tx('年')}</th><th class="r">${tx('净利')} <small>${tx('万/年')}</small></th>
+        <th class="r">${tx('计入累计亏损')}</th></tr>${rows}</table>`;}},
+  robust:{t:'转正年靠不靠谱',s:'每个参数各调 25%，哪几个会改结论',body(){
+    const S=sensCalc();
+    if(!S.ok)return `<div class="dp">${tx('敏感度计算中')}…</div>`;
+    const mv=S.rows.filter(r=>r.moves),amp=Math.max.apply(null,S.rows.map(r=>r.amp));
+    const rows=S.rows.map(r=>`<tr class="click" data-go="sens_${r.k}" role="button" tabindex="0" aria-controls="detail">
+      <td class="nm">${tx(r.t)}</td><td class="r">${r.fmt(r.lo)}</td><td class="r">${r.fmt(r.hi)}</td>
+      <td class="r ${r.amp>=.2?'w':''}">±${Math.round(r.amp*100)}%</td>
+      <td class="r">${r.moves?xLand(r.landLo===S.land?r.landHi:r.landLo):'—'}</td></tr>`).join('');
+    return chain([
+      ['看的是哪个盘',vName(VIEW),''],
+      ['怎么测的',tx('每个参数上下各调 25%，其余不动，整条轨迹重新跑一遍'),'可推导'],
+      ['会改变转正年的',mv.length?mv.map(x=>tx(x.t)).join(LANG==='en'?', ':'、'):tx('一个都没有'),'可推导'],
+      ['对规模的影响',tx('末年净利最多差')+' '+Math.round(amp*100)+'%','可推导']
+    ],['结论',mv.length?tx('只有这几个会改变转正年，其余只影响规模'):tx('这个幅度内转正年不变，规模变化很大')])
+    +note(tx('±25% 是统一测试幅度')+PU('dot')+tx('三个半径与单均收入不在表内'))
+    +`<table class="tbl"><tr><th>${tx('参数')}</th><th class="r">${tx('下调至')}</th>
+        <th class="r">${tx('上调至')}</th><th class="r">${tx('末年净利波动')}</th>
+        <th class="r">${tx('转正年变成')}</th></tr>${rows}</table>`;}}
+};
+/* 分城明细与逐参数明细在解析期一次性登记：t/s 是定值，body 里才是现算的 */
+R_ready_hooks.push(()=>{
+  R.cities.forEach(c=>{DET['city_'+c.id]={
+    /* 标题走函数不走定值：城市名在数据里有中英两份，切语言时要跟着换。
+       DET 其余条目的 t/s 是定值，切语言由 tx() 认字典。 */
+    tf:()=>cName(c),s:'逐点位明细',body(){
+    const s=scen(),all=R.sites.concat(MANUAL).filter(p=>p.city===c.id);
+    const rows=all.map(p=>{const o=s.pts[p.id]||{},tr2=(p.tiers||{})[R.params.main]||{};
+      return `<tr class="click" data-map="${p.id}" role="button" tabindex="0"><td class="nm">${p.nm}</td>
+        <td>${o.tier||'OBS'}</td><td class="r">${o.pos==null?'—':o.pos+G+tx('个月')}</td>
+        <td class="r">${o.openQ||tx('未排期')}</td><td class="r">${fmt(tr2.daily)}</td></tr>`;}).join('');
+    return `<div class="dfx">${all.length}${G}${tx('候选')}${PU('dot')}${
+        s.land[c.id]?xLandY(s.land[c.id]):tx('推演期内不转正')}</div>
+      <table class="tbl"><tr><th>${tx('点位')}</th><th>${tx('梯队')}</th>
+        <th class="r">${tx('评估转正月数')}</th><th class="r">${tx('开航季')}</th>
+        <th class="r">${tx('爬坡后日均')}</th></tr>${rows}</table>`;}};});
+  PARAMS_LIVE.forEach(d=>{DET['sens_'+d.k]={t:d.t,s:'上下各调 25%，结论会怎么变',
+    body(){return sensBody(d.k);}};});});
+
+/* ===== 敏感度 =====
+   每个参数统一上下各拨 25%，跑两次，量它对两件事的影响：转正年动不动、末年净利差多少。
+   统一比例而不是逐参数定敏感带，是为了让排序是同一把尺子量出来的；
+   ⚠ 这是弹性排序，不是「这个参数的合理区间」，别把 ±25% 当成业务上的取值范围。
+   ⚠ 一次要跑两倍参数个数的全量推演，所以放空闲时算，算完只重渲这一段。 */
+const SENS_STEP=.25;
+function sensCalc(){
+  if(SENS)return SENS;
+  try{
+    const base=scen(),ys=years(),last=ys[ys.length-1];
+    const netOfRun=r=>{const v=r.V[VIEW];return v?netOf(v.y[last]):0;};
+    const b=netOfRun(base)||1,bl=base.land[VIEW];
+    const rows=PARAMS_LIVE.map(def=>{
+      const cur=pget(def.k),
+        lo=Math.max(def.min,cur*(1-SENS_STEP)),hi=Math.min(def.max,cur*(1+SENS_STEP));
+      const at=v=>{const P=Object.assign({},paramsNow());P[def.k]=v;return project(P);};
+      const rl=at(lo),rh=at(hi);
+      const dl=(netOfRun(rl)-b)/Math.abs(b),dh=(netOfRun(rh)-b)/Math.abs(b);
+      return {k:def.k,t:def.t,st:def.st,why:def.why,cur:cur,fmt:def.fmt,lo:lo,hi:hi,
+        dl:dl,dh:dh,amp:Math.max(Math.abs(dl),Math.abs(dh)),
+        moves:rl.land[VIEW]!==bl||rh.land[VIEW]!==bl,
+        landLo:rl.land[VIEW],landHi:rh.land[VIEW]};})
+      .sort((a,b2)=>b2.amp-a.amp);
+    SENS={ok:true,rows:rows,land:bl};
+  }catch(e){console.warn('[OP] 敏感度算不了：',e&&e.message);SENS={ok:false,rows:[]};}
+  return SENS;}
+function sensBody(k){
+  const S=sensCalc();
+  if(!S.ok)return `<div class="dp">${tx('敏感度计算中')}…</div>`;
+  const x=S.rows.find(r=>r.k===k);
+  if(!x)return `<div class="dp">${tx('这个参数不在敏感度表里')}</div>`;
+  const d=PARAMS_LIVE.find(r=>r.k===k),pc=v=>(v>=0?'+':'')+Math.round(v*100)+'%';
+  const rows=S.rows.map(r=>`<tr class="${r.k===k?'on':''}"><td class="nm">${tx(r.t)}</td>
+    <td class="r">${r.fmt(r.cur)}</td><td class="r ${r.amp>=.2?'w':''}">±${Math.round(r.amp*100)}%</td>
+    <td class="r">${r.moves?tx('能'):tx('不能')}</td></tr>`).join('');
+  return chain([
+    ['当前值',d.fmt(x.cur),x.st,d.why,k],
+    ['调到',d.fmt(x.lo)+PU('arrow')+d.fmt(x.hi),'可推导','每个参数都调 25%，各项之间才可比'],
+    ['末年净利',pc(x.dl)+PU('arrow')+pc(x.dh),'可推导'],
+    /* ⚠ 别写成 landLo → landHi：那读起来像「从低拨到高会这样走」，
+       而这是两个各自独立的结果，方向也未必单调。三个数并列写，把基准也带上。 */
+    ['转正年',x.moves?tx('会变')+PU('c')+tx('现在')+' '+xLand(S.land)+PU('d')
+      +tx('调低')+' '+xLand(x.landLo)+PU('d')+tx('调高')+' '+xLand(x.landHi):tx('不变'),'可推导']
+  ],['排名',tx('全部参数里第')+' '+(S.rows.indexOf(x)+1)+' '+tx('位')])
+  +`<table class="tbl"><tr><th>${tx('参数')}</th><th class="r">${tx('当前值')}</th>
+      <th class="r">${tx('末年净利波动')}</th><th class="r">${tx('会改变转正年')}</th></tr>${rows}</table>`;}
+
+function renderDetail(){
+  const el=document.getElementById('detail');if(!el)return;
+  const m=DPICK&&DET[DPICK],dirty=Object.keys(PSET).length;
+  /* 没点任何一行时整块不渲染，不出空壳。
+     ⚠ 容器 section#detail 必须留着，它是所有下钻面板的落点。 */
+  if(!m){el.innerHTML='';el.hidden=true;return;}
+  el.hidden=false;
+  el.innerHTML=`<div class="dhd"><b>${m.tf?m.tf():tx(m.t)}</b><span>${tx(m.s)}</span>
+      ${dirty?`<span class="rst" data-reset="1" role="button" tabindex="0">${tx('改了')} ${dirty} ${tx('项')} · ${tx('复位')}</span>`:''}
+      <span class="x" data-close="1" role="button" tabindex="0">${tx('收起')} ✕</span></div>
+    <div class="dbd">${m.body()}</div>`;}
+function syncPick(){
+  document.querySelectorAll('#conc [data-go]').forEach(n=>{
+    const on=n.dataset.go===DPICK;
+    n.classList.toggle('on',on);n.setAttribute('aria-expanded',on?'true':'false');});}
+function pick(id){
+  DPICK=(id===DPICK)?null:id;syncPick();renderDetail();
+  if(DPICK){const d=document.getElementById('detail');
+    if(d)try{d.scrollIntoView({block:'nearest',behavior:RM?'auto':'smooth'});}catch(e){d.scrollIntoView(false);}}}
+/* 顶栏那一行跟着「你现在看的是哪个盘」走。
+   ⚠ 两个页签的范围本来就是两回事：排期页看 VIEW，地图页看聚焦的城市。
+     合成一个字段会在某一边说谎，所以按页签分支，不要「统一」。 */
+function syncBrand(){
+  const el=document.getElementById('brandScope');if(!el)return;
+  const where=mapOn?(mFocus||null):(VIEW==='ALL'?null:VIEW);
+  el.textContent=where?'OP · '+vName(where):tx('OP · 全域');}
+function renderConc(){syncBrand();renderVerdict();renderPlan();renderDetail();syncPick();
+  /* 敏感度在空闲时补算，算完只重渲用到它的那几处，不整页重来 */
+  if(!SENS){const at=PSEQ;
+    const go=()=>{if(PSEQ!==at)return;sensCalc();if(PSEQ!==at)return;
+      if(DPICK&&(DPICK.indexOf('sens_')===0||DPICK==='robust'))renderDetail();};
+    (window.requestIdleCallback||(f=>setTimeout(f,60)))(go);}}
+
+/* ============================================================
+   地图模式。全文唯一带地图的地方。
+   ============================================================ */
+/* 底图鉴权与署名。⚠ 署名必须常驻：公开底图服务的条款要的就是可见的署名，别关掉它。 */
+const CARTO_KEY='cb1_3j5n_1_7a1776b1593d6664412ebebc';
+const CARTO_TILE=s=>'https://basemaps.cartocdn.com/'+s+'/{z}/{x}/{y}{r}.png?key='+CARTO_KEY;
+const CARTO_ATTR='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>';
+/* ⚠ 底图走 *_nolabels：这一页会拉到整个推演范围的尺度，带标注的底图在那个缩放下
+   会把真实的国家名与城市名整屏铺出来，而页面上的城市、分区、点位全是生成的虚构名，
+   两套名字叠在一张图上既自相矛盾，也违背本仓库「不出现真实地名」这条。
+   地理形状保留，地名由页面自己的图层写。改回 *_all 之前先想清楚这两条。 */
+/* 两条 ramp 的语义锁死：需求 = 电蓝，供给 = 暖橙。浅色只反转明暗方向，色相不变。
+   ⚠ 两层叠加一律 normal，不用 screen / multiply —— 混出的第三色必然撞别的图元。 */
+const MAPPAL={
+ dark:{tile:CARTO_TILE('dark_nolabels'),
+  dem:{.22:'#0b0f2c',.42:'#1d2a7e',.62:'#3554c2',.82:'#6486e6',1:'#a3bcff'},
+  sup:{.18:'#261600',.40:'#7d2f00',.60:'#cc5214',.80:'#ff7c3e',1:'#ffb98a'},
+  comm:{opacity:.25,fillOpacity:.04},sect:{opacity:.4},
+  villa:{color:'#6bcb77',opacity:.4,fillOpacity:.05},
+  flow:{color:'#ff9a56',oBase:.12,oSpan:.4},
+  nfz:{pink:'#ff00ff',red:'#ff3333',beige:'#ffaa00',fillPink:.20,fillOther:.15},
+  poiSup:'#F2A99B',poiDem:['#5cb3f0','#b06bd6','#9aa6b5','#ffce4d','#ff7a9c','#5fd37e'],
+  mall:{0:'#FBCFC6',1:'#F2A99B',2:'#C97E71'},poiFill:.55,mallFill:.75},
+ light:{tile:CARTO_TILE('light_nolabels'),
+  dem:{.22:'#e6edfd',.42:'#a9c1f4',.62:'#5c80e0',.82:'#2c4cb0',1:'#131f63'},
+  sup:{.18:'#FFF1E7',.40:'#FBCFA8',.60:'#F2984F',.80:'#DE6A18',1:'#B84A08'},
+  comm:{opacity:.45,fillOpacity:.10},sect:{opacity:.6},
+  villa:{color:'#2E7D32',opacity:.55,fillOpacity:.10},
+  flow:{color:'#C2560D',oBase:.18,oSpan:.45},
+  nfz:{pink:'#C2185B',red:'#D32F2F',beige:'#E08600',fillPink:.16,fillOther:.13},
+  /* 浅底上 POI 显脏的病根是饱和度不是明度：低饱和的褐调读作土色，提亮又会撞掉热力。
+     ⚠ 点径两档必须一致，不许按主题分档 —— 点一变大就与深色档不是一个东西了。 */
+  poiSup:'#D96F55',poiDem:['#3D82D8','#9B4BBF','#7A929E','#B08F1F','#D8497F','#54A158'],
+  mall:{0:'#E89880',1:'#D96F55',2:'#B85539'},poiFill:.95,mallFill:.95}};
+let PAL=MAPPAL[thMode()];
+/* cssv 只喂地图图元，读 #map 的变量域 */
+const cssv=n=>getComputedStyle(document.getElementById('map')).getPropertyValue(n).trim();
+const cHub=()=>cssv('--bcn'),cLand=()=>cssv('--lnd');
+const rSup=()=>[+cssv('--rwSup')||1.5,+cssv('--rfSup')||.06];
+const rLand=()=>[+cssv('--rwLand')||1.5,+cssv('--rfLand')||.05];
+let map=null,mapOn=false,mapBooted=false,mFocus=null,SCOPE={k:'all'},LY={},baseTile=null;
+let demLayer=null,supLayer=null,flowCv=null;
+const LGROUPS=[
+ {t:'图层控制',items:[{id:'supply',lb:'供给热力 (取货)',sw:2},{id:'demand',lb:'需求热力 (送货)',sw:1},
+   {id:'flow',lb:'订单流向'},{id:'areas',lb:'区域围栏'},{id:'villa',lb:'别墅区围栏'}]},
+ {t:'公网POI · 供给侧',items:[{id:'poiSupply',lb:'潜在供给商家 (餐饮)',c:'supply'},
+   {id:'mallL',lb:'大型商场',c:'mallsLarge'},{id:'mallM',lb:'中型/社区商场',c:'mallsMedium'},
+   {id:'mallS',lb:'小型/社区中心',c:'mallsSmall'}]},
+ {t:'公网POI · 需求侧',items:[{id:'poiVilla',lb:'别墅',c:'villa'},{id:'poiResi',lb:'公寓/住宅',c:'residential'},
+   {id:'poiHotel',lb:'酒店',c:'hotel'},{id:'poiOffice',lb:'写字楼/商业',c:'office'},
+   {id:'poiSchool',lb:'学校',c:'school'},{id:'poiPark',lb:'公园',c:'park'}]},
+ {t:'禁飞区',items:[{id:'nfzRed',lb:'红区 (管制)'},{id:'nfzPink',lb:'粉区 (军事)'},
+   {id:'nfzBeige',lb:'橙区 (限制)'}]}];
+const on={demand:1,supply:1,areas:1,flow:1,villa:1,poiSupply:1,poiVilla:1,mallL:1,mallM:1,mallS:1,
+  poiResi:0,poiHotel:0,poiOffice:0,poiSchool:0,poiPark:0,nfzPink:0,nfzRed:0,nfzBeige:0};
+const POI_Z=11,POI_IDS={poiSupply:1,mallL:1,mallM:1,mallS:1,poiVilla:1,poiResi:1,poiHotel:1,
+  poiOffice:1,poiSchool:1,poiPark:1};
+const DEMK=['poiResi','poiHotel','poiOffice','poiSchool','poiPark','poiVilla'];
+function railDot(id){
+  if(id.indexOf('nfz')===0)return PAL.nfz[id.slice(3).toLowerCase()];
+  if(id==='areas')return 'var(--ink3)';
+  if(id==='villa')return PAL.villa.color;
+  if(id==='flow')return PAL.flow.color;
+  if(id==='poiSupply')return PAL.poiSup;
+  if(id.indexOf('mall')===0)return PAL.mall[{mallL:0,mallM:1,mallS:2}[id]];
+  return PAL.poiDem[DEMK.indexOf(id)];}
+function dotLayer(pts,color,r,fill,kd,kdI){
+  const g=L.layerGroup();
+  pts.forEach(p=>L.circleMarker([p[0],p[1]],{pane:'poiPane',radius:r,color:color,weight:0,
+    fillColor:color,fillOpacity:fill,interactive:false,kd:kd,kdI:kdI}).addTo(g));
+  return g;}
+function buildLayers(){
+  const PANES={areaPane:410,villaPane:412,flowPane:425,nfzPane:405,poiPane:440,labelPane:680};
+  /* 没有可交互内容的窗格一律关掉 pointer-events：画布铺满地图，留着会白白截走事件 */
+  Object.keys(PANES).forEach(p=>{const el=map.createPane(p);el.style.zIndex=PANES[p];
+    if(p!=='poiPane')el.style.pointerEvents='none';});
+  const areaCv=L.canvas({pane:'areaPane'}),villaCv=L.canvas({pane:'villaPane'});
+  flowCv=L.canvas({pane:'flowPane',padding:1.2});
+  LY.areas=L.layerGroup();
+  MD.communities.forEach(c=>L.polygon(c.poly,{color:c.color,weight:.5,opacity:PAL.comm.opacity,
+    fillColor:c.color,fillOpacity:PAL.comm.fillOpacity,pane:'areaPane',renderer:areaCv,
+    interactive:false,kd:'comm'}).addTo(LY.areas));
+  MD.sectors.forEach(sc=>{
+    L.polygon(sc.poly,{color:sc.color,weight:1.1,opacity:PAL.sect.opacity,fill:false,
+      pane:'areaPane',renderer:areaCv,interactive:false,kd:'sect'}).addTo(LY.areas);
+    const b=L.polygon(sc.poly).getBounds().getCenter();
+    L.marker(b,{icon:L.divIcon({className:'',html:`<div class="sector-label">${sc.name}</div>`,
+      iconSize:[190,22],iconAnchor:[95,11]}),pane:'labelPane',interactive:false}).addTo(LY.areas);});
+  LY.villa=L.layerGroup();
+  MD.villaZones.forEach(z=>L.polygon(z.poly,{color:PAL.villa.color,weight:1.1,opacity:PAL.villa.opacity,
+    fillColor:PAL.villa.color,fillOpacity:PAL.villa.fillOpacity,dashArray:'6,4',
+    pane:'villaPane',renderer:villaCv,interactive:false,kd:'villa'}).addTo(LY.villa));
+  LY.flow=L.layerGroup();
+  const fmax=Math.max.apply(null,MD.flows.map(f=>f[4]))||1;
+  MD.flows.forEach(f=>{
+    const a=[f[0],f[1]],b=[f[2],f[3]],r=f[4]/fmax;
+    const mx=(a[0]+b[0])/2+(b[1]-a[1])*.12,my=(a[1]+b[1])/2-(b[0]-a[0])*.12;
+    const pts=[];for(let t=0;t<=1.001;t+=.1){const u=1-t;
+      pts.push([u*u*a[0]+2*u*t*mx+t*t*b[0],u*u*a[1]+2*u*t*my+t*t*b[1]]);}
+    L.polyline(pts,{color:PAL.flow.color,weight:1.1+r*4,opacity:PAL.flow.oBase+r*PAL.flow.oSpan,
+      pane:'flowPane',renderer:flowCv,interactive:false,kd:'flow',kdR:r}).addTo(LY.flow);});
+  LY.poiSupply=dotLayer(MD.pois.supply,PAL.poiSup,1.1,PAL.poiFill,'poiSup');
+  DEMK.forEach((k,i)=>{LY[k]=dotLayer(MD.pois.demand[i],PAL.poiDem[i],1.2,PAL.poiFill,'poiDem',i);});
+  const mallG={0:L.layerGroup(),1:L.layerGroup(),2:L.layerGroup()};
+  MD.pois.malls.forEach(m=>L.circleMarker([m[0],m[1]],{pane:'poiPane',
+    radius:m[2]===0?4:m[2]===1?3:2.5,color:PAL.mall[m[2]],weight:0,fillColor:PAL.mall[m[2]],
+    fillOpacity:PAL.mallFill,interactive:false,kd:'mall',kdT:m[2]}).addTo(mallG[m[2]]));
+  LY.mallL=mallG[0];LY.mallM=mallG[1];LY.mallS=mallG[2];
+  ['pink','red','beige'].forEach(k=>{
+    const id='nfz'+k[0].toUpperCase()+k.slice(1);
+    LY[id]=L.layerGroup();
+    (MD.nfz[k]||[]).forEach(z=>L.polygon(z.coords,{color:PAL.nfz[k],weight:1.3,
+      fillColor:PAL.nfz[k],fillOpacity:k==='pink'?PAL.nfz.fillPink:PAL.nfz.fillOther,
+      opacity:.6,pane:'nfzPane',interactive:false,kd:'nfz',kdK:k}).addTo(LY[id]));});
+  /* 热力：需求按格总量，供给按商家单量。半径与分箱随缩放走，别在这里加第三层增益 */
+  const dRB=[12,9],sRB=[9,7];
+  demLayer=L.heatLayer(MD.demand.map(c=>[c[0],c[1],c[2]]),
+    {radius:dRB[0],blur:dRB[1],maxZoom:15,max:dynMax(MD.demand.map(c=>c[2])),gradient:PAL.dem});
+  supLayer=L.heatLayer(MD.shops.map(s=>[s[0],s[1],s[6]||1]),
+    {radius:sRB[0],blur:sRB[1],maxZoom:15,max:dynMax(MD.shops.map(s=>s[6]||1)),gradient:PAL.sup});}
+const dynMax=a=>{const v=a.filter(x=>x>0).sort((x,y)=>x-y);
+  return Math.max(v[Math.floor(v.length*.9)]||1,1);};
+function applyLayer(id){
+  if(!POI_IDS[id]||!map)return;
+  const want=!!on[id]&&map.getZoom()>=POI_Z;
+  if(want&&!map.hasLayer(LY[id]))LY[id].addTo(map);
+  else if(!want&&map.hasLayer(LY[id]))map.removeLayer(LY[id]);}
+function toggle(id,v){
+  on[id]=v;if(!map)return;
+  if(id==='supply')return void(v?supLayer.addTo(map):map.removeLayer(supLayer));
+  if(id==='demand')return void(v?demLayer.addTo(map):map.removeLayer(demLayer));
+  if(POI_IDS[id])return applyLayer(id);
+  v?LY[id].addTo(map):map.removeLayer(LY[id]);}
+/* ⚠ 任何 flyTo / fitBounds 之前先量尺寸。地图模式关着时 #map 宽高是 0：
+   flyTo 反投影除以零抛 Invalid LatLng，fitBounds 则把中心钉在 bounds 中心。 */
+function mapReady(){try{const el=map.getContainer();
+  if(!el.clientWidth||!el.clientHeight)return false;map.invalidateSize();return true;}catch(e){return false;}}
+/* flyTo 靠 rAF 推进，无头环境与后台标签页都不跑 rAF，动画一步不走。
+   动画时长过完还没到位就直接落位，任何环境下最终视野都是对的。 */
+let navT=null;
+function goTo(ll,z,dur){
+  if(!mapReady())return;
+  if(RM||!dur){map.setView(ll,z,{animate:false});return;}
+  map.flyTo(ll,z,{duration:dur});
+  clearTimeout(navT);navT=setTimeout(()=>{const c=map.getCenter();
+    if(Math.abs(c.lat-ll[0])>1e-4||Math.abs(c.lng-ll[1])>1e-4||Math.abs(map.getZoom()-z)>.05)
+      map.setView(ll,z,{animate:false});},dur*1000+220);}
+function allBounds(){
+  const b=L.latLngBounds([MD?[MD.bbox[0],MD.bbox[1]]:[R.cities[0].lat,R.cities[0].lng],
+    MD?[MD.bbox[2],MD.bbox[3]]:[R.cities[0].lat,R.cities[0].lng]]);
+  R.sites.concat(MANUAL).forEach(p=>b.extend([p.lat,p.lng]));
+  R.cities.forEach(c=>b.extend([c.lat,c.lng]));
+  return b;}
+function cityBounds(cid){
+  const ps=R.sites.concat(MANUAL).filter(p=>p.city===cid);
+  const c=CITY(cid);
+  let b=L.latLngBounds([c.lat,c.lng],[c.lat,c.lng]);
+  ps.forEach(p=>b.extend([p.lat,p.lng]));
+  const MIN=.05,ct=b.getCenter();
+  const dLa=Math.max(MIN,b.getNorth()-b.getSouth()),dLn=Math.max(MIN,b.getEast()-b.getWest());
+  return L.latLngBounds([ct.lat-dLa/2,ct.lng-dLn/2],[ct.lat+dLa/2,ct.lng+dLn/2]).pad(.18);}
+function goToBounds(b,o){o=o||{};if(!mapReady())return;
+  const z=map.getBoundsZoom(b,false,L.point(o.padding||[16,16])),c=b.getCenter();
+  goTo([c.lat,c.lng],o.maxZoom!=null?Math.min(z,o.maxZoom):z,o.duration);}
+function homeFit(dur){goToBounds(allBounds(),{padding:[18,18],duration:dur});}
+const cityAt=ll=>{let best=null,bd=1e9;
+  R.cities.forEach(c=>{const d=kmD(ll.lat,ll.lng,c.lat,c.lng);if(d<bd){bd=d;best=c.id;}});
+  return bd<=40?best:null;};
+
+/* ===== 点位层 =====
+   色相编码「归谁」，形状编码「是点还是范围」。起飞点与它的供给圈 = 曜金；
+   降落点与它的降落圈 = 电蓝。⚠ 取值处一律调函数不要缓存成常量，否则切一次主题就停在旧色。 */
+const MK={};
+function dropMk(id){const e=MK[id];if(!e)return;
+  map.removeLayer(e.mk);(e.ring||[]).forEach(r=>map.removeLayer(r));delete MK[id];}
+function clearHubs(){Object.keys(MK).forEach(dropMk);}
+const POT_MAX=3;
+/* 潜在点位默认不画：屏上一次摆二十几个点，读者分不清哪些是计划、哪些只是模型看过的候选。
+   ⚠ 用 var 不用 let：renderHubs 首屏就被调用，而它里面的 renderLgd 读这个变量 */
+var SHOWPOT=false;
+function togglePot(){SHOWPOT=!SHOWPOT;renderHubs();}
+function visiblePts(){
+  const s=scen(),all=R.sites.concat(MANUAL),inPlan=p=>!!(s.pts[p.id]||{}).openQ;
+  if(mFocus){const l=all.filter(p=>p.city===mFocus);return SHOWPOT?l:l.filter(inPlan);}
+  const plan=all.filter(inPlan);
+  if(!SHOWPOT)return plan;
+  const pot={};all.forEach(p=>{if(!inPlan(p))(pot[p.city]=pot[p.city]||[]).push(p);});
+  const rest=[];
+  Object.keys(pot).forEach(c=>{pot[c].sort((a,b)=>(b.pool_monthly||0)-(a.pool_monthly||0));
+    rest.push.apply(rest,pot[c].slice(0,POT_MAX));});
+  return plan.concat(rest);}
+function renderLgd(){
+  const el=document.getElementById('mlgd');if(!el)return;
+  el.innerHTML=`<span><i class="lg1"></i><b>${tx('已开航')}</b></span>
+    <span><i class="lg2"></i><b>${tx('计划内')}</b></span>
+    <span class="lgtog${SHOWPOT?' on':''}" role="button" tabindex="0" data-pot="1"
+      ><i class="lg3"></i><b>${tx('潜在')}</b></span>`;}
+function ringOf(ll,radius,stroke,fill,dash,w,fillOp){
+  return L.circle(ll,{radius:radius,color:stroke,weight:w,dashArray:dash,
+    fillColor:fill,fillOpacity:fillOp,interactive:false});}
+function renderHubs(){
+  renderLgd();
+  if(!mapOn||!map){clearHubs();return;}
+  const s=scen(),keep={},cur=SCOPE.k==='site'?SCOPE.id:null;
+  visiblePts().forEach(p=>{
+    keep[p.id]=1;
+    const o=s.pts[p.id]||{},sched=!!o.openQ&&o.openQ<=QSPAN()[TQ],inPlan=!!o.openQ;
+    const isCur=cur===p.id,foc=mFocus===p.city;
+    const sig=[isCur?'b':'d',thMode(),TQ,foc?1:0,SCOPE.k].join('|');
+    const e0=MK[p.id];
+    if(e0&&e0.sig===sig)return;
+    if(e0)dropMk(p.id);
+    const e={ring:[]};
+    if(foc||isCur){
+      const cls=sched?'beaconHub':'beaconQuiet';
+      e.mk=L.marker([p.lat,p.lng],{zIndexOffset:sched?900:700,icon:L.divIcon({className:'',
+        html:`<div class="${cls}"><span class="bLabel${inPlan?'':' mut'}">${p.nm}</span></div>`,
+        iconSize:sched?[9,9]:[8,8],iconAnchor:sched?[4.5,4.5]:[4,4]})}).addTo(map);
+      /* ⚠ 选中某个点位之后，同城其它点位的圈一律不画：那时要看的是选中那一个点的几何 */
+      if(SCOPE.k!=='site')
+        e.ring.push(ringOf([p.lat,p.lng],FPC.SUPPLY_R*1000,cHub(),cHub(),'4 4',...rSup()).addTo(map));
+    }else{
+      /* 三档：计划内已开 = 金实心 · 计划内未到时间 = 金空心 · 潜在 = 蓝空心 */
+      const cls=sched?'dotSched':(inPlan?'dotHollow':'dotPot');
+      e.mk=L.marker([p.lat,p.lng],{zIndexOffset:sched?600:(inPlan?400:300),icon:L.divIcon({className:'',
+        html:`<div class="${cls}"></div>`,iconSize:[8,8],iconAnchor:[4,4]})}).addTo(map);
+      e.mk.bindTooltip(p.nm,{direction:'top',offset:[0,-8],className:'lbl'});}
+    e.mk.on('click',ev=>{L.DomEvent.stopPropagation(ev);setScope({k:'site',id:p.id});});
+    e.sig=sig;MK[p.id]=e;});
+  Object.keys(MK).forEach(id=>{if(!keep[id])dropMk(id);});}
+
+/* ===== 左轨 ===== */
+function mvOf(){
+  const s=scen(),k=mFocus||'ALL',v=s.V[k];
+  if(mFocus&&v&&Object.keys(v.q).some(q=>v.q[q].live))
+    return {q:v.q,y:v.y,land:s.land[k],city:mFocus,own:true};
+  return {q:s.V.ALL.q,y:s.V.ALL.y,land:s.land.ALL,city:null,own:false};}
+function renderRail(){
+  const s=scen(),MV=mvOf(),qk=QSPAN()[TQ],_q=MV.q[qk]||ZEROY();
+  const all=R.sites.concat(MANUAL);
+  const denom=MV.own?all.filter(p=>p.city===MV.city).length:all.length;
+  const pool=MV.own?CITY(MV.city).pool_monthly:R.cities.reduce((a,c)=>a+c.pool_monthly,0);
+  const kpis=`<div class="lgrp"><h4>${tx('数据概览')} · ${tx('可服务大盘')} ${
+      fmt(pool/30)}${G}${tx('单/日')}${MV.own?PU('dot')+cName(CITY(MV.city)):''}</h4><div class="kwrap">
+    <div class="kchip"><div class="v">${fmt(_q.daily)}<small>${G}${tx('单/日')}</small></div><div class="k">${qk}</div></div>
+    <div class="kchip"><div class="v">${_q.cum||0}<small>/${denom}${G}${tx('点位')}</small></div><div class="k">${qk}</div></div>
+    <div class="kchip"><div class="v ${netOf(_q)<0?'neg':'pos2'}">${sgnm(netOf(_q))}<small>${G}${tx('万')}</small></div>
+      <div class="k">${tx('当季净利')}</div></div>
+    <div class="kchip"><div class="v">${MV.land||'—'}</div><div class="k">${
+      (MV.own?cName(CITY(MV.city)):tx('全域'))+' '+tx('转正')}</div></div>
+  </div></div>`;
+  /* 两条热力不是一个点，是一条从淡到浓的带，用它自己的 ramp 画一小段渐变条；
+     其余图层是圆点。⚠ 别写死 ramp 的停靠点，取不到就是 undefined，整条 gradient 非法 */
+  const rampCss=g=>'linear-gradient(90deg,'+Object.keys(g).map(Number).sort((a,b)=>a-b)
+    .map(k=>g[k]+' '+Math.round(k*100)+'%').join(',')+')';
+  document.getElementById('mrail').innerHTML=kpis+LGROUPS.map(g=>
+    `<div class="lgrp"><h4>${tx(g.t)}</h4>`+g.items.map(it=>{
+      const mark=it.sw
+        ?`<span class="ramp" style="background:${rampCss(it.sw===1?PAL.dem:PAL.sup)}"></span>`
+        :`<span class="dot" style="background:${railDot(it.id)}"></span>`;
+      return `<label class="lt"><input type="checkbox" ${on[it.id]?'checked':''} data-ly="${it.id}">${mark}
+        <span class="lb">${tx(it.lb)}</span>
+        <span class="cnt">${it.c?fmt((MD&&MD.pois.counts[it.c])||0):''}</span></label>`;}).join('')
+    +'</div>').join('');}
+
+/* ===== 时间轴 =====
+   画逐季净利柱：零轴是这条轴上唯一的参照；负季与正季分色；穿零那一季单独标一根竖线。
+   ⚠ 「穿零季」与「转正年」是两个判据，别混：转正年 = 首个当年净利 ≥ 0，
+     穿零季只是这条轴上的视觉锚，所以标签写季度不写「转正」。 */
+let TQ=19,TF=19,flareQ=false,playing=false,pT=null;
+const qtxt=i=>QSPAN()[i].slice(0,4)+' Q'+QSPAN()[i].slice(5);
+function drawTL(){
+  const tls=document.getElementById('tls');
+  if(!mapOn||!tls)return;
+  const QS=QSPAN(),w=tls.clientWidth||600,n=QS.length-1,x=i=>10+i/n*(w-20),cx=x(TF);
+  const s=scen(),MV=mvOf(),Q=MV.q;
+  const v=QS.map(q=>netOf(Q[q]||ZEROY()));
+  const mx=Math.max.apply(null,v.concat([1])),mn=Math.min.apply(null,v.concat([0]));
+  const span=(mx-mn)||1,TOP=14,BOT=44,zy=TOP+(BOT-TOP)*(mx/span);
+  const bw=Math.max(3,(w-20)/QS.length*.62);
+  let sv='';
+  /* 穿零季 = 首个「有账且不亏」的季，且它前面得真的亏过。
+     ⚠ 只写 findIndex(t=>t>=0) 会把还没开航那几季的 0 当成「不亏」 */
+  const zi=v.findIndex((t,i)=>t>=0&&(Q[QS[i]]||{}).live&&v.slice(0,i).some(x2=>x2<0));
+  QS.forEach((q,i)=>{if(!/Q1$/.test(q)||i===zi)return;
+    sv+=`<text x="${x(i)}" y="9" font-size="9.5" fill="var(--ink3)" text-anchor="middle" font-family="var(--mono)">${q.slice(0,4)}</text>`;});
+  QS.forEach((q,i)=>{const t=v[i],h=Math.abs(t)/span*(BOT-TOP);
+    const y0=t>=0?zy-h:zy,past=i<=TF;
+    sv+=`<rect x="${x(i)-bw/2}" y="${y0}" width="${bw}" height="${Math.max(1,h)}" rx="1"
+      fill="${t>=0?'var(--warm)':'var(--block)'}" opacity="${past?(t>=0?.9:.62):.16}"/>`;});
+  sv+=`<line x1="10" y1="${zy}" x2="${w-10}" y2="${zy}" stroke="var(--ink3)" stroke-width="1"/>`;
+  if(zi>0)sv+=`<line x1="${x(zi)-bw/2-1.5}" y1="${TOP-2}" x2="${x(zi)-bw/2-1.5}" y2="${BOT}"
+      stroke="var(--done)" stroke-width="1" stroke-dasharray="2 2" opacity=".8"/>
+    <text x="${x(zi)-bw/2+2}" y="${TOP-4}" font-size="8.5" fill="var(--done)" font-family="var(--mono)">${QS[zi]}</text>`;
+  const TC={T1:'#2ED47A',T2:'#5E84F5',T3:'#34D3FF','30+':'#8E9AAE',OBS:'#6B7997'};
+  R.sites.concat(MANUAL).forEach(p=>{const o=s.pts[p.id]||{},qi=o.openQ?QS.indexOf(o.openQ):-1;
+    if(qi<0)return;
+    sv+=`<circle cx="${x(qi)}" cy="50" r="1.8" fill="${TC[o.tier]||TC.OBS}" opacity="${qi<=TF?.85:.3}"/>`;
+    if(flareQ&&qi===TQ)sv+=`<circle class="tlflare" cx="${x(qi)}" cy="50" r="2.4" fill="none" stroke="${TC[o.tier]||TC.OBS}" stroke-width="1.4"/>`;});
+  sv+=`<line x1="${cx}" y1="11" x2="${cx}" y2="54" stroke="var(--warm)" stroke-width="2"/>
+      <circle cx="${cx}" cy="11" r="4" fill="var(--warm)"/>`;
+  tls.innerHTML=sv;
+  document.getElementById('qlab').textContent=qtxt(TQ);}
+function renderConcl(){
+  if(!mapOn)return;
+  const MV=mvOf(),y=+QSPAN()[TQ].slice(0,4);
+  const yy=netOf(MV.y[String(y)]||ZEROY());
+  const land=+(MV.land||9999);
+  document.getElementById('concl').innerHTML=
+    (MV.own?`<span class="mvem">${cName(CITY(MV.city))}</span> `:'')
+    +xOpYear(y,sgnm(yy)+G+tx('万'),y>=land,land);}
+function renderTbar(){drawTL();renderConcl();}
+function igniteAt(p){
+  if(!map)return;
+  const mk=L.marker([p.lat,p.lng],{interactive:false,zIndexOffset:1200,icon:L.divIcon({className:'',
+    html:'<div style="position:relative;width:10px;height:10px"><div class="igr"></div></div>',
+    iconSize:[10,10],iconAnchor:[5,5]})}).addTo(map);
+  setTimeout(()=>{try{map.removeLayer(mk);}catch(e){}},1100);}
+function tickTo(f){
+  const QS=QSPAN();
+  TF=Math.max(0,Math.min(QS.length-1,f));
+  const nq=Math.floor(TF+1e-6);
+  if(nq!==TQ){
+    TQ=nq;
+    const s=scen(),born=R.sites.concat(MANUAL).filter(p=>(s.pts[p.id]||{}).openQ===QS[TQ]);
+    renderHubs();renderRail();renderMapSide();
+    flareQ=born.length>0;renderConcl();
+    born.forEach(igniteAt);}
+  drawTL();flareQ=false;}
+function stopPlay(){
+  if(!playing)return;
+  playing=false;clearInterval(pT);
+  const b=document.getElementById('play');if(b)b.textContent='▶';}
+function setTQ(i){stopPlay();tickTo(i);}
+
+/* ===== 工作台的几何与账 =====
+   ⚠ 几何参数一律从数据的 params 读，页面不留第二份。 */
+const FPC={get SUPPLY_R(){return RAD.sup!=null?RAD.sup:R.params.supply_r_km;},
+  get LAND_R(){return RAD.land!=null?RAD.land:R.params.land_r_km;},
+  get RANGE(){return R.params.range_km;}};
+let RAD={sup:null,land:null};
+const radDirty=()=>RAD.sup!=null||RAD.land!=null;
+function resetRadius(){RAD={sup:null,land:null};if(WB)wbRecalc();renderMapSide();renderConc();}
+/* 起讫明细只覆盖取数网格那一片。落在框外的点位没有明细可算，工作台按只读处理，
+   屏上如实说是「不在网格覆盖范围内」，不拿别处的数硬凑。 */
+const inGrid=(lat,lng)=>!!MD&&lat>=MD.bbox[0]-.02&&lat<=MD.bbox[2]+.02&&lng>=MD.bbox[1]-.02&&lng<=MD.bbox[3]+.02;
+async function loadOD(){
+  if(OD)return OD;
+  OD=await fetch('../data/od_matrix.json',{cache:'no-store'}).then(r=>r.json());
+  OD._cells=Object.keys(OD.byCell).map(k=>{const a=k.split(',');
+    return {lat:+a[0]*OD.origin_grid,lng:+a[1]*OD.origin_grid,rows:OD.byCell[k]};});
+  return OD;}
+/* 可服务 = 起点落在取餐圈内、终点落在「航程 + 降落圈半径」内的订单；
+   圈定 = 其中终点还落在某一个降落圈里的那部分。两个数除一下就是圈定率。 */
+function wbSvc(hub,supR,lands){
+  const admR=FPC.RANGE+Math.max.apply(null,lands.length?lands.map(l=>l.rk):[FPC.LAND_R]);
+  let tot=0,cap=0;const dc=new Map();
+  for(const c of OD._cells){
+    if(kmD(hub[0],hub[1],c.lat,c.lng)>supR)continue;
+    for(const r of c.rows){
+      if(kmD(hub[0],hub[1],r[0],r[1])>admR)continue;
+      tot+=r[2];
+      const k=r[0]+','+r[1];dc.set(k,(dc.get(k)||0)+r[2]);}}
+  dc.forEach((v,k)=>{const a=k.split(',');
+    for(const l of lands)if(kmD(+a[0],+a[1],l.lat,l.lng)<=l.rk){cap+=v;break;}});
+  const W=OD.window_days||60;
+  return {tot:tot,tot_day:tot/W,cap_day:cap/W,capRate:tot?cap/tot:0};}
+function wbEcon(p,daily,nl){
+  const P=scen().P;
+  const cfg=siteCfg(Object.assign({},p,{landings:Math.max(1,nl)}),P);
+  const m=UEModel.compute(Object.assign({},cfg,{dailyOrders:Math.max(.1,daily),
+    subsidyPerOrder:P.sub1}));
+  const be=UEModel.findBreakeven(cfg);
+  return {profit:m.profit,be:be.feasible?be.daily:null};}
+
+/* ===== 右轨 ===== */
+let WB=null,wbLayers=[],GRIPS=[],wbT=null;
+function wbExit(){wbLayers.forEach(l=>{try{map.removeLayer(l);}catch(e){}});wbLayers=[];GRIPS=[];WB=null;}
+function wbSig(){return WB.supR.toFixed(1)+'|'+WB.lands.map(l=>l.lat.toFixed(5)+','+l.lng.toFixed(5)+','+l.rk.toFixed(1)).join(';');}
+const BEARING=[['正北','N'],['东北','NE'],['正东','E'],['东南','SE'],['正南','S'],['西南','SW'],['正西','W'],['西北','NW']];
+function landName(hub,lat,lng){
+  const dLat=lat-hub[0],dLng=(lng-hub[1])*Math.cos(hub[0]*Math.PI/180);
+  const b=BEARING[Math.round(((Math.atan2(dLng,dLat)*180/Math.PI+360)%360)/45)%8][LANG==='en'?1:0];
+  return LANG==='en'?b+' side':b+'侧';}
+/* 初始降落点：按需求密度在航程圈里贪心挑，与「可服务量」用的是同一份起讫明细。
+   挑不出来（点位在网格外）就不摆，工作台按只读呈现。 */
+function greedyLands(hub,n){
+  if(!OD)return [];
+  const agg=new Map();
+  for(const c of OD._cells){
+    if(kmD(hub[0],hub[1],c.lat,c.lng)>FPC.SUPPLY_R)continue;
+    for(const r of c.rows){
+      const d=kmD(hub[0],hub[1],r[0],r[1]);
+      if(d>FPC.RANGE||d<.3)continue;
+      const k=r[0]+','+r[1];agg.set(k,(agg.get(k)||0)+r[2]);}}
+  const cells=[];agg.forEach((v,k)=>{const a=k.split(',');cells.push([+a[0],+a[1],v]);});
+  cells.sort((a,b)=>b[2]-a[2]);
+  const out=[];
+  for(const c of cells){
+    if(out.length>=n)break;
+    if(out.some(o=>kmD(o.lat,o.lng,c[0],c[1])<FPC.LAND_R*1.2))continue;
+    out.push({lat:c[0],lng:c[1],rk:FPC.LAND_R});}
+  return out;}
+async function wbEnter(p){
+  wbExit();
+  WB={p:p,hub:[p.lat,p.lng],supR:FPC.SUPPLY_R,lands:[],state:'loading',dirty:false,addArm:false,
+      res:null,acct:null,auto:false};
+  renderMapSide();
+  if(!inGrid(p.lat,p.lng)){WB.state='static';renderMapSide();wbDraw();return;}
+  try{await loadOD();}catch(e){WB.state='static';renderMapSide();wbDraw();return;}
+  if(!WB||WB.p.id!==p.id)return;
+  WB.lands=greedyLands(WB.hub,p.landings||3);
+  WB.lands.forEach(l=>{l.nm=landName(WB.hub,l.lat,l.lng);});
+  WB.auto=true;WB.base=wbSig();
+  wbRecalc();}
+function wbRecalc(){
+  if(!WB||WB.state==='static')return;
+  if(!WB.lands.length){WB.state='ok';WB.res=null;WB.acct=null;WB.dirty=true;renderMapSide();wbDraw();return;}
+  const r=wbSvc(WB.hub,WB.supR,WB.lands);
+  if(!r.tot){WB.state='err';WB.msg='该点无可服务池';renderMapSide();wbDraw();return;}
+  WB.state='ok';WB.res=r;
+  const P=scen().P;
+  const water=Math.min(1,(WB.p.cov_ceiling||R.params.cov_steady)*P.covK)*P.selEnd;
+  const daily=r.cap_day*water;
+  WB.acct=Object.assign({daily:daily,water:water},wbEcon(WB.p,daily,WB.lands.length));
+  WB.dirty=wbSig()!==WB.base;
+  renderMapSide();wbDraw();}
+const wbDebounce=()=>{clearTimeout(wbT);wbT=setTimeout(wbRecalc,240);};
+function wbReset(){
+  if(!WB)return;
+  WB.supR=FPC.SUPPLY_R;
+  WB.lands=greedyLands(WB.hub,WB.p.landings||3);
+  WB.lands.forEach(l=>{l.nm=landName(WB.hub,l.lat,l.lng);});
+  WB.base=wbSig();wbRecalc();}
+function wbDelLand(i){WB.lands.splice(i,1);wbRecalc();}
+function wbAddLand(lat,lng){WB.lands.push({lat:lat,lng:lng,rk:FPC.LAND_R,nm:landName(WB.hub,lat,lng)});
+  WB.addArm=false;wbRecalc();}
+function wbAddByCoord(){
+  const la=parseFloat(document.getElementById('wbLa').value),ln=parseFloat(document.getElementById('wbLn').value);
+  if(!(la>=-90&&la<=90&&ln>=-180&&ln<=180)){alert(tx('坐标不合法'));return;}
+  wbAddLand(la,ln);}
+/* 圈边拖拽手柄：在圈的正东边放一个手柄，拖动 = 改半径。与右轨滑杆是同一个状态。
+   拖动中只改圈与回显，松手才重算 —— 与滑杆的防抖同一条纪律。
+   ⚠ 手柄默认不显示，指针进到它自己那个圈里才浮出来：一个工作台同时挂 1 个供给圈加
+     N 个降落圈，手柄常显就是 N+1 个小方块钉在图上抢注意力。 */
+function radiusGrip(center,km,cls,lo,hi,apply){
+  const east=ll=>[ll[0],ll[1]+km/(111.32*Math.cos(ll[0]*Math.PI/180))];
+  const g=L.marker(east(center),{draggable:true,zIndexOffset:1300,icon:L.divIcon({className:'',
+    html:`<div class="rgrip ${cls}"><span class="rgtag" style="display:none"></span></div>`,
+    iconSize:[12,6],iconAnchor:[6,3]})}).addTo(map);
+  const tag=()=>{const e=g.getElement();return e?e.querySelector('.rgtag'):null;};
+  const rec={g:g,c:center,km:()=>km,pin:false,hov:false};
+  GRIPS.push(rec);
+  const e0=g.getElement();if(e0)e0.style.display='none';
+  g.on('mouseover',()=>{rec.hov=true;});
+  g.on('mouseout',()=>{rec.hov=false;});
+  g.on('dragstart',()=>{rec.pin=true;const t=tag();if(t)t.style.display='';});
+  g.on('drag',()=>{
+    if(!map.hasLayer(g))return;
+    const q=g.getLatLng();
+    let v=kmD(center[0],center[1],q.lat,q.lng);
+    v=Math.max(lo,Math.min(hi,Math.round(v*10)/10));
+    g.setLatLng(east(center));km=v;apply(v);
+    const t=tag();if(t)t.textContent=v.toFixed(1)+' km';});
+  g.on('dragend',()=>{rec.pin=false;const t=tag();if(t)t.style.display='none';wbRecalc();});
+  return g;}
+function gripsHover(ll){
+  GRIPS.forEach(o=>{
+    if(o.pin||o.hov)return;
+    const e=o.g.getElement();if(!e)return;
+    /* ⚠ 判据放宽一成：把手骑在圈边上，一半在圈外。指针从外面靠过来时，
+       地图收到的最后一个 mousemove 还在圈外，圈一收把手就没了，等于永远够不着它 */
+    e.style.display=(kmD(o.c[0],o.c[1],ll.lat,ll.lng)<=o.km()*1.12)?'':'none';});}
+function wbDraw(){
+  wbLayers.forEach(l=>{try{map.removeLayer(l);}catch(e){}});wbLayers=[];GRIPS=[];
+  if(!WB||WB.state==='err')return;
+  const la=WB.hub[0],ln=WB.hub[1];
+  if(WB.p.free){
+    const mk=L.marker([la,ln],{zIndexOffset:1100,draggable:true,icon:L.divIcon({className:'',
+      html:`<div class="beaconFree"><span class="bLabel mut">${tx('自由放点')}</span></div>`,
+      iconSize:[11,11],iconAnchor:[5.5,5.5]})}).addTo(map);
+    mk.on('dragend',()=>{const q=mk.getLatLng();
+      wbEnter(Object.assign({},WB.p,{lat:q.lat,lng:q.lng}));});
+    wbLayers.push(mk);}
+  WB.supC=ringOf([la,ln],WB.supR*1000,cHub(),cHub(),'4 4',...rSup()).addTo(map);
+  wbLayers.push(WB.supC);
+  if(WB.state!=='static')
+    wbLayers.push(radiusGrip([la,ln],WB.supR,'sup',.5,3,v=>{WB.supR=v;WB.supC.setRadius(v*1000);
+      const el=document.querySelector('.wrow .wv');if(el)el.textContent=v.toFixed(1)+' km';
+      const rg=document.querySelector('.wrow input[type=range]');if(rg)rg.value=v;}));
+  WB.lands.forEach((ld,i)=>{
+    const c=ringOf([ld.lat,ld.lng],ld.rk*1000,cLand(),cLand(),'5 4',...rLand()).addTo(map);
+    wbLayers.push(c);
+    wbLayers.push(L.polyline([[la,ln],[ld.lat,ld.lng]],{color:cssv('--warm'),weight:1,opacity:.35,
+      dashArray:'2,6',interactive:false}).addTo(map));
+    const mk=L.marker([ld.lat,ld.lng],{draggable:true,zIndexOffset:900,icon:L.divIcon({className:'',
+      html:'<div class="beaconLand"></div>',iconSize:[11,11],iconAnchor:[5.5,5.5]})}).addTo(map);
+    mk.bindTooltip(ld.nm||'',{direction:'top',offset:[0,-8],className:'lbl'});
+    mk.on('dragend',()=>{const q=mk.getLatLng();WB.lands[i].lat=q.lat;WB.lands[i].lng=q.lng;
+      WB.lands[i].nm=landName(WB.hub,q.lat,q.lng);wbRecalc();});
+    wbLayers.push(mk);
+    wbLayers.push(radiusGrip([ld.lat,ld.lng],ld.rk,'land',.5,2,v=>{WB.lands[i].rk=v;c.setRadius(v*1000);
+      const rows=document.querySelectorAll('.lland .rv');if(rows[i])rows[i].textContent=v.toFixed(1);
+      const rg=document.querySelectorAll('.lland input[type=range]');if(rg[i])rg[i].value=v;}));});}
+function exBanner(){
+  const rad=radDirty()
+    ?`<div class="exb">${tx('半径已改')} ${tx('取餐圈')} ${FPC.SUPPLY_R.toFixed(1)}km${PU('dot')}${
+        tx('降落圈')} ${FPC.LAND_R.toFixed(1)}km
+       <button class="exr" data-radreset="1">${tx('恢复默认半径')}</button></div>`:'';
+  if(!exceptionsOn())return rad;
+  const parts=[];
+  if(DROP.length)parts.push(tx('已排除')+' '+DROP.length);
+  if(Object.keys(FORCE).length)parts.push(tx('强制开航')+' '+Object.keys(FORCE).length);
+  if(MANUAL.length)parts.push(tx('手动加入')+' '+MANUAL.length);
+  return rad+`<div class="exb"><span>${parts.join(PU('dot'))}</span>
+    <span class="rst" data-exreset="1">${tx('复位')}</span></div>`;}
+function renderMapSide(){
+  syncBrand();
+  const el=document.getElementById('mside');if(!el)return;
+  if(WB){renderWb(el);return;}
+  const s=scen();
+  if(mFocus){
+    const list=R.sites.concat(MANUAL).filter(p=>p.city===mFocus);
+    const qk=QSPAN()[TQ];
+    el.innerHTML=`<span class="bk" data-leave="1">◂ ${tx('退回全域')}</span>
+      <h3>${cName(CITY(mFocus))}</h3>
+      <div class="sub">${list.length}${G}${tx('个点位')}${PU('dot')}${
+        s.land[mFocus]?xLandY(s.land[mFocus]):tx('未排期')}</div>`
+      +exBanner()
+      +list.map(p=>{
+        const o=s.pts[p.id]||{},t=(p.tiers||{})[R.params.main]||{},dropped=DROP.indexOf(p.id)>=0;
+        const qq=o.q?o.q[qk]:null,hasQ=!!o.q,pending=hasQ&&!qq;
+        return `<div class="ucard${dropped?' off':''}" data-site="${p.id}">
+          <div class="uh"><span class="un">${p.nm}</span>
+            ${o.planned?`<span class="tg">${tx('业务既定')}</span>`:''}
+            ${o.manual?`<span class="tg">${tx('手动加入')}</span>`:''}
+            ${p.winch>0?`<span class="tg sdtg">${tx('索降')}${p.winch}</span>`:''}
+            <span class="uq${o.openQ?' on':''}">${dropped?tx('已排除'):(o.openQ||tx('未排期'))}</span>
+            ${o.openQ||dropped
+              ?`<button class="ux" title="${dropped?tx('放回排期'):tx('从排期里去掉')}" data-drop="${p.id}">${dropped?'↺':'✕'}</button>`
+              :`<button class="ux" title="${forcedOf(p.id)?tx('取消强制开航'):tx('强制开航')}" data-force="${p.id}">${forcedOf(p.id)?'↺':'＋'}</button>`}
+          </div>
+          <div class="chips">
+            <div class="uc"><div class="v">${hasQ?(pending?'—':fmt(qq.d)):fmt(p.pool_monthly/30)}<small>${G}${tx('单/日')}</small></div>
+              <div class="k">${hasQ?qk+' '+tx('日均'):tx('日均订单池')+PU('dot')+tx('未乘转化')}</div></div>
+            <div class="uc"><div class="v">${t.breakeven==null?'—':t.breakeven}<small>${G}${tx('单/天')}</small></div>
+              <div class="k">${tx('保本线')}</div></div>
+            <div class="uc"><div class="v ${hasQ?(pending?'':(qq.net<0?'neg':'pos2')):((t.profit||0)<0?'neg':'pos2')}">${
+              hasQ?(pending?tx('未开航'):sgnm(qq.net/3)):sgnm(t.profit||0)}${
+                hasQ&&pending?'':`<small>${G}${tx('万')}</small>`}</div>
+              <div class="k">${tx('月利润 含补贴')}</div></div>
+          </div>
+          <div class="ucov">${tx('静态账')}${PU('c')}${t.pass?tx('过线'):tx('未过线')}
+            <b>${fmt(t.daily)}</b>${G}${tx('单/日')}${PU('dot')}${tx('评估转正月数')}
+            <b>${o.pos==null?tx('不转正'):o.pos}</b></div>
+          <div class="uf"><span>${p.landings}${G}${tx('降落点')}${p.winch>0?PU('dot')+tx('其中索降')+' '+p.winch:''}</span>
+            <span>${tx('进入工作台')} ▸</span></div>
+        </div>`;}).join('');
+    return;}
+  el.innerHTML=`<h3>${tx('选点地图')}</h3>
+    <div class="sub">${tx('点地图上的城市进去，或直接放一个自由点')}</div>`
+    +exBanner()
+    +R.cities.map(c=>{
+      const n=R.sites.concat(MANUAL).filter(p=>p.city===c.id).length,land=s.land[c.id];
+      return `<div class="mrow" style="cursor:pointer" data-city="${c.id}">
+        <span>${cName(c)}</span>
+        <span${land?' style="color:var(--warm)"':''}>${n}${G}${tx('个')}${PU('dot')}${
+          land?xLandY(land):tx('未排期')}</span></div>`;}).join('');}
+function renderWb(el){
+  const p=WB.p,s=scen(),o=p.free?{}:(s.pts[p.id]||{});
+  const head=`<span class="bk" data-back="1">◂ ${p.free?tx('清除'):tx('返回点位列表')}</span>
+    <h3>${p.nm}</h3>
+    <div class="sub">${p.free?'':cName(CITY(p.city))}${p.free?'':(o.planned?PU('d')+tx('业务既定'):PU('d')+tx('算法候选'))}${
+      o.openQ?PU('dot')+(o.pos!=null?xSched(o.openQ,o.pos+G+tx('个月'))
+        :o.openQ+' '+tx('开航')+PU('dot')+tx('推演期内不转正')):''}</div>
+    ${p.winch>0?`<div class="warnrow">${tx('索降')} ${p.winch}${G}${tx('个降落点')}${PU('dot')}${
+      tx('索降降到门口，不占柜位，覆盖按别墅围栏求交')}</div>`:''}`;
+  if(WB.state==='loading'){el.innerHTML=head+`<div class="sub">${tx('测算中')}…</div>`;return;}
+  if(WB.state==='err'){el.innerHTML=head+`<div class="sub">${tx(WB.msg)}</div>`;return;}
+  const qk=QSPAN()[TQ],qq=o.q?o.q[qk]:null;
+  const qrows=o.q?`<div class="wsec">${qk} ${tx('排期口径')}</div>`+(qq?`
+    <div class="mrow"><span>${tx('日均')}</span><span>${fmt(qq.d)}${G}${tx('单/日')}</span></div>
+    <div class="mrow"><span>${tx('月利润 含补贴')}</span><span class="${qq.net<0?'neg':'pos2'}">${
+      sgnm(qq.net/3)}${G}${tx('万')}</span></div>`
+    :`<div class="sub">${tx('这一季还没开航')}</div>`):'';
+  if(WB.state==='static'){
+    const t=(p.tiers||{})[R.params.main]||{};
+    el.innerHTML=head+qrows+(t.daily!=null?`
+      <div class="wsec">${tx('静态账')}</div>
+      <div class="mrow"><span>${tx('爬坡后日均')}</span><span>${fmt(t.daily)}</span></div>
+      <div class="mrow"><span>${tx('保本线')}</span><span>${t.breakeven==null?'—':t.breakeven}</span></div>
+      <div class="mrow"><span>${tx('月利润 含补贴')}</span><span class="${(t.profit||0)<0?'neg':'pos2'}">${sgnm(t.profit)}${G}${tx('万')}</span></div>
+      <div class="mrow"><span>${tx('降落点')}</span><span>${p.landings}</span></div>`:'')
+      +`<div class="note">${tx('该点位不在明细网格覆盖范围内，工作台只读')}</div>`
+      +(p.free?'':`<button class="mbtn" data-toconc="1">${tx('看排期')} ▸</button>`);
+    return;}
+  const a=WB.acct,r=WB.res;
+  const rows=qrows+((r&&a)?`
+    <div class="wsec">${tx('按屏上几何试算')}</div>
+    <div class="mrow"><span>${tx('圈内可服务池')}</span><span>${fmt(r.tot_day)}${G}${tx('单/日')}</span></div>
+    <div class="mrow"><span>${tx('圈定率')}</span><span>${pct(r.capRate)}</span></div>
+    <div class="mrow"><span>${tx('爬坡后日均')}</span><span>${fmt(a.daily)}${G}${tx('单/日')}</span></div>
+    <div class="mrow"><span>${tx('月利润 含补贴')}</span><span class="${a.profit<0?'neg':'pos2'}">${sgnm(a.profit)}${G}${tx('万')}</span></div>
+    <div class="mrow"><span>${tx('保本线')}</span><span>${a.be==null?'∅':a.be}${G}${tx('单/天')}</span></div>`
+    :`<div class="sub">${tx('没有降落点，先加一个')}</div>`);
+  const devi=WB.dirty?`<div class="devi">⚠ ${tx('已偏离排期口径')}<a data-wbreset="1">${tx('重置回口径')}</a></div>`:'';
+  const sup=`<div class="wsec">${tx('供给圈半径')}</div>
+    <div class="wrow"><input type="range" min=".5" max="3" step=".1" value="${WB.supR}" data-supr="1">
+      <span class="wv">${WB.supR.toFixed(1)} km</span></div>`;
+  const lands=`<div class="wsec">${tx('降落点')} · ${WB.lands.length} · ${
+      WB.auto?tx('模型自动推荐 · 可拖拽'):tx('可拖拽')}</div>`
+    +WB.lands.map((l0,i)=>{
+      const leg=kmD(WB.hub[0],WB.hub[1],l0.lat,l0.lng);
+      return `<div class="lland"><span class="idx">${i+1}</span>
+        <span class="lnm" contenteditable="true" spellcheck="false" data-nm="${i}" title="${tx('点击改名')}">${l0.nm||''}</span>
+        <input type="range" min=".5" max="2" step=".1" value="${l0.rk}" data-rk="${i}">
+        <span class="rv">${l0.rk.toFixed(1)}</span>
+        <button class="del" data-delland="${i}">✕</button>
+        <span class="cc2">⌖ ${l0.lat.toFixed(4)}, ${l0.lng.toFixed(4)} · ${leg.toFixed(2)}km</span></div>`;}).join('')
+    +`<div class="addrow">
+      <button class="wbtn${WB.addArm?' on':''}" data-addarm="1">${WB.addArm?tx('点选中，点击地图放降落点'):tx('＋ 地图点选')}</button>
+      <input type="text" id="wbLa" placeholder="lat"><input type="text" id="wbLn" placeholder="lng">
+      <button data-addcoord="1">${tx('添加')}</button></div>`;
+  const join=p.free&&WB.res?`<button class="wbtn join" data-addplan="1">${tx('加入排期')}</button>`:'';
+  const note2=(!p.free&&o.planned)?`<div class="note">${tx('起降点为业务既定，不是模型选的')}</div>`:'';
+  const foot=p.free?'':`<button class="mbtn" data-toconc="1">${tx('看排期')} ▸</button>`;
+  el.innerHTML=head+rows+devi+sup+lands+note2+join+foot;}
+
+/* 自由放点：任意位置起飞点，与候选点位同口径的实时账 */
+let fpArm=false,FPN=0;
+function syncFreeBtn(){
+  const b=document.getElementById('bFree');if(!b)return;
+  const show=!!mFocus;
+  if(!show&&fpArm)fpArm=false;
+  b.hidden=!show;b.classList.toggle('on',fpArm);
+  document.body.classList.toggle('fparm',fpArm);
+  b.textContent=fpArm?tx('点地图选位置'):tx('＋ 新增起飞点');}
+function runFP(ll){
+  const cid=cityAt(ll)||mFocus;
+  const p={id:'free',nm:tx('自由放点'),city:cid,lat:ll.lat,lng:ll.lng,free:true,
+    landings:3,winch:0,avg_leg_km:1.2,rent_takeoff:7000,cov_ceiling:CITY(cid).cov_ceiling,
+    pool_monthly:0};
+  SCOPE={k:'free'};wbEnter(p);}
+function addFPToPlan(){
+  if(!WB||!WB.p.free||!WB.res)return;
+  FPN++;
+  const p=Object.assign({},WB.p,{id:'m'+FPN,nm:(LANG==='en'?'Hand-added ':'手动点位 ')+FPN,
+    free:false,manual:true,planned:false,landings:WB.lands.length||1,
+    avg_leg_km:+(WB.lands.length?WB.lands.reduce((a,l)=>a+kmD(WB.hub[0],WB.hub[1],l.lat,l.lng),0)/WB.lands.length:1.2).toFixed(2),
+    pool_monthly:Math.round(WB.res.cap_day*30),
+    tiers:{},pass:false});
+  MANUAL.push(p);FORCE[p.id]=1;
+  wbExit();SCOPE={k:'all'};bump();renderAll();}
+function setScope(sc){
+  SCOPE=sc;
+  if(sc.k==='site'){const p=R.sites.concat(MANUAL).find(x=>x.id===sc.id);
+    if(p){mFocus=p.city;goTo([p.lat,p.lng],12.4,RM?0:.9);wbEnter(p);}}
+  renderHubs();if(sc.k!=='site')renderMapSide();}
+function focusCity(c){wbExit();SCOPE={k:'all'};mFocus=c;
+  goToBounds(cityBounds(c),{duration:RM?0:1,maxZoom:12.5});
+  renderHubs();renderMapSide();renderRail();renderTbar();syncFreeBtn();}
+function leaveCity(){wbExit();mFocus=null;SCOPE={k:'all'};clearHubs();renderHubs();
+  homeFit(RM?0:.9);renderMapSide();renderRail();renderTbar();syncFreeBtn();}
+function backToCity(){wbExit();SCOPE={k:'all'};renderHubs();renderMapSide();}
+
+/* ===== 主题应用到地图 ===== */
+function restyleMap(){
+  if(!map)return;
+  const app=l=>{const o=l.options,k=o.kd;
+    if(!k)return;
+    if(k==='comm')l.setStyle({opacity:PAL.comm.opacity,fillOpacity:PAL.comm.fillOpacity});
+    else if(k==='sect')l.setStyle({opacity:PAL.sect.opacity});
+    else if(k==='villa')l.setStyle({color:PAL.villa.color,fillColor:PAL.villa.color,
+      opacity:PAL.villa.opacity,fillOpacity:PAL.villa.fillOpacity});
+    else if(k==='flow')l.setStyle({color:PAL.flow.color,opacity:PAL.flow.oBase+o.kdR*PAL.flow.oSpan});
+    else if(k==='poiSup')l.setStyle({color:PAL.poiSup,fillColor:PAL.poiSup,fillOpacity:PAL.poiFill});
+    else if(k==='poiDem')l.setStyle({color:PAL.poiDem[o.kdI],fillColor:PAL.poiDem[o.kdI],fillOpacity:PAL.poiFill});
+    else if(k==='mall')l.setStyle({color:PAL.mall[o.kdT],fillColor:PAL.mall[o.kdT],fillOpacity:PAL.mallFill});
+    else if(k==='nfz')l.setStyle({color:PAL.nfz[o.kdK],fillColor:PAL.nfz[o.kdK],
+      fillOpacity:o.kdK==='pink'?PAL.nfz.fillPink:PAL.nfz.fillOther});};
+  const walk=l=>{if(l&&l.eachLayer)l.eachLayer(walk);else if(l)app(l);};
+  Object.keys(LY).forEach(k=>walk(LY[k]));}
+/* 矢量层打了 kd 标记，这里按标记原地 setStyle 重上色，不重建图层 ——
+   重建会丢掉 POI 的按缩放挂载状态。 */
+function applyMapTheme(){
+  PAL=MAPPAL[thMode()];
+  if(!map)return;
+  try{
+    baseTile.setUrl(PAL.tile);
+    demLayer&&demLayer.setOptions({gradient:PAL.dem});
+    supLayer&&supLayer.setOptions({gradient:PAL.sup});
+    if(demLayer&&demLayer._map)demLayer.redraw();
+    if(supLayer&&supLayer._map)supLayer.redraw();
+    restyleMap();
+  }catch(e){}
+  clearHubs();
+  if(mapOn){renderHubs();renderRail();renderTbar();renderMapSide();if(WB)wbDraw();}}
+
+/* ===== tab 切换 ===== */
+async function bootMap(){
+  if(mapBooted)return true;
+  const el=document.getElementById('map');
+  if(!el.clientWidth||!el.clientHeight)return false;
+  if(!MD){
+    try{MD=await fetch('../data/mapdata.json',{cache:'no-store'}).then(r=>r.json());}
+    catch(e){document.getElementById('mrail').innerHTML=
+      `<div class="lgrp"><h4>${tx('载入数据失败')}</h4></div>`;return true;}}
+  mapBooted=true;
+  map=L.map('map',{zoomControl:false,preferCanvas:true,zoomSnap:.5,zoomDelta:.5,
+    attributionControl:true});
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  baseTile=L.tileLayer(PAL.tile,{maxZoom:19,updateWhenZooming:false,updateWhenIdle:true,
+    crossOrigin:'anonymous',attribution:CARTO_ATTR}).addTo(map);
+  buildLayers();
+  supLayer.addTo(map);demLayer.addTo(map);LY.areas.addTo(map);LY.villa.addTo(map);LY.flow.addTo(map);
+  Object.keys(POI_IDS).forEach(applyLayer);
+  map.on('zoomend',()=>Object.keys(POI_IDS).forEach(applyLayer));
+  map.on('click',e=>{
+    if(fpArm){fpArm=false;syncFreeBtn();runFP(e.latlng);return;}
+    if(WB&&WB.addArm){wbAddLand(e.latlng.lat,e.latlng.lng);return;}
+    if(!mFocus){const c=cityAt(e.latlng);if(c)focusCity(c);}});
+  let grpT=0;
+  map.on('mousemove',e=>{if(!GRIPS.length)return;
+    const n=Date.now();if(n-grpT<60)return;grpT=n;gripsHover(e.latlng);});
+  map.invalidateSize();homeFit();
+  return true;}
+function showTab(w){
+  const toMap=w==='map';
+  if(toMap===mapOn){if(!toMap)scrollTo(0,0);return;}
+  mapOn=toMap;
+  document.body.classList.toggle('mapping',toMap);
+  document.getElementById('tabM').classList.toggle('on',toMap);
+  document.getElementById('tabC').classList.toggle('on',!toMap);
+  if(toMap){
+    renderRail();renderMapSide();renderTbar();
+    setTimeout(async()=>{
+      const ok=await bootMap();
+      if(!ok){setTimeout(async()=>{await bootMap();afterBoot();},160);return;}
+      afterBoot();},60);}
+  else renderConc();}
+function afterBoot(){
+  if(!map)return;
+  try{map.invalidateSize();}catch(e){}
+  if(mFocus)goToBounds(cityBounds(mFocus),{duration:0,maxZoom:12.5});else homeFit();
+  renderHubs();renderRail();renderTbar();renderMapSide();}
+function renderAll(){
+  renderConc();
+  if(mapOn){renderRail();renderMapSide();renderTbar();renderHubs();}}
+
+/* ===== 抽屉 ===== */
+const d1=s=>`<span class="d1">${s}</span>`;
+const d2=s=>`<span class="d2">${s}</span>`;
+const B=s=>`<b>${s}</b>`;
+const fnote=s=>`<i class="fl2">${s}</i>`;
+const ann=(line,note2)=>`${line}<span class="annw"><sup class="ann">?</sup><span class="annbox">${note2}</span></span>`;
+function FORMULAS(){
+  const P=scen().P,p=R.params;
+  const D=UEModel.DEFAULTS,rpo=(D.aov*D.commissionRate+D.platformFee+D.deliveryFee).toFixed(2);
+  return [
+  ['§',tx('点位选择模型'),[tx('候选点位如何确定')]],
+  ['①',tx('准入门槛'),[
+    tx('一格周边取餐圈内的日均起点单量要够得上门槛'),
+    d1(tx('取餐圈半径')+' '+FPC.SUPPLY_R.toFixed(1)+' km')]],
+  ['②',tx('可服务量'),[
+    ann(tx('对通过门槛的每一格，算它可服务范围内有多少订单'),
+      tx('订单按起点坐标落进经纬网格再聚合。可服务量不是单格的量，是以格心为心、半径一个取餐圈内所有格的合计；两端都要落在圈里，一端在取餐圈、另一端在航程加降落圈之内。')),
+    tx('可服务 = 起点落在取餐圈内'),
+    d1(tx('且 收货点落在「航程 + 降落圈半径」内')),
+    d2(FPC.RANGE.toFixed(1)+' + '+FPC.LAND_R.toFixed(1)+' = '+(FPC.RANGE+FPC.LAND_R).toFixed(1)+' km'),
+    fnote(tx('上界，假定降落点摆在最有利的位置'))]],
+  ['③',tx('确定降落点'),[
+    tx('起飞点确定之后，按需求密度确定降落圈心'),
+    tx('降落点数量由经济性决定')]],
+
+  ['§',tx('经济性模型'),[tx('单点位收支与开航排序')]],
+  ['>',tx('单量模型'),[tx('从城市大盘逐层收窄到点位日均')]],
+  ['①',tx('城市可服务大盘'),[tx('该城每天由平台配送完成的订单')]],
+  ['↓',tx('受取餐距离与飞行航程约束'),[]],
+  ['②',tx('圈内可服务量'),[tx('可服务半径内的单量')]],
+  ['↓',tx('受降落点位置与个数约束'),[]],
+  ['③',tx('可承接单量'),[tx('降落端接得住的订单')]],
+  ['↓',tx('受两条爬坡曲线约束'),[]],
+  ['④',tx('点位日均单量'),[
+    ann(tx('可承接单量再乘两条爬坡曲线'),
+      tx('覆盖(t) 与 选择率(t) 都是 S 形爬坡：前期慢、中段快、末期收敛，t 是开航后第几个月。覆盖的终点逐点位各有一个天花板，选择率的终点是全域一个数。两条曲线相乘就是那一个月的折减系数。')),
+    d1(tx('商家商品覆盖')+PU('arrow')+pc1(R.params.cov_steady*P.covK)+PU('d')+P.covMo+G+tx('个月走完')),
+    d1(tx('配送方式选择率')+PU('arrow')+pc1(P.selEnd)+PU('d')+P.selMo+G+tx('个月走完'))]],
+
+  ['>',tx('收支逻辑'),[tx('月账怎么算，什么时候转正')]],
+  ['①',tx('月收入'),[tx('单均配送收入 × 月单量'),d2(rpo+PU('sp')+tx('/单'))]],
+  ['②',tx('月成本'),[tx('七项科目相加'),
+    d1(tx('人力 · 设备折旧 · 电池 · 场地办公 · 其他 · 网络运维')+' · '+tx('营销补贴'))]],
+  ['③',tx('当月盈亏'),[tx('月收入 减去 月成本'),
+    fnote(tx('点位层只计配送收入，商业化收入计入城市层'))]],
+  ['④',tx('点位转正'),[B(tx('开航之后第一个当月盈亏不为负的月份')),
+    fnote(tx('只看当月盈亏，不看累计盈亏'))]],
+
+  ['>',tx('开航排序'),[tx('谁先开，谁不进序列')]],
+  ['①',tx('排序判据'),[B(tx('首要看转正月数，早的先开航')),tx('业务侧已定的点位先落位，也照样占一个产能名额')]],
+  ['②',tx('不进序列的'),[tx('跑满评估期仍不转正的进入观察池，不参与排期'),
+    d2('> '+P.obsMo+G+tx('个月'))]],
+  ['③',tx('两道闸'),[tx('年开点上限')+PU('c')+scen().cap.join(' · ')]],
+
+  ['§',tx('增长逻辑'),[tx('排期边界与外推')]],
+  ['>',tx('开航后爬坡'),[tx('两条曲线与一档补贴')]],
+  ['①',tx('三条曲线'),[
+    tx('商家商品覆盖')+PU('d')+P.covMo+G+tx('个月'),
+    tx('配送方式选择率')+PU('d')+P.selMo+G+tx('个月'),
+    tx('营销补贴从')+' '+P.sub0.toFixed(1)+' '+tx('降到')+' '+P.sub1.toFixed(1)+PU('d')
+      +tx('首')+' '+P.subFlat+G+tx('个月不降')]],
+  ['>',tx('推演边界'),[tx('切点之后不再排点位')]],
+  ['①',(scen().cutY)+' '+tx('年内'),[tx('逐个点位排期')]],
+  ['②',(scen().cutY+1)+' '+tx('年起'),[
+    ann(B(tx('不再排点位，改按城市整体外推，只给区间')),
+      tx('下沿 = 停开新点位，已开的把爬坡跑完，不引入任何新拍值。上沿 = 下沿 + 继续扩点，每城给一个覆盖率天花板，那是这一段唯一的新拍值，余量从切点线性铺到推演期末。⚠ 上沿的三个成本系数只由切点那一个月拟合，换一个拟合月就能反号，所以上沿只能读作方向，不能读作量级。')),
+    d1(tx('覆盖率天花板')+PU('c')+R.cities.map(c=>cName(c)+' '+pc1(Math.min(1,c.cov_ceiling*P.covCapK))).join(PU('dot'))),
+    fnote(tx('再往后供需格局不可预测，点位级推演误差过大'))]]];}
+function landCaliber(){
+  return `<h2 style="margin-top:28px">${tx('转正口径')}</h2>
+    <div class="vnote">${tx('「转正」在三个层级上判据不同，不是同一个数')}</div>
+    <table class="dtbl"><colgroup><col class="c1"><col><col class="c3"></colgroup>
+    <tr><th>${tx('层级')}</th><th>${tx('判据')}</th><th class="st3">${tx('含商业化')}</th></tr>
+    <tr><td>${tx('点位')}</td><td class="p">${tx('首个「月配送利润 − 补贴 ≥ 0」的月')}</td><td class="st3">${tx('否')}</td></tr>
+    <tr class="n"><td colspan="3">${tx('纯配送口径 · 决定这个点位进不进梯队、排不排得上期')}</td></tr>
+    <tr><td>${tx('城市')}</td><td class="p">${tx('首个「当年经营净利 ≥ 0」的年')}</td><td class="st3">${tx('是')}</td></tr>
+    <tr class="n"><td colspan="3">${tx('该城已开点位加总 · 含补贴与商业化')}</td></tr>
+    <tr><td>${tx('全域')}</td><td class="p">${tx('首个「当年经营净利 ≥ 0」的年')}</td><td class="st3">${tx('是')}</td></tr>
+    <tr class="n"><td colspan="3">${tx('各城加总 · 软件与解决方案售卖不进这条线')}</td></tr>
+    </table>`;}
+function landByCity(){
+  const s=scen();
+  const rows=R.cities.map(c=>{
+    const op=R.sites.concat(MANUAL).filter(p=>p.city===c.id&&(s.pts[p.id]||{}).openQ).length;
+    return `<tr><td>${cName(c)}</td>
+      <td class="p">${op?op+G+tx('个点位已排期'):tx('推演期内无点位达标')}</td>
+      <td class="st3">${s.land[c.id]?'<b>'+s.land[c.id]+'</b>':tx('不转正')}</td></tr>`;}).join('');
+  return `<h2 style="margin-top:28px">${tx('分城转正')}</h2>
+    <table class="dtbl"><colgroup><col class="c1"><col><col class="c3"></colgroup>
+    <tr><th>${tx('城市')}</th><th>${tx('排期')}</th><th class="st3">${tx('转正年')}</th></tr>${rows}</table>`;}
+function renderDrawer(){
+  const P=scen().P;
+  const reg=PARAMS_LIVE.map(d=>({t:d.t,v:d.fmt(pget(d.k)),why:d.why,st:'a'}))
+    .concat([
+      {t:'取餐圈半径',v:FPC.SUPPLY_R.toFixed(1)+' km',why:'骑手取餐可接受的距离',st:'a'},
+      {t:'降落圈半径',v:FPC.LAND_R.toFixed(1)+' km',why:'放大会压选择率，也会把腿拉长',st:'a'},
+      {t:'航程',v:FPC.RANGE.toFixed(1)+' km',why:'满载加三级风的实测值取整',st:'a'},
+      {t:'单均配送收入',v:(UEModel.DEFAULTS.aov*UEModel.DEFAULTS.commissionRate
+        +UEModel.DEFAULTS.platformFee+UEModel.DEFAULTS.deliveryFee).toFixed(2),
+        why:'客单价 × 佣金率 + 平台费 + 配送费，三件都写在引擎里',st:'d'},
+      {t:'订单窗口',v:(MD?MD.window_days:R.params.obs_months)+G+tx('天'),why:'起讫明细的取数窗',st:'f'}]);
+  document.getElementById('drawer').innerHTML=`
+    <button class="close" data-drawer="0">✕</button>
+    <div class="dwrap">
+    <h2>${tx('模型公式链')}</h2>
+    <table class="dtbl"><colgroup><col class="c1"><col></colgroup>`+FORMULAS().map(f=>
+      f[0]==='§'
+        ?`<tr class="fsec"><td colspan="2"><b>${f[1]}</b><span>${f[2][0]||''}</span></td></tr>`
+      :f[0]==='>'
+        ?`<tr class="fsub"><td colspan="2"><b>${f[1]}</b>${f[2][0]?`<i>${f[2][0]}</i>`:''}</td></tr>`
+      :f[0]==='↓'
+        ?`<tr class="fdn"><td colspan="2"><span class="dn">↓</span><span class="dnt">${f[1]}</span></td></tr>`
+        :`<tr><td><b class="fno">${f[0]}</b> ${f[1]}</td>
+      <td class="p">${f[2].map(l=>`<div class="fl1">${l}</div>`).join('')}</td></tr>`).join('')+`</table>
+    `+landCaliber()+landByCity()+`
+    <h2 style="margin-top:28px">${tx('假定值一览')}</h2>
+    <div class="vnote">${tx('暖色是假定值，可调的那几项在正文参数区')}</div>
+    <table class="dtbl"><colgroup><col class="c1"><col><col class="c3"></colgroup>
+    <tr><th>${tx('参数')}</th><th>${tx('当前值')}</th><th class="st3">${tx('三态')}</th></tr>`
+    +reg.map(r=>`<tr><td>${tx(r.t)}</td><td class="p">${r.v}</td>
+        <td class="st3"><span class="st ${r.st}">${tx({f:'事实',d:'可推导',a:'假定值'}[r.st])}</span></td></tr>
+        <tr class="n"><td colspan="3">${tx(r.why)}</td></tr>`).join('')+'</table></div>';}
+function toggleDrawer(v){
+  document.getElementById('drawer').classList.toggle('on',v);
+  document.getElementById('scrim').classList.toggle('on',v);
+  if(v)renderDrawer();}
+
+/* ===== 事件 ===== */
+/* 事件委托：click 与键盘走同一条路径。
+   ⚠ 只监听 click 的话，可聚焦元素的回车不触发，整页键盘进不去。 */
+function concAct(t){
+  if(t.closest('[data-close]')){pick(null);return true;}
+  if(t.closest('[data-reset]')){PSET={};bump();renderAll();return true;}
+  if(t.closest('[data-cal]')){toggleDrawer(true);return true;}
+  const vwb=t.closest('[data-vw]');
+  if(vwb){VIEW=vwb.dataset.vw;SENS=null;
+    if(!YB()[PY])PY=null;renderConc();return true;}
+  const pyb=t.closest('[data-py]');
+  if(pyb){PY=pyb.dataset.py;renderPlan();return true;}
+  if(t.closest('[data-pq]')){PQ=!PQ;renderPlan();return true;}
+  const mp=t.closest('[data-map]');
+  if(mp){const id=mp.dataset.map;showTab('map');
+    setTimeout(()=>{try{setScope({k:'site',id:id});}catch(e){}},mapBooted?80:420);return true;}
+  const n=t.closest('[data-go]');
+  if(n){pick(n.dataset.go);return true;}
+  return false;}
+document.addEventListener('click',e=>{
+  const c=document.getElementById('conc');
+  if(c&&c.contains(e.target)&&concAct(e.target))return;
+  const d=document.getElementById('drawer');
+  if(d&&d.contains(e.target)&&e.target.closest('[data-drawer]')){toggleDrawer(false);return;}
+  const side=document.getElementById('mside'),rail=document.getElementById('mrail'),
+        lgd=document.getElementById('mlgd');
+  if(lgd&&lgd.contains(e.target)&&e.target.closest('[data-pot]')){togglePot();return;}
+  if(rail&&rail.contains(e.target))return;
+  if(!side||!side.contains(e.target))return;
+  const t=e.target;
+  const hit=(a,f)=>{const n2=t.closest('['+a+']');if(n2){f(n2.getAttribute(a));return true;}return false;};
+  if(hit('data-leave',()=>leaveCity()))return;
+  if(hit('data-back',()=>{if(WB&&WB.p.free){wbExit();SCOPE={k:'all'};renderHubs();renderMapSide();}
+    else backToCity();}))return;
+  if(hit('data-city',v=>focusCity(v)))return;
+  if(hit('data-drop',v=>{const i=DROP.indexOf(v);i>=0?DROP.splice(i,1):DROP.push(v);
+    bump();renderAll();}))return;
+  if(hit('data-force',v=>{if(FORCE[v])delete FORCE[v];else FORCE[v]=1;bump();renderAll();}))return;
+  if(hit('data-exreset',()=>{DROP=[];FORCE={};MANUAL=[];bump();renderAll();}))return;
+  if(hit('data-radreset',()=>resetRadius()))return;
+  if(hit('data-wbreset',()=>wbReset()))return;
+  if(hit('data-delland',v=>wbDelLand(+v)))return;
+  if(hit('data-addarm',()=>{WB.addArm=!WB.addArm;renderMapSide();}))return;
+  if(hit('data-addcoord',()=>wbAddByCoord()))return;
+  if(hit('data-addplan',()=>addFPToPlan()))return;
+  if(hit('data-toconc',()=>showTab('conc')))return;
+  const card=t.closest('[data-site]');
+  if(card){setScope({k:'site',id:card.dataset.site});return;}});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    if(document.getElementById('drawer').classList.contains('on'))return toggleDrawer(false);
+    if(fpArm){fpArm=false;syncFreeBtn();return;}
+    if(WB&&WB.addArm){WB.addArm=false;renderMapSide();return;}
+    if(DPICK&&!mapOn){pick(null);return;}
+    if(mapOn)return showTab('conc');
+    return;}
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  const c=document.getElementById('conc');
+  if(c&&c.contains(e.target)&&concAct(e.target)){e.preventDefault();return;}
+  const lgd=document.getElementById('mlgd');
+  if(lgd&&lgd.contains(e.target)&&e.target.closest('[data-pot]')){e.preventDefault();togglePot();}});
+/* 滑杆：拖动时只更新读数，松手（change）才重算全页。
+   ⚠ 别把重算挂在 input 上，一次拖动会排队几十次运行。 */
+function tuneAct(e){
+  const t=e.target;
+  if(!t||!t.dataset)return;
+  if(t.dataset.pk){
+    const d=PARAMS_LIVE.find(x=>x.k===t.dataset.pk);if(!d)return;
+    const v=+t.value,box=t.closest('.pk'),cell=box&&box.querySelector('.pv');
+    if(cell)cell.innerHTML=d.fmt(v);
+    if(e.type==='change'){
+      if(Math.abs(v-PDEF(d.k))<1e-9)delete PSET[d.k];else PSET[d.k]=v;
+      bump();renderAll();}
+    return;}
+  if(t.dataset.ly!==undefined&&e.type==='change'){toggle(t.dataset.ly,t.checked);return;}
+  if(t.dataset.supr!==undefined&&WB){WB.supR=+t.value;
+    const w=t.nextElementSibling;if(w)w.textContent=WB.supR.toFixed(1)+' km';
+    if(WB.supC)try{WB.supC.setRadius(WB.supR*1000);}catch(e2){}
+    wbDebounce();return;}
+  if(t.dataset.rk!==undefined&&WB){const i=+t.dataset.rk;WB.lands[i].rk=+t.value;
+    const w=t.nextElementSibling;if(w)w.textContent=WB.lands[i].rk.toFixed(1);
+    wbDebounce();return;}}
+document.addEventListener('input',tuneAct);
+document.addEventListener('change',tuneAct);
+/* 降落点改名：contenteditable 失焦即提交。
+   ⚠ 用捕获阶段监听 blur —— blur 不冒泡，挂在容器上不加 true 收不到。 */
+document.getElementById('mside').addEventListener('blur',e=>{
+  const el=e.target;
+  if(!el||!el.classList||!el.classList.contains('lnm'))return;
+  const i=+el.dataset.nm;
+  if(!WB||!WB.lands||!WB.lands[i])return;
+  const v=(el.textContent||'').replace(/\s+/g,' ').trim().slice(0,40);
+  WB.lands[i].nm=v||landName(WB.hub,WB.lands[i].lat,WB.lands[i].lng);
+  if(el.textContent!==WB.lands[i].nm)el.textContent=WB.lands[i].nm;
+  wbDraw();},true);
+document.getElementById('mside').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target&&e.target.classList&&e.target.classList.contains('lnm')){
+    e.preventDefault();e.target.blur();}});
+/* 时间轴：连续播放。⚠ 走 setInterval 不走 rAF：无头环境与后台标签页都不跑 rAF */
+(function(){
+  const tls=document.getElementById('tls');
+  let drag=false;
+  const fromE=e=>{const r=tls.getBoundingClientRect();
+    stopPlay();tickTo((e.clientX-r.left-10)/(r.width-20)*(QSPAN().length-1));};
+  tls.addEventListener('pointerdown',e=>{drag=true;fromE(e);});
+  addEventListener('pointermove',e=>{if(drag)fromE(e);});
+  addEventListener('pointerup',()=>{drag=false;});
+  document.getElementById('play').onclick=function(){
+    if(playing){stopPlay();return;}
+    playing=true;this.textContent='❚❚';
+    const N=QSPAN().length;
+    if(TF>=N-1){TQ=-1;tickTo(0);}          /* 尾部重按 = 从头重放，点位全灭再逐季点亮 */
+    const STEP=RM?N:33/550;                 /* 550ms 一季 */
+    pT=setInterval(()=>{
+      if(TF>=N-1){stopPlay();return;}
+      tickTo(TF+STEP);},RM?250:33);};
+})();
+document.getElementById('tabC').onclick=()=>showTab('conc');
+document.getElementById('tabM').onclick=()=>showTab('map');
+document.getElementById('bFit').onclick=leaveCity;
+document.getElementById('bFree').onclick=()=>{fpArm=!fpArm;syncFreeBtn();};
+document.getElementById('bFlow').onclick=function(){
+  const v=!on.flow;toggle('flow',v);this.classList.toggle('on',v);};
+document.getElementById('scrim').onclick=()=>toggleDrawer(false);
+document.getElementById('thTog').onclick=cycleTheme;
+document.getElementById('lgBtn').onclick=()=>{
+  LANG=LANG==='en'?'zh':'en';
+  try{LANG==='en'?localStorage.setItem(LGKEY,'en'):localStorage.removeItem(LGKEY);}catch(e){}
+  applyStatic();renderAll();
+  if(document.getElementById('drawer').classList.contains('on'))renderDrawer();};
+addEventListener('resize',()=>{
+  if(mapOn)drawTL();
+  if(mapOn&&mapBooted&&map)try{map.invalidateSize();}catch(e){}});
+function applyStatic(){
+  document.querySelectorAll('[data-tx]').forEach(e=>{e.textContent=tx(e.dataset.tx);});
+  document.getElementById('lgBtn').textContent=LANG==='en'?'中':'EN';
+  document.documentElement.lang=LANG==='en'?'en':'zh-CN';
+  renderThemeBtn();
+  syncBrand();                  /* applyStatic 刚把每个 [data-tx] 按属性重置过，
+                                   顶栏那一行是状态不是招牌，要在这之后重写一次 */
+  syncFreeBtn();}
+
+/* ===== 启动 ===== */
+fetch('../data/rollout.json',{cache:'no-store'}).then(r=>{
+  if(!r.ok)throw new Error(r.status);return r.json();}).then(d=>{
+  R=d;
+  TQ=TF=QSPAN().length-1;
+  PY=PLAN_Y();
+  verifyBaked();
+  R_ready_hooks.forEach(f=>f());
+  applyStatic();applyTheme();renderConc();
+}).catch(e=>{
+  console.warn('[OP] '+e.message);
+  document.getElementById('conc').innerHTML=
+    `<div class="errbar">${tx('载入数据失败')}<br>${tx('请确认数据文件已生成')}<br>
+     <code>python3 scripts/gen_mock.py</code></div>`;});
+</script>
+</body>
+</html>
