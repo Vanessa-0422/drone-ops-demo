@@ -1,0 +1,24 @@
+{
+  "_note": "锚点用例管数值，把已经确认过的数固定住。引擎一改，锚点会集体变红。",
+  "_how_to_read_a_red_anchor": "变红时要判断的是「这次口径变更是合法的吗」。合法就重新基线并在提交信息里写清为什么，不合法就是刚才那次改动有问题。锚点的价值在于它不让口径悄悄漂移。",
+  "_regenerate": "python3 scripts/gen_mock.py 之后 expect 会变，重新基线时连同 snapshot 字段一起更新。",
+  "snapshot": "跟随 site/data 的生成日期",
+  "cases": [
+    { "id": "nbc-breakeven", "call": "ask_district --district nbc", "field": "breakeven_daily", "expect": 285 },
+    { "id": "nbc-first-cross", "call": "ask_district --district nbc", "field": "first_cross", "expect": 193,
+      "why": "首次穿零与持续为正差 92 单。拿首次穿零去说「再补 193 单就转正」，到 250 单时其实还在亏。" },
+    { "id": "nbc-daily-now", "call": "ask_district --district nbc", "field": "daily_now", "expect": 1.3, "tol": 0.05 },
+    { "id": "nbc-servable", "call": "ask_district --district nbc", "field": "servable_rate", "expect": 0.114, "tol": 0.002,
+      "why": "商家覆盖 × 商品覆盖。两个因子任意一个变了这条就该变，只变其中一个说明乘法链断了。" },
+    { "id": "rvq-breakeven", "call": "ask_district --district rvq", "field": "breakeven_daily", "expect": 351 },
+    { "id": "wgp-breakeven", "call": "ask_district --district wgp", "field": "breakeven_daily", "expect": 205 },
+    { "id": "lkv-breakeven", "call": "ask_district --district lkv", "field": "breakeven_daily", "expect": 284 },
+    { "id": "rev-per-order", "call": "ask_district --district nbc", "field": "rev_per_order", "expect": 22.36, "tol": 0.01,
+      "why": "客单价 × 佣金率 + 平台费 + 配送费。改任何一项这条都该变，不变就是没走引擎。" },
+    { "id": "nbc-rent-ceiling-negative", "call": "ask_district --district nbc", "field": "rent_ceiling_monthly", "max": 0,
+      "why": "当前单量下免租也不保本。这条不锁具体数值只锁符号：符号一变说明单量或成本口径动了。" },
+    { "id": "rollout-static-pass", "call": "ask_rollout --tier sel25", "field": "static_pass", "expect": 7 },
+    { "id": "rollout-cohort-positive", "call": "ask_rollout --tier sel25", "field": "cohort_positive", "expect": 6,
+      "why": "与静态账过线不是一个指标。两者同时变才正常，只变一个说明有一侧没走同一份引擎。" }
+  ]
+}

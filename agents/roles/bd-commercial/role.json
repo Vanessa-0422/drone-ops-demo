@@ -1,0 +1,11 @@
+{
+  "name": "bd-commercial",
+  "display_name": "商业 BD 助手",
+  "description": "场地与商业合作 BD 的谈判助手：这个点位能承受多少租金、按几年转正倒推的租金区间、签约价回填后结论怎么变。租金上限由收益反推，不正向填成本算盈亏。",
+  "visibility": "private",
+  "version": "1.4.0",
+  "rev": 14,
+  "snapshot_required": true,
+  "engine": "engine/ue_model.js",
+  "notes": "与商家 BD 助手共用一份引擎与一份快照，分的是视角不是数据。越界时转交，不猜着答。"
+}

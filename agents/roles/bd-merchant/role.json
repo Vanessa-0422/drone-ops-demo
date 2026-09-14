@@ -1,0 +1,11 @@
+{
+  "name": "bd-merchant",
+  "display_name": "商家 BD 助手",
+  "description": "一线商家 BD 的日常问答助手：今天该打哪几家、这家卡在漏斗哪一级、商品为什么没动销、这个点位的订单规模。数字全部来自内置取数脚本，不心算。",
+  "visibility": "private",
+  "version": "1.4.0",
+  "rev": 14,
+  "snapshot_required": true,
+  "engine": "engine/ue_model.js",
+  "notes": "rev 是发布计数。系统提示词要求助手在被问到版本时如实回答它 —— 平台侧提示词、技能包、欢迎语三者零自动同步，这是唯一可信的生效判据。"
+}
