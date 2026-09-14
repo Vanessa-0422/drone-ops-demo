@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>商家 BD 工作台</title>
+<style>
+/* ============ 刻度 token：字号 7 档 / 圆角 3 档 / 4px 间距栅格 ============
+   --mut = 必读注记 · --mut2 = 三级注记。
+   纪律：--y 只用于「文字 细线 小圆点」；--yFill 只用于「大面积填充 信标」（其上压 --onY）。 */
+:root{color-scheme:dark;--bg:#07080e;--panel:#10111e;--panel2:#161730;--line:#232442;--y:#FFD100;--blue:#5E84F5;--orange:#ff9a56;--done:#2ED47A;--block:#FF5E5E;--txt:#E8EAF2;--mut:#8B93A7;--mut2:#6E7692;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --disp:var(--sans);--body:var(--sans);
+  --fs-micro:10px;--fs-label:11px;--fs-sub:12px;--fs-card:13px;--fs-h3:15px;--fs-h2:18px;--fs-num:22px;--fs-kpi:28px;
+  --sp1:4px;--sp2:8px;--sp3:12px;--sp4:16px;--sp5:20px;--sp6:24px;
+  --pool:#3A4778;--doneSoft:#6FC29B;--val:#fff;
+  --line2:#2E3157;--internal:#34D3FF;--yFill:#FFD100;--onY:#1a1400;
+  --wash:rgba(255,255,255,.012);--washH:rgba(255,255,255,.025);--track:rgba(255,255,255,.07);--glowK:1;
+  --bgGlass:color-mix(in srgb,var(--bg) 92%,transparent);--menuBg:#0e1020;--sbThumb:#3A4070;--inputLine:rgba(58,64,112,.55);
+  --lineSoft:rgba(35,36,66,.55);--lineRow:rgba(35,36,66,.5);
+  --menuShadow:0 14px 38px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.35);--barShadow:0 -8px 18px -12px rgba(0,0,0,.9);--dockShadow:0 10px 20px -14px rgba(0,0,0,.85);--bubShadow:0 2px 8px rgba(0,0,0,.35);--bubShadowCur:0 2px 10px rgba(0,0,0,.45);
+  --yWash:color-mix(in srgb,var(--yFill) 8%,transparent);--yWashS:color-mix(in srgb,var(--yFill) 7%,transparent);--blockWash:color-mix(in srgb,var(--block) 5%,transparent);
+  --blockText:#FF9A9A;--blockTint:#ffb3b3;
+  --bltA:#181931;--bltB:#22233f;
+  --mixHi:#2ED47A;--mixLo:#3A4778;--onMix:#fff;--bubEdge:color-mix(in srgb,var(--val) 18%,transparent);
+  --geoBg:#080a14;--geoLine:rgba(150,180,255,.16);--geoValShadow:0 1px 2px rgba(0,0,0,.7);--geoLblShadow:0 1px 3px rgba(0,0,0,.95);
+  --onPool:#DDE3F5;--onGold:#171717;--onDone:#06240F;--onOrange:#2A1200;--onBlueAlt:#E8EEFF;--ctrl:var(--blue);
+  /* 漏斗层色 深色档 = 满饱和语义色 + 各自 on 色。近黑底上做淡染会发闷，故两档各写各的，勿并成一份 color-mix。 */
+  --funF1:var(--pool);--funC1:var(--onPool);--funF2:var(--done);--funC2:var(--onDone);
+  --funF3:var(--doneSoft);--funC3:var(--onDone);--funF4:var(--orange);--funC4:var(--onOrange);
+  --r-xs:4px;--r-badge:6px;--r-s:8px;--r:12px;--r-l:16px;--r-pill:999px;
+  --doneBright:var(--done);--orangeBright:var(--orange);--yBright:var(--y);--ctrlBright:var(--ctrl)}
+/* —— LIGHT：浅色档（默认态 仅 data-theme="light" 生效 不跟随系统） —— */
+:root[data-theme="light"]{color-scheme:light;
+  --bg:#FAFAF9;--panel:#FFFFFF;--panel2:#F6F6F5;--line:rgba(50,49,46,.11);--line2:rgba(50,49,46,.17);
+  --txt:#4F4D46;--mut:#5F5D57;--mut2:#6E6C65;
+  --y:#8F6B00;--yFill:#F0B400;--onY:#1a1400;--blue:#3557C8;--orange:#B4560F;--done:#147A41;--block:#C42B35;--internal:#0A7095;
+  --pool:#C3CCE4;--doneSoft:#1B7A52;--val:#46443D;
+  --wash:rgba(50,49,46,.022);--washH:rgba(50,49,46,.05);--track:#ECECEA;--glowK:0;
+  --menuBg:#FFFFFF;--sbThumb:#C6CCDA;--inputLine:rgba(50,49,46,.20);
+  --lineSoft:rgba(50,49,46,.10);--lineRow:rgba(50,49,46,.09);
+  --menuShadow:0 14px 38px rgba(50,49,46,.16),0 2px 8px rgba(50,49,46,.10);--barShadow:0 -8px 18px -12px rgba(50,49,46,.45);--dockShadow:0 6px 14px -12px rgba(50,49,46,.16);--bubShadow:0 2px 8px rgba(50,49,46,.16);--bubShadowCur:0 2px 10px rgba(50,49,46,.22);
+  --blockText:#B4232C;--blockTint:#B4232C;
+  --bltA:#E3E7EF;--bltB:#DCE1EC;
+  --mixHi:#74C79E;--mixLo:#CBD4EA;--onMix:#14202F;
+  --geoBg:#EDF1F8;--geoLine:rgba(53,87,200,.30);--geoValShadow:none;--geoLblShadow:none;
+  --onPool:#1B2333;--onDone:#FFFFFF;--onOrange:#FFFFFF;--onBlueAlt:#FFFFFF;--ctrl:#2563EB;
+  /* 浅色档：满饱和填充 + 白字在白卡上过重，改淡染 + 统一深字（四组均过 AA）。已签 已开通同色相两档深浅，读得出包含关系。 */
+  --funF1:color-mix(in srgb,var(--pool) 55%,var(--panel));--funC1:var(--val);
+  --funF2:color-mix(in srgb,var(--done) 24%,var(--panel));--funC2:var(--val);
+  --funF3:color-mix(in srgb,var(--done) 46%,var(--panel));--funC3:var(--val);
+  --funF4:color-mix(in srgb,var(--orange) 38%,var(--panel));--funC4:var(--val);
+  --doneBright:#17A45C;--orangeBright:#DD7016;--yBright:#B5850A;--ctrlBright:#3B82F6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:var(--body);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;padding-bottom:64px}
+/* 数字与单位之间的极窄间隙。中文「3家」正好；英文后面跟的是单词不是量词，1.8px 会粘成一坨，故按 <html lang> 切换。 */
+.g{display:inline-block;width:.16em}
+:root[lang="en"] .g{width:auto}
+:root[lang="en"] .g::before{content:" ";white-space:pre}
+.wrap{max-width:1280px;margin:0 auto;padding:0 20px var(--sp6)}
+.layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:22px;margin-top:14px;align-items:start}
+.layout.nol{grid-template-columns:minmax(0,1fr)}
+.rail{display:flex;flex-direction:column;gap:0;padding-right:4px}
+/* 左栏去盒化：区块间 1px 顶 rule 加留白，不再盒子套盒子 */
+.rail .sec{margin:0 0 20px;border-top:1px solid var(--line);padding-top:16px}
+.rail .sec:first-child{border-top:none;padding-top:0}
+.rail .sechead{margin-bottom:12px}
+.rail .sechead h2{font-size:var(--fs-h3)}
+.rail .card{background:none;border:none;border-radius:0;padding:0}
+.detail .sec:first-child{margin-top:0}
+.usel-lab{font-size:var(--fs-label);font-family:var(--mono);color:var(--mut2);margin-bottom:8px}
+@media(max-width:900px){.layout{display:block}.rail{position:static;max-height:none;overflow:visible;margin-bottom:24px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+:focus-visible{outline:2px solid var(--y);outline-offset:1px;border-radius:inherit}
+.hband:focus{outline:none}
+/* ---------- header ---------- */
+header{position:sticky;top:0;z-index:50;background:var(--bgGlass);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.hbar{max-width:1280px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{font-family:var(--disp);font-size:18px;font-weight:800;letter-spacing:.3px;display:flex;align-items:center;gap:9px;white-space:nowrap}
+.brand b{color:var(--y)}
+.bsub{font-weight:500;color:var(--mut);font-size:var(--fs-card)}
+@media(max-width:1400px){.bsub{display:none}}
+.hspace{flex:1}
+.usel{display:flex;flex-wrap:wrap;gap:6px}
+.rail .usel{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.rail .usel button{padding:7px 2px;font-size:var(--fs-label);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.usel>button{flex:0 0 auto}
+.usel button,.tabs button,.ltabs button{background:var(--panel);border:1px solid var(--line);color:var(--mut);font-size:var(--fs-sub);border-radius:var(--r-s);cursor:pointer;transition:.15s}
+.usel button:hover,.tabs button:hover,.ltabs button:hover{border-color:var(--ctrl);color:var(--txt)}
+.usel button.on,.tabs button.on,.ltabs button.on{background:var(--panel2);border-color:var(--ctrl);color:var(--ctrl);font-weight:600}
+.usel button{font-family:var(--mono);padding:8px 4px;text-align:center}
+.backlk{font-family:var(--mono);font-size:var(--fs-micro);color:var(--mut);border:1px solid var(--line);border-radius:8px;padding:4px 9px;text-decoration:none;white-space:nowrap}
+.backlk:hover{color:var(--y);border-color:var(--y)}
+.stage{font-family:var(--mono);font-size:9.5px;color:var(--y);border:1px solid color-mix(in srgb,var(--y) 26%,transparent);background:var(--yWash);border-radius:6px;padding:2px 8px;letter-spacing:.4px;white-space:nowrap}
+.lsw{background:none;border:1px solid var(--line);color:var(--mut);font-family:var(--mono);font-size:var(--fs-label);padding:6px 10px;border-radius:var(--r-s);cursor:pointer}
+.lsw:hover{color:var(--txt);border-color:var(--mut)}
+/* 主题切换：与相邻的语言按钮同形制（圆角 --r-s 边框 --line 等高 29），两枚成一对。 */
+.thtog{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:var(--r-s);padding:0;width:35px;height:29px;
+  background:none;color:var(--mut);cursor:pointer;transition:.15s}
+.thtog:hover{border-color:var(--mut)}
+.thtog svg{width:13px;height:13px;flex:0 0 auto;color:var(--yBright)}
+/* 数据新鲜度：一枚分段按钮 = 状态点加数据日期。落后两天以上转橙，把断线当场暴露。 */
+.fresh{display:inline-flex;align-items:stretch;border:1px solid var(--line2);border-radius:var(--r-s);overflow:hidden;
+  font-family:var(--mono);font-size:var(--fs-label);color:var(--mut2);flex:0 0 auto}
+.fresh:empty{display:none}
+.fresh.stale{border-color:var(--orange);color:var(--orange)}
+.fbtn{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:5px 9px;font:inherit;color:inherit;cursor:pointer;white-space:nowrap}
+.fbtn:hover{background:var(--wash);color:var(--ctrl)}
+.fresh.stale .fbtn:hover{color:var(--orange)}
+/* 状态点（非刷新箭头）：这枚芯片的主语义是状态不是动作，小尺寸下永远画得干净。 */
+.fdot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto;opacity:.65}
+.fresh.stale .fdot{opacity:1}
+.vsw{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-s);padding:3px}
+.vsw button{background:none;border:none;color:var(--mut);font-size:var(--fs-sub);font-family:var(--mono);padding:4px 12px;border-radius:6px;cursor:pointer;transition:.15s}
+.vsw button:hover{color:var(--txt)}
+.vsw button.on{background:var(--panel2);color:var(--ctrl);font-weight:600}
+/* ---------- badges 与 banner（中性化：红色归还判决） ---------- */
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-label);font-family:var(--mono);padding:4px 12px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+.badge.adv{border-color:color-mix(in srgb,var(--y) 35%,transparent);color:var(--y)}
+.demo-banner{margin:16px 0 0;padding:8px 12px;border:1px dashed var(--line);border-radius:var(--r-s);background:var(--panel);color:var(--mut);font-size:var(--fs-sub);display:flex;gap:8px;align-items:center}
+.demo-banner>b{color:var(--orange);flex-shrink:0}
+.demo-banner b{color:var(--orange)}
+/* ---------- 判决行（金 = 结论 全页唯一大金字） ---------- */
+.vdct{margin:16px 0 20px;padding:0;min-width:0}
+/* 判决块在左栏里宽度有限：字号随容器收缩（下限 18px）尽量一行，真放不下就折行且两行长度均衡。
+   不许 nowrap，它让块无法收缩，会溢出压到右侧内容上。 */
+.vdct .vmain{font-family:var(--disp);font-weight:800;font-size:clamp(18px,2.2vw,30px);line-height:1.15;color:var(--y);letter-spacing:-.01em;
+  white-space:normal;overflow-wrap:break-word;text-wrap:balance;min-width:0}
+.vdct .vsub{font-size:var(--fs-label);color:var(--mut);margin-top:6px;font-family:var(--mono)}
+/* ---------- section ---------- */
+.sec{margin-top:var(--sp6)}
+.sechead{display:flex;align-items:baseline;gap:10px;margin-bottom:var(--sp3);flex-wrap:wrap}
+.sechead h2{font-family:var(--disp);font-weight:700;font-size:var(--fs-h2)}
+.sechead .sub{font-size:var(--fs-sub);color:var(--mut)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:var(--sp4)}
+/* ---------- KPI 快照行（去盒：数值加标签对 竖 rule 分隔） ---------- */
+.kpirow{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-bottom:16px}
+.kbox{background:none;border:none;border-radius:0;padding:2px 10px;text-align:left}
+.kbox+.kbox{border-left:1px solid var(--line)}
+.kbox:first-child{padding-left:0}
+.kbox .kv{font-family:var(--mono);font-size:var(--fs-num);font-weight:600;color:var(--val)}
+.kbox .kl{font-size:var(--fs-micro);color:var(--mut);margin-top:2px}
+.kbox.ksg .kv{color:var(--doneBright)}.kbox.ksi .kv{color:var(--yBright)}.kbox.kac .kv{color:var(--orangeBright)}
+/* ---------- 进度卡 ---------- */
+.pgrid{display:grid;grid-template-columns:1fr;gap:16px}
+.pcard{display:flex;flex-direction:column}
+.pcard h3{font-size:var(--fs-card);color:var(--mut);font-weight:600;margin-bottom:4px}
+.pcard .big{font-family:var(--mono);font-size:var(--fs-kpi);font-weight:600;color:var(--val)}
+.pcard .big small{font-size:var(--fs-card);color:var(--mut);margin-left:.15em}
+.pbar{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;display:flex;margin:10px 0 8px}
+.pbar i{display:block;height:100%}
+.pleg{display:flex;gap:14px;font-size:var(--fs-label);color:var(--mut);font-family:var(--mono);flex-wrap:wrap}
+.tleg{margin-top:auto;padding-top:12px}
+.botnote{margin-top:auto;padding-top:12px}
+.pleg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+.pleg .tgt i{background:none;border:1px solid var(--mut2);box-sizing:border-box}
+.cfg{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:var(--fs-sub);color:var(--mut);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cfg input{width:64px;background:var(--panel2);border:1px solid color-mix(in srgb,var(--y) 40%,transparent);color:var(--y);font-family:var(--mono);font-size:var(--fs-card);padding:4px 8px;border-radius:var(--r-s);text-align:right;appearance:textfield}
+.cfg input::-webkit-outer-spin-button,.cfg input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.cfg .note{font-size:var(--fs-micro);color:var(--mut2)}
+table.cmx td,table.cmx th{padding:6px 8px;font-size:var(--fs-label);white-space:nowrap}
+table.cmx td.z{color:var(--mut2)}
+table.cmx td:not(:first-child),table.cmx th:not(:first-child){text-align:right;font-family:var(--mono)}
+/* ---------- tabs 与筛选 ---------- */
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tabs button{padding:7px 16px}
+/* 表头内嵌筛选 select（与 th 同视觉 激活态转蓝） */
+.thsel{appearance:none;-webkit-appearance:none;background:transparent;border:none;color:var(--mut);font-size:var(--fs-label);font-weight:600;font-family:var(--body);cursor:pointer;padding:0 14px 0 0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%238B93A7'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right center}
+  :root[data-theme="light"] .thsel{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236A5F4C'/%3E%3C/svg%3E")}
+.thsel:hover{color:var(--txt)}
+.thsel.on{color:var(--ctrl);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%235E84F5'/%3E%3C/svg%3E")}
+  :root[data-theme="light"] .thsel.on{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%233E4C73'/%3E%3C/svg%3E")}
+.thsel option{background:var(--panel);color:var(--txt)}
+select:focus,.thsel:focus{outline:none}
+/* 自绘下拉弹层：替原生 OS 白色菜单。select 本体仍是唯一状态源与 aria 载体，onchange 照旧。
+   本页收起态沿用各自的自绘箭头，故不加全局 chevron，只拦截弹层。pointer:coarse 回退原生。 */
+.ddmenu{position:fixed;z-index:2000;background:var(--menuBg);border:1px solid var(--line);border-radius:12px;padding:4px;box-shadow:var(--menuShadow);font-family:var(--mono);max-height:min(340px,60vh);overflow:auto}
+.ddmenu .ddo{display:flex;align-items:center;gap:10px;padding:5px 10px;border-radius:8px;font-size:inherit;color:var(--txt);cursor:pointer;white-space:nowrap;line-height:1.5}
+.ddmenu .ddo .dk{order:2;width:11px;flex:0 0 11px;color:var(--ctrl);font-size:10px;text-align:center}
+.ddmenu .ddo.on{background:color-mix(in srgb,var(--ctrl) 10%,transparent)}
+.ddmenu .ddo.sel{color:var(--ctrl)}
+.ddmenu .ddo.sel .dk::before{content:'✓'}
+/* ---------- 进度带（hero 下 点击开折叠明细） ---------- */
+.hband{display:flex;align-items:center;gap:20px;padding:8px 14px;margin-top:8px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-s);font-size:var(--fs-label);color:var(--mut);cursor:pointer;flex-wrap:wrap}
+.hband:hover{border-color:var(--line2)}
+.hband b{color:var(--txt);font-family:var(--mono)}
+.hbseg{display:inline-flex;align-items:center;gap:6px}
+.hblab{color:var(--mut2)}
+.hbbar{display:inline-block;width:90px;height:5px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.hbbar i{display:block;height:100%;background:var(--doneBright);float:left}
+.hbbar i.si{background:var(--yFill)}
+.hbgap{border:1px solid color-mix(in srgb,var(--block) 40%,transparent);color:var(--blockText);border-radius:999px;padding:1px 8px;font-size:var(--fs-micro)}
+.hbmore{color:var(--mut2)}
+.hbhint{margin-left:auto;color:var(--ctrl);font-family:var(--mono);font-size:var(--fs-label);border:1px solid color-mix(in srgb,var(--ctrl) 45%,transparent);border-radius:999px;padding:3px 12px;transition:.15s}
+.hband:hover .hbhint{background:var(--panel2);border-color:var(--ctrl)}
+body.work .hband{flex-shrink:0}
+/* 名单行内商品展开（商家与商品一体） */
+.pxp{background:color-mix(in srgb,var(--ctrl) 8%,transparent);border:1px solid color-mix(in srgb,var(--ctrl) 40%,transparent);color:var(--ctrl);border-radius:6px;font-size:10px;padding:0 5px;margin-right:7px;cursor:pointer;line-height:16px;vertical-align:1px}
+.pxp.on,.pxp:hover{color:var(--ctrl);border-color:var(--ctrl)}
+.prow td{background:var(--panel2);padding:8px 12px 10px 36px;white-space:normal}
+.prow .psum{font-size:var(--fs-label);color:var(--mut);margin-bottom:7px}
+.prow .psum b{font-family:var(--mono);color:var(--txt)}
+.prow .pnote2{color:var(--mut2);font-size:var(--fs-micro)}
+/* 签约质量标识（核心 配额 长尾 商家名右侧） */
+.qb{display:inline-block;font-size:var(--fs-micro);border-radius:999px;padding:1px 7px;margin-left:5px;vertical-align:1px}
+.qb.qcore{color:var(--y);border:1px solid color-mix(in srgb,var(--y) 40%,transparent)}
+.qb.qquota{color:var(--ctrl);border:1px solid color-mix(in srgb,var(--ctrl) 45%,transparent)}
+.qb.qoff{color:var(--mut2);border:1px solid var(--line)}
+.tsep{width:1px;height:18px;background:var(--line);margin:0 6px;align-self:center}
+/* 长名单：搜索框 加 分页尾栏 加 回顶浮钮 */
+.lsearch{background:transparent;border:1px solid var(--inputLine);border-radius:8px;color:var(--txt);font-size:var(--fs-label);padding:5px 9px;width:88px;margin-left:auto}
+.lsearch:focus{outline:none;border-color:var(--ctrl)}
+.lsearch::placeholder{color:var(--mut2)}
+.ltabs .lsearch+.lsort{margin-left:0}
+.morebar{display:flex;align-items:center;gap:10px;justify-content:center;padding:12px 0 4px}
+.morebar .mnote{font-family:var(--mono);font-size:var(--fs-label);color:var(--mut2)}
+.morebar button{background:var(--panel);border:1px solid color-mix(in srgb,var(--ctrl) 40%,transparent);color:var(--ctrl);border-radius:999px;font-size:var(--fs-label);padding:6px 16px;cursor:pointer;transition:.15s}
+.morebar button:hover{background:var(--panel2);border-color:var(--ctrl)}
+#toTop{position:fixed;right:20px;bottom:64px;z-index:70;width:38px;height:38px;border-radius:50%;background:var(--panel2);border:1px solid color-mix(in srgb,var(--blue) 50%,transparent);color:var(--blue);font-size:16px;cursor:pointer;opacity:0;pointer-events:none;transition:.2s}
+#toTop.show{opacity:1;pointer-events:auto}
+#toTop:hover{border-color:var(--ctrl);background:var(--panel)}
+/* ---------- 一屏工作台：判决 → 三件事 → 名单 → 证据抽屉 → 底部助手栏 ---------- */
+.hero{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 0 12px;border-bottom:1px solid var(--line)}
+.hero .usel{display:flex;gap:5px}
+.hero .usel button{background:var(--panel);border:1px solid var(--line);color:var(--mut);font-family:var(--mono);font-size:var(--fs-label);padding:6px 13px;border-radius:var(--r-s);cursor:pointer;transition:.15s}
+.hero .usel button:hover{border-color:var(--ctrl);color:var(--txt)}
+.hero .usel button.on{background:var(--panel2);border-color:var(--ctrl);color:var(--ctrl);font-weight:600}
+.hero .hv{font-family:var(--disp);font-weight:800;font-size:24px;color:var(--y);letter-spacing:.2px;white-space:nowrap}
+.hero .hk{display:flex;gap:14px;font-family:var(--mono);font-size:var(--fs-sub);color:var(--mut);align-items:baseline;flex-wrap:wrap}
+.hero .hk b{color:var(--val);font-size:16px;font-weight:600;margin-right:2px}
+.hero .hk .ksg b{color:var(--done)}.hero .hk .ksi b{color:var(--y)}.hero .hk .kac b{color:var(--orange)}
+.hero .hsp{flex:1}
+/* 今日三件事 */
+.acts{display:flex;flex-direction:column;gap:12px}
+.actc{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;position:relative}
+.actc .ano{font-family:var(--disp);font-weight:800;font-size:var(--fs-num);color:var(--y);line-height:1}
+.actc .at{font-weight:700;color:var(--val);font-size:14px;margin-top:6px}
+.actc .ab{font-size:var(--fs-sub);color:var(--txt);margin-top:4px;line-height:1.5}
+.actc .aw{font-size:var(--fs-label);color:var(--mut2);margin-top:4px}
+.actc .askbtn{position:absolute;top:12px;right:12px;margin-left:0}
+.actc.dim{opacity:.55;border-style:dashed}
+.askbtn{background:none;border:1px solid var(--line);color:var(--ctrl);font-size:var(--fs-label);font-family:var(--mono);padding:3px 10px;border-radius:var(--r-s);cursor:pointer;flex-shrink:0;margin-left:auto;transition:.15s}
+.askbtn:hover{border-color:var(--ctrl)}
+/* 名单预设视角 */
+.ltabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.ltabs button{padding:7px 15px}
+.ltabs .cnt{font-family:var(--mono);font-size:var(--fs-micro);opacity:.8}
+/* 底部助手栏 */
+.askbar{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--bg);border-top:1px solid color-mix(in srgb,var(--y) 35%,transparent);box-shadow:var(--barShadow);display:flex;align-items:center;gap:10px;padding:8px 16px}
+.askbar .plab{font-size:var(--fs-label);color:var(--y);font-family:var(--mono);white-space:nowrap;flex-shrink:0}
+.askbar .pchips{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
+.askbar .pchips::-webkit-scrollbar{display:none}
+.askbar .pc{background:var(--panel);border:1px solid var(--line);border-radius:999px;color:var(--txt);font-size:var(--fs-label);padding:4px 12px;cursor:pointer;white-space:nowrap;transition:.15s;flex-shrink:0}
+.askbar .pc:hover{border-color:var(--ctrl);color:var(--ctrl)}
+.askbar .pnote{font-size:var(--fs-micro);color:var(--mut2);white-space:nowrap;flex-shrink:0}
+/* 桌面工作台：整页自然滚，顶部 dock（hero 判决 加 商圈切换 加 进度带）sticky 钉住，名单不内滚 */
+@media(min-width:1100px){
+  body.work .dock{position:sticky;top:var(--headerH,64px);z-index:40;background:var(--bg);box-shadow:var(--dockShadow)}
+  body.work .layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:22px;margin-top:14px;align-items:start}
+  body.work .layout.nol{grid-template-columns:1fr}
+  body.work .rail{position:static;max-height:none;overflow:visible}
+  body.work footer{display:none}
+}
+/* 背景证据折叠区（工作台底部 默认收起） */
+#workEvi{margin-top:0}
+#workEvi:empty{display:none}
+.evifold{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);margin-top:12px}
+.evifold:not([open]){display:none}   /* 收起态零痕迹：展开的唯一入口是上方进度带 */
+.evifold>summary{display:none}
+.evifold .evibody{padding:4px 16px 16px}
+.evifold .evibody .pgrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1100px){.evifold .evibody .pgrid{grid-template-columns:1fr}}
+/* ---------- 表格（数字右对齐 行 hover） ---------- */
+table{width:100%;border-collapse:collapse}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+.tblwrap::-webkit-scrollbar{width:6px;height:6px}
+.tblwrap::-webkit-scrollbar-thumb{background:var(--sbThumb);border-radius:3px}
+.tblwrap th{position:sticky;top:0;z-index:2}
+th{font-size:var(--fs-label);color:var(--mut);font-weight:600;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel);white-space:nowrap}
+td{font-size:var(--fs-sub);padding:11px 12px;border-bottom:1px solid var(--lineRow);background:var(--panel);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+.tblwrap tr:hover td{background:var(--panel2)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.num{font-family:var(--mono);color:var(--val)}
+td.rank{font-family:var(--mono);color:var(--mut2);width:34px}
+/* 长商家名撑表致横滚，故限宽省略（title 保留全名）。单元格用 flex：名字可缩，尾随徽标不被挤出单元格。 */
+td.mname{max-width:280px}
+.mcell{display:flex;align-items:center;min-width:0}
+.mcell>b{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcell>:not(b){flex:0 0 auto}
+.emptyst{display:flex;flex-direction:column;align-items:center;gap:6px;padding:34px 16px;border:1px dashed var(--line2);border-radius:var(--r);background:var(--panel);color:var(--mut)}
+.emptyst b{color:var(--txt);font-size:var(--fs-card)}
+.emptyst span{font-size:var(--fs-label);color:var(--mut2)}
+.emptybtn{margin-top:6px;background:none;border:1px solid var(--line2);color:var(--ctrl);font-size:var(--fs-label);font-family:var(--mono);padding:4px 12px;border-radius:var(--r-s);cursor:pointer}
+.emptybtn:hover{border-color:var(--ctrl)}
+.st{font-size:var(--fs-micro);font-family:var(--mono);padding:2px 9px;border-radius:999px;border:1px solid}
+.st.signed{color:var(--done);border-color:color-mix(in srgb,var(--done) 40%,transparent)}
+.st.signing{color:var(--y);border-color:color-mix(in srgb,var(--y) 35%,transparent)}
+.st.open{color:var(--mut);border-color:var(--line)}
+.act{font-size:var(--fs-label);color:var(--mut)}
+.act b{color:var(--txt);font-weight:600}
+.act b.apush{color:var(--orange)}
+/* 微标（去边框：色点加文字） */
+.actv{font-size:var(--fs-micro);font-family:var(--mono);color:var(--orange);margin-left:6px;white-space:nowrap}
+.actv::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--orange);margin-right:3px;vertical-align:1px}
+.gapb{font-size:var(--fs-micro);font-family:var(--mono);color:var(--block);margin-left:6px;white-space:nowrap;border:none;background:none;padding:0}
+.sgb{font-size:var(--fs-micro);font-family:var(--mono);color:var(--y);margin-left:6px;white-space:nowrap}
+/* 催上架标（收起态即见的作业信号 金） 加 全部态商圈标 */
+.pushb{font-size:var(--fs-micro);font-family:var(--mono);color:var(--y);border:1px solid color-mix(in srgb,var(--y) 40%,transparent);background:var(--yWash);border-radius:4px;padding:1px 5px;margin-left:6px;white-space:nowrap}
+.zb{font-size:9px;font-family:var(--mono);color:var(--mut2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:6px;white-space:nowrap}
+/* 名单排序器（表头右 蓝 = 可交互） */
+.sortsel{appearance:none;-webkit-appearance:none;background:transparent;border:none;color:var(--ctrl);font-size:var(--fs-label);font-weight:600;font-family:var(--mono);cursor:pointer;padding:0 14px 0 0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%235E84F5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right center}
+  :root[data-theme="light"] .sortsel{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%233E4C73'/%3E%3C/svg%3E")}
+.sortsel option{background:var(--panel);color:var(--txt)}
+.lsort{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:var(--fs-label);color:var(--mut2)}
+/* 预警区 */
+.alerts-sec{margin:0 0 20px;border-top:1px solid var(--line);padding-top:16px}
+.alerts-sec .sechead{margin-bottom:10px}
+.alrow{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--lineSoft);font-size:var(--fs-sub)}
+.alrow:last-child{border-bottom:none}
+.alrow .ai{flex-shrink:0;width:15px;font-family:var(--mono);font-size:var(--fs-label)}
+.alrow .ai.red{color:var(--block)}.alrow .ai.up{color:var(--done)}.alrow .ai.dn{color:var(--block)}
+.alrow .ai.y{color:var(--y)}
+.alrow .ab{flex:1;min-width:0}
+.alrow .ab b{color:var(--txt);font-weight:600}
+.alrow .an{font-size:var(--fs-micro);color:var(--mut2);margin-top:1px}
+.alsum{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;margin:2px 0 10px}
+.alsr{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:var(--fs-label);border-radius:var(--r-xs)}
+.alsr.go{cursor:pointer;margin:0 -6px;padding:4px 6px}
+.alsr.go:hover{background:var(--washH)}
+.alsr .asl{flex:1;color:var(--mut);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alsr .asv{font-family:var(--mono);font-weight:700;color:var(--val);font-variant-numeric:tabular-nums}
+.alsr .asv.z{color:var(--mut2);font-weight:400}
+.alsr .asv.na{color:var(--mut2);font-weight:400;font-size:var(--fs-micro);font-family:var(--sans)}
+.almx{font-family:var(--mono);font-size:var(--fs-label);font-weight:700;color:var(--y)}
+.almx .anx{font-weight:400;color:var(--mut2);font-size:var(--fs-micro)}
+.albtn{margin-top:5px;font-family:var(--mono);font-size:var(--fs-micro);color:var(--ctrl);background:none;
+  border:1px solid color-mix(in srgb,var(--ctrl) 32%,transparent);border-radius:var(--r-xs);padding:2px 8px;cursor:pointer}
+.albtn:hover{background:color-mix(in srgb,var(--ctrl) 10%,transparent)}
+/* ---------- 商品 chips ---------- */
+.plist{padding:4px 0;display:flex;flex-wrap:wrap;gap:8px;background:none}
+.pchip{font-size:var(--fs-label);border:1px solid var(--line);border-radius:var(--r-s);padding:5px 10px;color:var(--mut)}
+.pchip b{color:var(--txt);font-weight:600}
+.pchip.miss{border-color:color-mix(in srgb,var(--block) 45%,transparent);background:var(--blockWash)}
+.pchip.miss b{color:var(--blockTint)}
+.pchip .pp{font-family:var(--mono);font-size:var(--fs-micro);color:var(--mut2)}
+/* ---------- toast ---------- */
+#toast{position:fixed;bottom:58px;left:50%;transform:translateX(-50%) translateY(6px);
+  display:flex;align-items:center;gap:8px;white-space:nowrap;
+  background:var(--panel2);border:1px solid var(--line);box-shadow:var(--menuShadow);
+  color:var(--txt);font-size:var(--fs-sub);line-height:1.5;padding:7px 14px 7px 12px;
+  border-radius:var(--r-pill);opacity:0;pointer-events:none;
+  transition:opacity .18s ease,transform .18s ease;z-index:99}
+#toast::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--blue)}
+#toast.ok::before{background:var(--done)}
+#toast.err::before{background:var(--block)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* ---------- 降级 概览 杂项 ---------- */
+.nodata{border:1px dashed var(--line);border-radius:var(--r);padding:36px 20px;text-align:center;color:var(--mut)}
+.nodata b{color:var(--txt)}
+.nodata .why{font-size:var(--fs-sub);color:var(--mut);margin-top:6px}
+footer{display:none}
+.mono{font-family:var(--mono)}
+.ovnote{font-size:var(--fs-label);color:var(--mut);margin-top:8px}
+.loadst{padding:60px 20px;text-align:center;color:var(--mut);font-family:var(--mono);font-size:var(--fs-card)}
+.loadst.err{color:var(--block)}
+.loadst .why{color:var(--mut2);font-size:var(--fs-label);margin-top:6px}
+/* ---------- 概览图表（SVG 与 CSS 手绘 自包含无外部库） ---------- */
+.ovgrid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp4);align-items:start}
+.ovgrid2.eq{align-items:stretch}
+.ovgrid2.eq>.ovcol{height:100%}
+.ovgrid2.eq>.ovcol>.card{flex:1;display:flex;flex-direction:column;justify-content:flex-start}
+.ovgrid2.eq>.card{display:flex;flex-direction:column;justify-content:flex-start}
+@supports(grid-template-rows:subgrid){
+  /* 左右两列共用「段头行 加 卡片行」两条轨道：段头自动等高、卡片自动同起点（英文段头会换行，中文不会） */
+  .ovgrid2.eq:has(>.ovcol){grid-template-rows:auto 1fr;row-gap:var(--sp3)}
+  .ovgrid2.eq>.ovcol{grid-row:span 2;display:grid;grid-template-rows:subgrid;row-gap:var(--sp3)}
+  .ovgrid2.eq>.ovcol>.sechead{margin-bottom:0}
+}
+@media(max-width:1100px){.ovgrid2{grid-template-columns:1fr}}
+.ovcol{min-width:0;display:flex;flex-direction:column}
+.drow{display:flex;align-items:center;gap:18px}
+.dwrap{position:relative;width:110px;height:110px;flex-shrink:0}
+.dctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.dctr .dv{font-family:var(--mono);font-size:var(--fs-num);font-weight:600;color:var(--done)}
+.dctr .dl{font-size:var(--fs-micro);color:var(--mut)}
+.dleg{flex:1;display:flex;flex-direction:column;gap:7px;font-size:var(--fs-label);color:var(--mut);font-family:var(--mono)}
+.dleg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;flex-shrink:0}
+.dleg .dvv{margin-left:auto;color:var(--val);font-variant-numeric:tabular-nums}
+/* 真漏斗形：几何对齐（勿随手改数）——行高 42 加行距 3，第 k 个层间边界在 43.5+45k；
+   转化列表头高 19.5 加列距 3，第 k 个转化格中心 = 19.5+3+21+45k = 43.5+45k，恰好落在边界上。 */
+.funwrap{display:flex;gap:12px;margin-top:8px;width:100%;max-width:640px;align-self:center}
+.funnel{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.funrow{display:flex;align-items:center}
+.funseg{position:relative;flex:1;height:42px;display:flex;align-items:center;justify-content:center;min-width:0}
+.funtrap{position:absolute;inset:0}
+.funlbl{position:relative;z-index:1;display:flex;align-items:baseline;gap:9px;white-space:nowrap;
+  font-size:var(--fs-sub);font-weight:600;padding:0 10px;min-width:0}
+.funlbl b{font-family:var(--mono);font-size:var(--fs-num);font-weight:800;font-variant-numeric:tabular-nums}
+.funlbl small{font-family:var(--mono);font-size:var(--fs-label);font-weight:500;opacity:.7}
+.funcvc{width:66px;flex:0 0 auto;display:flex;flex-direction:column;gap:3px}
+.funcvh{height:19.5px;line-height:19.5px;font-family:var(--mono);font-size:var(--fs-micro);color:var(--mut2);letter-spacing:.3px;text-align:right}
+.funcv{height:42px;display:flex;align-items:center;gap:7px}
+.funcv .arw{color:var(--mut2);font-size:var(--fs-label);flex:0 0 auto}
+.funcv b{margin-left:auto;font-family:var(--mono);font-size:var(--fs-sub);font-weight:700;color:var(--val);font-variant-numeric:tabular-nums}
+/* 目标达成 Bullet（实际对目标的靶心进度） */
+.blt{display:flex;align-items:center;gap:14px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.bltl{font-size:var(--fs-label);color:var(--mut);width:60px;flex-shrink:0}
+.bltt{flex:1;position:relative;height:16px;background:linear-gradient(90deg,var(--bltA),var(--bltB));border-radius:4px}
+.bltt i{position:absolute;left:0;top:0;height:100%;background:var(--yFill);border-radius:4px;min-width:4px}
+.bltmark{position:absolute;right:-1px;top:-4px;width:2px;height:24px;background:var(--txt);opacity:.55;border-radius:1px}
+.bltv{flex-shrink:0;font-family:var(--mono);font-size:var(--fs-card);color:var(--val)}
+/* 品类 Treemap（面积 = 量级 色深 = 签约占比） */
+.tmap{position:relative;width:100%;height:250px;margin-top:12px;border-radius:6px;overflow:hidden;background:var(--panel2)}
+.tmtile{position:absolute;border:1.5px solid var(--panel);overflow:hidden;padding:6px 8px;box-sizing:border-box}
+.tmlbl{font-size:var(--fs-label);color:var(--onMix);font-weight:600;line-height:1.15}
+.tmv{font-family:var(--mono);font-size:var(--fs-micro);color:color-mix(in srgb,var(--onMix) 82%,transparent);margin-top:2px}
+/* 商圈迷你分布图（气泡 = 商家数 色深 = 签约率 位置按商圈坐标投影） */
+.geomap{position:relative;width:100%;height:250px;margin-top:12px;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--geoBg)}
+.geobase{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.geobub{position:absolute;transform:translate(-50%,-50%);border-radius:50%;border:1.5px solid;display:flex;align-items:center;justify-content:center;box-shadow:var(--bubShadow);z-index:1;cursor:pointer;transition:.15s}
+.geoval{font-family:var(--mono);font-size:var(--fs-micro);font-weight:700;color:var(--onMix);text-shadow:var(--geoValShadow)}
+/* 气泡与标签是同级兄弟，后出的气泡会盖住先出的标签，故抬 z-index 让标签恒在气泡之上。 */
+.geolbl{position:absolute;transform:translate(-50%,0);white-space:nowrap;font-size:9px;color:var(--txt);text-shadow:var(--geoLblShadow);pointer-events:none;font-weight:600;z-index:2}
+.geobub:hover{filter:brightness(1.15)}
+.geobub.cur{border-width:2.5px;box-shadow:0 0 0 4px color-mix(in srgb,var(--yFill) 16%,transparent),var(--bubShadowCur)}
+.geobub.dim{opacity:.42}
+.geolbl.cur{color:var(--y)}
+.geolbl.dim{opacity:.5}
+/* 趋势图：新签是离散事件标记（竖标加计数），末点钉当前值，X 轴三档日期，另有空态卡 */
+.sparkwrap{position:relative;margin-top:8px}
+.sparkdot{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--yFill);box-shadow:0 0 0 3px color-mix(in srgb,var(--yFill) 18%,transparent)}
+.trcur{position:absolute;right:0;font-family:var(--mono);font-size:var(--fs-sub);font-weight:800;color:var(--y);
+  background:var(--panel);padding:0 3px;border-radius:var(--r-xs);pointer-events:none}
+.trmk{position:absolute;bottom:0;top:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;
+  transform:translateX(-50%);pointer-events:none}
+.trmk i{display:block;width:0;flex:0 0 14px;border-left:1px dashed color-mix(in srgb,var(--done) 55%,transparent)}
+.trmv{font-family:var(--mono);font-size:var(--fs-micro);font-weight:700;color:var(--done);
+  background:var(--panel);padding:0 3px;border-radius:var(--r-xs);white-space:nowrap;margin-bottom:2px}
+.trx{display:flex;justify-content:space-between;margin-top:5px;font-family:var(--mono);font-size:var(--fs-micro);color:var(--mut2)}
+.trlg{display:inline-flex;align-items:center;gap:5px}
+.trlg i.ln{width:13px;height:0;border-top:2px solid var(--y);display:inline-block}
+.trlg i.mk{width:0;height:11px;border-left:1px dashed color-mix(in srgb,var(--done) 65%,transparent);display:inline-block}
+/* 空态高度与上边距同有数据态（177 加 8）取齐，否则「签约无变化」的商圈左右两图会错开 */
+.trempty{display:flex;flex-direction:column;justify-content:center;gap:6px;min-height:177px;margin-top:8px;text-align:center;
+  border:1px dashed var(--line2);border-radius:var(--r-s);padding:14px;color:var(--mut2)}
+.trempty b{font-size:var(--fs-sub);color:var(--txt)}
+.trempty div{font-size:var(--fs-label);line-height:1.7}
+.hrings{display:flex;justify-content:space-around;gap:8px;margin-top:18px;flex-wrap:wrap}
+.hring{text-align:center}
+.hrn{font-size:var(--fs-label);color:var(--txt);margin-top:8px;font-weight:600}
+.zrw{position:relative;display:inline-block;line-height:0}
+.zrp{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--mono);font-size:13px;font-weight:700;color:var(--val)}
+.actgap{margin-top:10px;padding:8px 12px;background:var(--yWashS);border:1px solid color-mix(in srgb,var(--y) 30%,transparent);border-radius:var(--r-s);font-size:var(--fs-card);color:var(--txt)}
+.actgap b{color:var(--y);font-family:var(--mono);font-weight:600;font-size:var(--fs-h3)}
+</style>
+<script>/* 主题预置，先于首屏绘制，避免选了浅色时闪一下深色。
+   默认浅色，只有显式选了深色才落键，不跟随系统。五个页面共用 ops_theme 这一个键。 */
+(function(){try{if(localStorage.getItem('ops_theme')!=='dark')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();
+</script>
+</head>
+<body>
+<header><div class="hbar">
+  <a class="backlk" id="backLink" href="../ops-deck/">◂ 返回经营门户</a>
+  <div class="brand"><span class="stage" id="stageBadge">开航③ · 商家签约</span><span id="brandName">商家<b>BD</b>工作台</span><span class="bsub" id="brandSub"> · 商家签约工作流</span></div>
+  <span class="fresh" id="fresh"></span>
+  <div class="hspace"></div>
+  <span class="badge adv" id="advb"></span>
+  <div class="vsw" id="vsw"></div>
+  <button class="lsw" onclick="switchLang()" id="lsw">EN</button>
+  <button class="thtog" id="thTog" type="button"><svg id="thIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg></button>
+</div></header>
+
+<div class="wrap">
+  <div class="demo-banner" id="demoBanner"></div>
+  <div class="dock" id="dock">
+    <div class="hero" id="hero" style="display:none"></div>
+    <div class="hband" id="hband" style="display:none" role="button" tabindex="0" onclick="openEvi()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEvi();}"></div>
+  </div>
+  <div id="workEvi"></div>
+  <div class="layout" id="layout">
+    <aside class="rail" id="rail"></aside>
+    <div class="detail" id="main"><div class="loadst" id="boot">载入演示数据</div></div>
+  </div>
+  <footer>
+    <div id="ftA"></div>
+    <div id="ftB"></div>
+  </footer>
+</div>
+<div class="askbar" id="pbar"></div>
+<button id="toTop" title="回到顶部" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+ * 商家 BD 工作台 · 公开演示版
+ * 定位：商家 BD 工作流的总览指导——指标达成进度 加 当天作业建议 加 名单。
+ * 布局：左指挥栏（商圈选择 今日事项 预警） 加 右明细（商家与商品名单）；窄于 900px 纵向堆叠。
+ * 数据：全部读 ../data/bdboard.json，由 scripts/gen_mock.py 生成。商家名 商品名 经营数值
+ *      均为脱敏生成数据，量级贴近真实即时配送业务，不指向任何真实商家。
+ * 口径：一切为建议而非考核指标；阈值（目标商家数 商品覆盖分位）可配置。
+ * ===================================================================== */
+
+/* ---------- i18n：中文默认 EN 可切 ---------- */
+const LANGKEY = 'ops_lang';
+let LANG = (() => { try { return localStorage.getItem(LANGKEY) === 'en' ? 'en' : 'zh'; } catch (e) { return 'zh'; } })();
+const EN = {
+  '演示数据': 'DEMO DATA', '建议口径 · 非考核指标': 'Advisory only',
+  '开航③ · 商家签约': 'Pre-Launch ③ · Signing', '◂ 返回经营门户': '◂ Ops Portal',
+  ' · 商家签约工作流': ' · Signing workflow',
+  '本页为公开演示，商家与商品均为': 'Public demo: all merchants and items are',
+  '脱敏生成数据': 'synthetic placeholders',
+  '，量级贴近真实即时配送业务，不指向任何真实商家。': ' — magnitudes mirror a real delivery business but point to no real merchant.',
+  '载入演示数据': 'Loading demo data', '数据载入失败': 'Failed to load data',
+  '请先运行 scripts/gen_mock.py 生成 site/data/bdboard.json': 'Run scripts/gen_mock.py first to generate site/data/bdboard.json',
+  /* 商圈名：未登记的商圈回退原名，故列表仍由数据驱动 */
+  '北湾商圈': 'Northbay District', '河畔商圈': 'Riverside District',
+  '西门商圈': 'Westgate District', '湖景商圈': 'Lakeview District', '全部商圈': 'All districts',
+  /* 品类 */
+  '快餐': 'Fast food', '咖啡': 'Coffee', '烘焙': 'Bakery', '亚洲菜': 'Asian', '烤串': 'Grill',
+  '甜品': 'Dessert', '饮品': 'Beverage', '三明治': 'Sandwich', '披萨': 'Pizza', '轻食': 'Healthy',
+  '未分类': 'Uncategorized',
+  /* 顶部与视图 */
+  '今日作业': 'Daily ops', '经营概览': 'Overview', '商圈': 'District', '全部': 'All',
+  '商家总数': 'Merchants', '已签': 'Signed', '签约中': 'Signing', '未接触': 'Open', '待接触': 'Open',
+  '动销': 'Active', '已开通': 'Enabled', '目标': 'Target', '家': '', '类': 'cats',
+  '距建议目标还差': 'To suggested target', '已达建议目标': 'Suggested target reached', '家待落地': 'closing',
+  '无人机实单 · 窗口内 · 分商圈': 'Drone orders · in window · by district',
+  '数据快照': 'snapshot', '点击重新载入': 'click to reload',
+  /* 进度带 */
+  '签约进度': 'Signing progress', '高销品上架': 'Top sellers listed', '缺签品类': 'Unsigned categories', '明细': 'Details',
+  '高销品中已被任一已签店上架到无人机菜单的数量（商品名级，同名任一规格上架即算）':
+    'Top sellers already on the drone menu at any signed merchant (item level, any spec counts)',
+  /* 证据三卡 */
+  '品类与商品覆盖': 'Category & item coverage',
+  '商家签约进度': 'Merchant signing progress', '高销品上架进度': 'Top-seller listing progress',
+  '无人机口径': 'drone basis', '高销品已上架': 'top sellers listed', '签约可供给': 'signable supply', '参考': 'ref.',
+  '高销品': 'top items', '分位': 'Pctl.',
+  '建议目标': 'Suggested target', '覆盖分位': 'Coverage pctl.', '建议值 · 可改': 'Suggested · editable',
+  '供给运营定义正式指标前，这里是工具给的建议值，可自行改':
+    "Until supply ops sets a formal KPI this is the tool's suggested value — edit it as you like",
+  '实际按 60/70/80/90/95 就近取档': 'snaps to the nearest of 60/70/80/90/95',
+  '高销品=圈内订单前 20% 的商品 · 已上架=已签店已上无人机菜单 · 可供给=有已签店在售':
+    'Top sellers = the top 20% of in-zone items by orders · Listed = a signed shop has it on the drone menu · Suppliable = a signed shop sells it',
+  '品类签约矩阵': 'Category signing matrix', '推荐名单口径': 'recommended-list basis', '缺签': 'gap',
+  /* 今日事项 */
+  '今日事项': "Today's items", '今日优先拜访': 'Visit first today', '跟进签约中': 'Push signing pipeline',
+  '品类缺口': 'Category gap', '回访动销提升': 'Revisit for growth', '保持节奏': 'Keep the pace',
+  '圈内订单最高的未签核心商家': 'highest-order unsigned core merchants in zone',
+  '最接近落地': 'closest to close',
+  '高销品尚无已签商家可供给': 'top items lack a signed supplier',
+  '订单贡献最高的已签商家': 'top-contributing signed merchants',
+  '本商圈今日无待办 · 保持节奏': 'Nothing pending in this district today — keep the pace',
+  '就此问助手': 'Ask assistant',
+  /* 预警 */
+  '数据变化与预警': 'Changes & alerts', '渠道回撤': 'Channel pulled back', '零上架': 'Zero listed',
+  '已签零单': 'Signed, zero orders', '已签未开通': 'Signed, not enabled', '商责取消': 'Merchant-side cancels',
+  'SKU 已关': 'SKUs off', '查看': 'Open', '待数据': 'pending data',
+  '卖过但渠道已关': 'Sold before, channel now off',
+  '已签但一个 SKU 都没上无人机菜单': 'Signed but not a single SKU on the drone menu',
+  '已签但窗口内零动销 · 优先回访': 'Signed but zero orders in window — revisit first',
+  '商家侧取消占支付单 · 与商家过一遍接单与备货':
+    'Merchant-side cancels as a share of paid orders — walk order-taking and stock with them',
+  '商家侧取消 ≥': 'Merchant-side cancels ≥', '且支付单 ≥': 'and paid orders ≥', '取消 ≥': 'cancels ≥',
+  '本商圈尚无已签商家 · 预警不适用': 'No signed merchants here · alerts N/A',
+  '家 · 当前无异常': 'signed · no issues right now', '还有': 'Another', '条 · 见名单': 'more · see the list',
+  '圈内订单': 'Orders in zone',
+  /* 名单 */
+  '商家名单': 'Merchant list', '商品名单': 'Item list',
+  '核心商家': 'Core merchants', '（累计贡献 80%）': ' (top 80% contribution)',
+  '今日优先': 'Today first', '商品': 'Item', '商家': 'Merchant', '品类': 'Category',
+  '签约状态': 'Status', '商家标签': 'Merchant tag', '建议动作': 'Suggested action',
+  '核心': 'Core', '配额': 'Quota', '长尾': 'Long-tail',
+  '优先签约': 'Sign first', '品类补充': 'Fills category gap', '跟进落地': 'Push to close', '回访动销': 'Revisit & grow',
+  '搜索': 'Search', '排序': 'Sort', '订单+GTV': 'Orders + GTV', '订单': 'Orders', '复购': 'Repeat',
+  '待催 SKU': 'SKUs to push', '履约（差在前）': 'Fulfillment (worst first)',
+  '显示更多': 'Show more', '显示全部': 'Show all',
+  '无匹配结果': 'No match', '换个视角或清除搜索与筛选': 'Try another view, or clear the search and filters',
+  '清除搜索': 'Clear search',
+  '催上架': 'To list',
+  '核心=按圈内订单降序累计份额达 80% 前的头部商家，符合建议名单':
+    'Core = head merchants before cumulative order share hits 80%, fits the advisory list',
+  '配额=品类结构补位名单（核心之外按品类份额推荐），符合建议名单':
+    'Quota = category-structure fill list (recommended by category share, outside core), fits the advisory list',
+  '长尾=不在当前建议名单（核心与配额）内，作参考而非否定':
+    'Long-tail = not in the current advisory lists (core/quota), reference rather than a verdict',
+  '该商家在售的 ≥80 分位高销品数': 'Top sellers (≥80th pctl.) this merchant carries',
+  '百分比=占圈内高销品的覆盖贡献': 'pct = share of all zone top sellers covered',
+  /* 行内展开 */
+  '店内高销品': 'Top sellers in shop', '圈内已覆盖': 'covered in zone', '缺口': 'gap', '显示前': 'showing top',
+  '缺口=签下该店独家补上的高销品': 'gap = top sellers only this signing would cover',
+  '已上架': 'Listed', '未上架': 'Not listed', '单': 'orders',
+  '动销 · 渠道已关': 'Sold · channel off', '卖过无人机单但当前渠道已关': 'Has drone sales but the channel is now off',
+  '圈内已有已签商家在售同名商品（同名视作同品）':
+    'A signed merchant in this zone already sells this item (same name treated as same item)',
+  '圈内尚无已签商家在售，签下该店即独家补上':
+    'No signed merchant sells this yet — signing this shop covers it exclusively',
+  '已覆盖': 'Covered', '无供给': 'No supplier', '供给': 'Supply',
+  '已覆盖=该商品所在商家已签约': "Covered = the item's merchant is signed",
+  '商品=店内高销品 · 品类=商家主品类 · 与商家名单行内展开同源':
+    'Items = top sellers per shop · category = merchant primary category · same source as the inline expansion',
+  '店内高销品 · 订单降序': 'Top sellers per shop · by orders',
+  /* 底部助手栏 */
+  '问业务助手': 'Ask the assistant', '复制提示词': 'copy prompt',
+  '已复制，粘贴给业务助手提问': 'Copied — paste it to the assistant',
+  '复制后粘贴到业务助手': 'copy, then paste to the assistant',
+  '今天我该优先拜访哪些商家？': 'Which merchants should I visit first today?',
+  '按转正贡献排序的未签商家名单': 'Unsigned merchants ranked by contribution',
+  '还有哪些高销商家没签？': 'Which top-selling merchants are still unsigned?',
+  '带订单量与 GTV 的建议名单': 'Suggested list with orders and GTV',
+  '哪些高销品还没上架？': 'Which top sellers are not listed yet?',
+  '催上架与催开通的作业动线': 'The listing and enabling workflow',
+  '帮我出这家商家的洽谈要点': 'Give me talking points for this merchant',
+  '洽谈案与机会点话术方向': 'Pitch angle and opportunity points',
+  '商品覆盖还缺哪些品类？': 'Which category gaps remain in item coverage?',
+  '高销品覆盖缺口清单': 'Top-item coverage gaps',
+  '离转正还差多少单？': 'How far from UE-positive?',
+  '保本线与缺口（与经营工具同源）': 'Break-even and gap (same source as the ops tools)',
+  '已签商家最近有什么异常变化？': 'Any anomalies among signed merchants lately?',
+  '签约趋势与预警': 'Signing trend and alerts',
+  /* 降级 */
+  '该商圈尚未接入名单明细': 'List details not yet ingested for this district',
+  '当前仅商圈级签约计数可用，商家与商品明细待数据侧供给':
+    'Only district-level signing counts exist; merchant and item details pending data supply',
+  /* 经营概览 */
+  '跨商圈总览': 'Cross-district overview', '全商圈合计 · 每日播报口径': 'All districts · daily broadcast basis',
+  '商家合计': 'Merchants', '目标达成': 'Goal progress',
+  '签约转化': 'Conversion', '商家池 → 已签 → 已开通 → 动销 · 逐级转化': 'Pool → Signed → Enabled → Active · step conversion',
+  '商家池': 'Merchant pool', '转化率': 'Conv. rate',
+  '签约变化趋势': 'Signing trend', '计数口径=签约名单': 'counts = signing registry',
+  '窗口': 'Window', '天': 'd', '存量': 'Stock', '新签事件': 'Signing events', '在途': 'In pipeline', '近': 'Last',
+  '存量已签': 'Signed stock', '天无新签落地': 'd with no new signing', '窗口内签约无变化': 'No signing change in window',
+  '各商圈签约率': 'Signed rate by district',
+  '气泡=商家数 · 色深=签约率 · 位置按商圈坐标投影':
+    'bubble = merchants · shade = signed rate · positioned by district coordinates',
+  '动销率': 'Active rate',
+  '供给质量': 'Supply quality', '面积=量级 · 色深=签约占比': 'area = size · shade = signed share', '其他': 'Other',
+  '签约后经营': 'Post-signing ops', '签了之后真在无人机上动销与履约吗': 'Active and fulfilling on drone after signing?',
+  '无人机动销': 'Drone active', '动销店': 'Active shops', '动销订单': 'Active orders', '动销 SKU': 'Active SKUs',
+  '本商圈 · 按店动销明细聚合': 'this district · aggregated from per-shop active detail', '全商圈': 'All districts',
+  '个待催上架高销品': 'high-sellers to list', '核心上架覆盖': 'core listing coverage',
+  '已签可供给但未上无人机菜单': 'signed-ready but not on the drone menu',
+  '经营健康度': 'Operating health', '全商圈按已签数加权': 'weighted by signed count',
+  '履约成功率': 'Fulfillment rate', '复购率': 'Repeat rate',
+  '环=占满 100% 的比例 · 复购为商圈级近似': 'ring = share of 100% · repeat is a district-level approximation',
+  '指标达成进度': 'Target progress', '签约状态构成': 'Signing status mix',
+  '商家GMV分层': 'Merchant GMV tier', 'S/A/B/C/D 按窗口 GTV': 'S/A/B/C/D by GTV in window',
+  /* 主题 */
+  '浅色': 'Light', '深色': 'Dark', '主题': 'Theme', '切换到浅色': 'Switch to light', '切换到深色': 'Switch to dark',
+};
+const tx = s => (LANG === 'en' && EN[s] !== undefined) ? EN[s] : s;
+/* 把当前语言写到 <html lang>，供 CSS 做语言相关排版（现用于 .g 间隙宽度）。 */
+function applyLang() { try { document.documentElement.lang = LANG === 'en' ? 'en' : 'zh'; } catch (e) { } }
+/* 「还差 N 家」中英语序不同：中文是前置短语加量词，英文是数字在前加介词短语。
+   照中文语序拼再把量词「家」译成空串，得到的是 "To suggested target 227" 这种残句，故各给一套模板。 */
+const gapPhrase = n => LANG === 'en'
+  ? `${n} short of suggested target`
+  : `${tx('距建议目标还差')} ${n}<span class="g"></span>${tx('家')}`;
+</script>
+<script>
+'use strict';
+/* ---------- 数据 ---------- */
+let DATA = null;
+const DB = () => (DATA && DATA.units) || {};
+const unitList = () => (DATA && DATA.order) || [];
+const rawUnit = u => DB()[u] || null;
+/* 商圈短名：中文去掉「商圈」，英文去掉「District」，两边都不留孤字。 */
+const zShort = nm => tx(nm || '').replace(/\s*商圈$/, '').replace(/\s+District$/, '');
+const uName = u => ((rawUnit(u) || {}).nm) || u;
+
+/* ---------- 状态 ---------- */
+let unit = 'all';
+let ovUnit = 'all';   /* 概览商圈焦点：all = 跨商圈聚合，uid = 只看该商圈；与作业页 unit 独立 */
+let VIEW = 'work';    /* work = 今日作业，ov = 经营概览 */
+let fSt = 'all', fAct = 'all', fQual = 'all';   /* 名单筛选：签约状态 建议动作 商家标签，均仅「全部」视角 */
+let fCat = 'all';     /* 商品视角：品类筛选 */
+let fMCat = 'all';    /* 商家名单：品类筛选，六个视角都有 */
+let listLimit = 50;   /* 长名单分页，默认 50 行加显示更多，防整页滚过长 */
+let listQ = '';       /* 名单搜索，change 触发不用 oninput，防 IME 打断 */
+let eviOpen = false;  /* 证据三卡展开态：改目标或分位触发 render 后保持展开 */
+let ltab = 'today';   /* 名单预设视角 */
+let expShop = null;   /* 行内展开的商家 id */
+let sortKey = 'og';   /* 名单排序维 */
+const ovKeys = () => ovUnit === 'all' ? unitList() : [ovUnit];
+/* 商责取消预警阈值：率 2% 约当已签店 P90，是异常该有的稀疏度；
+   样本下限 30 单挡掉小样本的率（小样本的率没有意义）；绝对量下限 3 单再挡过线噪声。 */
+const AFS_MIN_PAY = 30, AFS_RATE = 2, AFS_MIN_CNT = 3;
+/* 配置口径：目标 N 与覆盖分位 P 可改，localStorage 持久；默认仅建议值。 */
+const CFG_KEY = 'ops_bdboard_cfg';
+let cfg = {};
+try { cfg = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch (e) { cfg = {}; }
+const getTgt = u => {
+  const b = (rawUnit(u) || {}).target || {};
+  return Object.assign({ N: b.N || 40, P: b.P || 80 }, cfg[u] || {});
+};
+function setTgt(u, k, v) {
+  cfg[u] = cfg[u] || {}; cfg[u][k] = Math.max(1, +v || 0);
+  try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) { }
+  render();
+}
+
+/* ---------- 渲染工具 ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+const nf = n => (n || 0).toLocaleString('en-US');
+/* 钱一律以万呈现，不写货币符号也不写币种代码；英文档换算成 k。 */
+const money = g => LANG === 'en'
+  ? (g >= 1e6 ? (g / 1e6).toFixed(1) + 'M' : (g / 1e3).toFixed(0) + 'k')
+  : (g >= 1e8 ? (g / 1e8).toFixed(2) + '亿' : (g / 1e4).toFixed(1) + '万');
+const pctOf = (a, b) => b ? (a / b * 100) : 0;
+const selBtn = u => `<button class="${u === unit ? 'on' : ''}" onclick="setUnit('${u}')">${u === 'all' ? tx('全部') : zShort(uName(u))}</button>`;
+const ovSelBtn = u => `<button class="${u === ovUnit ? 'on' : ''}" onclick="setOvUnit('${u}')">${u === 'all' ? tx('全部') : zShort(uName(u))}</button>`;
+
+/* ---------- 派生：商圈视图模型（口径集中在这里，改一处全页跟随） ---------- */
+function packOf(u) {
+  const d = rawUnit(u);
+  if (!d) return null;
+  /* 聚合态按订单降序：数据里逐商圈顺序拼接，不排的话「今日事项」挑出来的头部会是拼接顺序的头部。 */
+  const ms = (d.merchants || []).map(m => Object.assign({}, m, {
+    _z: (u === 'all' && m.unit) ? zShort(uName(m.unit)) : ''
+  })).sort((a, b) => (b.o || 0) - (a.o || 0));
+  const prods = d.products || [];
+  /* 同名跨店合并：某商品名只要有任一已签店在售，就算圈内已覆盖。 */
+  const covSet = new Set(prods.filter(p => p.ok).map(p => String(p.n).toLowerCase()));
+  /* 按店归集高销品，并在店内按订单降序编号（行内展开的 #N 就是这个店内名次）。 */
+  const byShop = {};
+  prods.forEach(p => { const k = String(p.shop || '').toLowerCase(); if (k) (byShop[k] = byShop[k] || []).push(p); });
+  Object.values(byShop).forEach(list => {
+    list.sort((a, b) => (b.o || 0) - (a.o || 0));
+    list.forEach((p, i) => { p._rank = i + 1; });
+  });
+  return {
+    id: u, nm: d.nm, full: !!(d.merchants && d.merchants.length),
+    signed: d.signed, signing: d.signing, open: d.open, opened: d.opened,
+    active: d.active, shops: d.shops, orders: d.orders,
+    kpi: { total: d.shops, signed: d.signed, signing: d.signing, active: d.active },
+    merchants: ms, products: prods, byShop, covSet,
+    catMatrix: d.catMatrix || [], pcov: d.pcov || null,
+    coreCount: ms.filter(m => m.tier === 'core').length,
+  };
+}
+/* 每店高销品口径（≥80 分位）：在售数 已上架数 圈内已覆盖数。 */
+function shopHiOf(d, m) {
+  const list = d.byShop[String(m.n || '').toLowerCase()] || [];
+  const hi = list.filter(p => p.pp >= 80);
+  return { all: list, hi: hi.length, lst: hi.filter(p => p.listed).length,
+    cov: list.filter(p => d.covSet.has(String(p.n).toLowerCase())).length };
+}
+/* 待催上架 SKU：已签且已开通的店，在售 SKU 里还没上无人机菜单的那部分。 */
+const pushN = m => (m.st === 'signed' && m.dOpen === 1)
+  ? Math.max(0, ((m.lst || {}).sku || 0) - ((m.lst || {}).dsku || 0)) : 0;
+/* 健康度：按已签数加权（动销率 履约率 复购率）。复购率为商圈级近似。 */
+function healthOf(keys) {
+  let sg = 0, ac = 0, ff = 0, fw = 0, rp = 0;
+  keys.forEach(k => {
+    const d = rawUnit(k); if (!d) return;
+    const signed = (d.merchants || []).filter(m => m.st === 'signed');
+    if (!signed.length) return;
+    sg += signed.length; ac += (d.active || 0);
+    signed.forEach(m => { if (typeof m.fulfill === 'number') { ff += m.fulfill; fw++; } });
+    /* 复购率按动销订单加权，再按已签数并进全商圈——单店完单是个位数，等权平均会被小店噪声带偏。 */
+    const act = signed.filter(m => m.active);
+    const ro = act.reduce((a, m) => a + (m.dOrd || 0), 0);
+    const rr = act.reduce((a, m) => a + (m.repeatR || 0) * (m.dOrd || 0), 0);
+    rp += ro ? rr / ro * signed.length : 0;
+  });
+  return sg ? { activeRate: ac / sg * 100, fulfillRate: fw ? ff / fw : null, repeatRate: rp / sg } : null;
+}
+/* GMV 分层：按窗口 GTV 的绝对档位，S 最头部 D 最长尾。
+   阈值固定而不按分位切——分位切出来每个商圈形状恒等，跨商圈就没有可比性了；
+   取值对着实际分布定：S 约头部 2%，A 到 5%，B 到 12%，C 到 35%，其余进 D。 */
+const GMV_BANDS = [['S', 9e4], ['A', 4e4], ['B', 2e4], ['C', 1e4], ['D', 0]];
+function gmvBandOf(keys) {
+  const out = { S: 0, A: 0, B: 0, C: 0, D: 0 };
+  keys.forEach(k => {
+    const d = rawUnit(k); if (!d) return;
+    (d.merchants || []).forEach(m => {
+      const b = GMV_BANDS.find(x => (m.g || 0) >= x[1]);
+      out[b ? b[0] : 'D']++;
+    });
+  });
+  return out;
+}
+/* 无人机动销聚合：店数 订单 SKU，逐店明细求和，单圈与全商圈同一套口径。 */
+function droneAgg(keys) {
+  let shops = 0, orders = 0, skus = 0;
+  keys.forEach(k => {
+    const d = rawUnit(k); if (!d) return;
+    (d.merchants || []).forEach(m => {
+      if (!m.active) return;
+      shops++; orders += m.dOrd || 0; skus += ((m.dSku || {}).sold) || 0;
+    });
+  });
+  return { shops, orders, skus };
+}
+/* 签约宽表：概览的地图 KPI 目标线都从它来。 */
+const signingWide = () => unitList().map(u => {
+  const d = rawUnit(u) || {};
+  return { unit: u, zone: d.nm || u, signed: d.signed || 0, signing: d.signing || 0, open: d.open || 0, total: d.shops || 0 };
+});
+/* 每日趋势：数据自带逐商圈存量 by，聚焦哪个圈就取哪一支。 */
+function trendRows() {
+  const tr = ((DATA || {}).ov || {}).trend || [];
+  return tr.map(r => {
+    let sg = 0, si = 0;
+    ovKeys().forEach(k => { const b = (r.by || {})[k]; if (b) { sg += b.sg || 0; si += b.si || 0; } });
+    return { d: r.d, sg, si };
+  });
+}
+</script>
+<script>
+'use strict';
+/* ---------- header ---------- */
+function header() {
+  $('brandName').innerHTML = LANG === 'en' ? 'Merchant <b>BD</b> Workbench' : '商家<b>BD</b>工作台';
+  $('brandSub').textContent = tx(' · 商家签约工作流');
+  $('stageBadge').textContent = tx('开航③ · 商家签约');
+  $('backLink').textContent = tx('◂ 返回经营门户');
+  $('advb').textContent = tx('建议口径 · 非考核指标');
+  $('lsw').textContent = LANG === 'zh' ? 'EN' : '中';
+  $('vsw').innerHTML = [['work', '今日作业'], ['ov', '经营概览']].map(([v, lbl]) =>
+    `<button class="${VIEW === v ? 'on' : ''}" aria-pressed="${VIEW === v}" onclick="setView('${v}')">${tx(lbl)}</button>`).join('');
+  const bn = $('demoBanner');
+  bn.className = 'demo-banner';
+  bn.innerHTML = `<b>‡ ${tx('演示数据')}</b><span>${tx('本页为公开演示，商家与商品均为')}<b> ${tx('脱敏生成数据')}</b>${tx('，量级贴近真实即时配送业务，不指向任何真实商家。')}</span>`;
+  $('ftA').innerHTML = ''; $('ftB').innerHTML = '';
+  renderFresh();
+  renderThemeBtn();
+}
+/* 数据新鲜度：常态只报日期，落后两天以上转橙并展开——异常时占地方是应该的。 */
+function snapAge() {
+  const s = ((DATA && DATA.snapshot) || '') + '';
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return { s, md: m[2] + '-' + m[3], days: Math.round((t - d) / 86400000) };
+}
+const freshText = (md, days, stale) => LANG === 'en'
+  ? (stale ? `${md} · ${days}d old` : md)
+  : (stale ? `${md} · 已 ${days}<span class="g"></span>天未更新` : md);
+function renderFresh() {
+  const el = $('fresh'); if (!el) return;
+  const a = snapAge();
+  if (!a) { el.className = 'fresh'; el.innerHTML = ''; return; }
+  const stale = a.days >= 2;
+  const tip = `${tx('数据快照')} ${a.s} · ${tx('点击重新载入')}`;
+  el.className = 'fresh' + (stale ? ' stale' : '');
+  el.innerHTML = `<button class="fbtn" onclick="location.reload()" title="${esc(tip)}"><i class="fdot"></i><span>${freshText(a.md, a.days, stale)}</span></button>`;
+}
+
+/* ---------- 证据三卡：签约进度 高销品上架 品类矩阵 ---------- */
+const PC_LVS = [60, 70, 80, 90, 95];
+function pcovOf(d) {
+  const pc = d.pcov && d.pcov.levels;
+  if (!pc) return null;
+  const P = getTgt(unit).P;
+  const lv = PC_LVS.reduce((a, b) => Math.abs(b - P) < Math.abs(a - P) ? b : a);
+  const x = pc[String(lv)];
+  return x ? { ok: x.ok, tot: x.tot, lv, lst: x.lst } : null;
+}
+function catMatrixCard(d) {
+  if (!d.catMatrix || !d.catMatrix.length) return '';
+  const rows = d.catMatrix.map(c =>
+    `<tr><td>${esc(tx(c.cat) || c.cat)}${c.signed ? '' : (c.signing ? `<span class="sgb">${tx('签约中')} ${c.signing}</span>` : `<span class="gapb">${tx('缺签')}</span>`)}</td><td class="${c.signed ? '' : 'z'}">${c.signed}</td><td class="${c.signing ? '' : 'z'}">${c.signing}</td><td class="z">${c.open}</td></tr>`).join('');
+  return `<div class="card pcard">
+      <h3>${tx('品类签约矩阵')} <span style="font-weight:400;color:var(--mut2)">· ${tx('推荐名单口径')}</span></h3>
+      <table class="cmx"><tr><th>${tx('品类')}</th><th>${tx('已签')}</th><th>${tx('签约中')}</th><th>${tx('未接触')}</th></tr>${rows}</table>
+    </div>`;
+}
+function progress(d) {
+  const t = getTgt(unit);
+  const sg = d.signed, si = d.signing, N = t.N;
+  const pctS = Math.min(100, (sg / N) * 100), pctI = Math.min(100 - pctS, (si / N) * 100);
+  const pv = pcovOf(d);
+  const covN = pv ? pv.tot : 0, covOkN = pv ? pv.lst : 0;
+  const pctC = covN ? (covOkN / covN) * 100 : 0;
+  return `<div class="pgrid">
+    <div class="card pcard">
+      <h3>${tx('商家签约进度')}</h3>
+      <div class="big">${sg}<small><span class="g"></span>/<span class="g"></span>${N}<span class="g"></span>${tx('家')}</small></div>
+      <div class="pbar"><i style="width:${pctS}%;background:var(--done)"></i><i style="width:${pctI}%;background:var(--yFill)"></i></div>
+      <div class="pleg"><span><i style="background:var(--done)"></i>${tx('已签')} ${sg}</span><span><i style="background:var(--yFill)"></i>${tx('签约中')} ${si}</span><span class="tgt"><i></i>${tx('目标')} ${N}</span></div>
+      <div class="cfg">${tx('建议目标')} <input type="number" min="1" value="${N}" aria-label="${tx('建议目标')}" onchange="setTgt('${unit}','N',this.value)"> ${tx('家')}<span class="note" title="${tx('供给运营定义正式指标前，这里是工具给的建议值，可自行改')}">· ${tx('建议值 · 可改')}</span></div>
+    </div>
+    <div class="card pcard">
+      <h3>${tx('高销品上架进度')}${pv ? ` <span style="font-weight:400;color:var(--mut2)">· ${tx('无人机口径')}</span>` : ''}</h3>
+      <div class="big">${nf(covOkN)}<small><span class="g"></span>/<span class="g"></span>${nf(covN)}<span class="g"></span>${tx('高销品已上架')}</small></div>
+      <div class="pbar"><i style="width:${pctC}%;background:var(--orange)"></i></div>
+      <div class="pleg"><span><i style="background:var(--orange)"></i>≥${pv ? pv.lv : t.P}${LANG === 'en' ? 'th pctl. ' : ' 分位'}${tx('高销品')} ${nf(covN)}${pv ? ` · ${tx('签约可供给')} ${nf(pv.ok)}（${tx('参考')}）` : ''}</span></div>
+      <div class="cfg">${tx('覆盖分位')} <input type="number" min="1" max="99" value="${t.P}" aria-label="${tx('覆盖分位')}" onchange="setTgt('${unit}','P',this.value)"><span class="note" title="${tx('供给运营定义正式指标前，这里是工具给的建议值，可自行改')} · ${tx('实际按 60/70/80/90/95 就近取档')}">· ${tx('建议值 · 可改')}</span></div>
+      ${pv ? `<div class="ovnote">${tx('高销品=圈内订单前 20% 的商品 · 已上架=已签店已上无人机菜单 · 可供给=有已签店在售')}</div>` : ''}
+    </div>
+  ${catMatrixCard(d)}</div>`;
+}
+function eviFold(d) {
+  return `<details class="evifold"${eviOpen ? ' open' : ''}>
+    <summary>${tx('品类与商品覆盖')}</summary>
+    <div class="evibody"><div class="sec" style="margin-top:12px">${progress(d)}</div></div>
+  </details>`;
+}
+function openEvi() {
+  /* 展开态入全局 eviOpen：render 重建（如改建议目标或覆盖分位）后保持展开，改完不默认收起。 */
+  eviOpen = !eviOpen;
+  const f = document.querySelector('.evifold');
+  if (f) f.open = eviOpen;
+  const h = document.querySelector('#hband .hbhint');
+  if (h) h.innerHTML = `${tx('明细')} ${eviOpen ? '▾' : '▸'}`;
+}
+
+/* ---------- hero bar 与进度带 ---------- */
+function heroBar(d) {
+  const t = getTgt(unit);
+  const gap = t.N - (d.signed || 0);
+  const hv = `<div class="hv">${gap > 0 ? gapPhrase(gap) : tx('已达建议目标')}</div>`;
+  const k = d.kpi;
+  const hk = `<div class="hk"><span><b>${nf(k.total)}</b>${tx('商家总数')}</span><span class="ksg"><b>${k.signed}</b>${tx('已签')}</span><span class="ksi"><b>${k.signing}</b>${tx('签约中')}</span><span class="kac" title="${tx('无人机实单 · 窗口内 · 分商圈')}"><b>${k.active}</b>${tx('动销')}</span></div>`;
+  const sel = `<div class="usel">${['all'].concat(unitList()).map(selBtn).join('')}</div>`;
+  return `${sel}${hv}${hk}<div class="hsp"></div>`;
+}
+function heroBand(d) {
+  if (d.signed == null) return '';
+  const t = getTgt(unit);
+  const sg = d.signed || 0, si = d.signing || 0, N = t.N || 1;
+  const pctS = Math.min(100, sg / N * 100), pctI = Math.min(100 - pctS, si / N * 100);
+  const sig = `<span class="hbseg"><span class="hblab">${tx('签约进度')}</span><b>${sg}</b><span class="g"></span>/<span class="g"></span>${N}<span class="g"></span>${tx('家')}<span class="hbbar"><i style="width:${pctS}%"></i><i class="si" style="width:${pctI}%"></i></span></span>`;
+  let dr = '';
+  const pvh = pcovOf(d);
+  if (pvh && pvh.lst != null && pvh.tot) {
+    dr = `<span class="hbseg" title="${tx('高销品中已被任一已签店上架到无人机菜单的数量（商品名级，同名任一规格上架即算）')}"><span class="hblab">${tx('高销品上架')}</span><b>${nf(pvh.lst)}</b><span class="g"></span>/<span class="g"></span>${nf(pvh.tot)}<span class="hbmore">${pctOf(pvh.lst, pvh.tot).toFixed(1)}%</span></span>`;
+  }
+  let gap = '';
+  const gaps = (d.catMatrix || []).filter(c => !c.signed && !c.signing && (c.open || 0) > 0);
+  if (gaps.length) {
+    gap = `<span class="hbseg"><span class="hblab">${tx('缺签品类')}</span>${gaps.slice(0, 3).map(c => `<span class="hbgap">${esc(tx(c.cat) || c.cat)}</span>`).join('')}${gaps.length > 3 ? `<span class="hbmore">+${gaps.length - 3}</span>` : ''}</span>`;
+  }
+  return sig + dr + gap + `<span class="hbhint">${tx('明细')} ${eviOpen ? '▾' : '▸'}</span>`;
+}
+
+/* ---------- 今日事项：建议收敛为恰 3 张行动卡 ---------- */
+function acts3(d) {
+  const core2 = d.merchants.filter(m => m.st === 'open' && m.tier === 'core').slice(0, 2);
+  const open2 = core2.length ? core2 : d.merchants.filter(m => m.st === 'open').slice(0, 2);
+  const signing = d.merchants.filter(m => m.st === 'signing').sort((a, b) => b.o - a.o);
+  const gaps = (d.catMatrix || []).filter(c => !c.signed && (c.open || 0) > 0).map(c => c.cat);
+  const signedTop = d.merchants.filter(m => m.st === 'signed')
+    .sort((a, b) => ((b.active ? 1 : 0) - (a.active ? 1 : 0)) || b.o - a.o).slice(0, 2);
+  const cards = [];
+  /* 并列分隔符：中文用顿号，英文用逗号加空格——顿号在英文里读作乱码字符。 */
+  const SEP = LANG === 'en' ? ', ' : '、';
+  if (open2.length) cards.push({ t: '今日优先拜访', b: open2.map(m => esc(m.n)).join(SEP), w: tx('圈内订单最高的未签核心商家'), q: '今天我该优先拜访哪些商家？' });
+  if (signing.length) cards.push({ t: '跟进签约中', b: `${signing.length}<span class="g"></span>${tx('家待落地')} · ${esc(signing[0].n)}`, w: tx('最接近落地'), q: '还有哪些高销商家没签？' });
+  if (gaps.length) cards.push({ t: '品类缺口', b: gaps.slice(0, 4).map(c => esc(tx(c) || c)).join(' / '), w: tx('高销品尚无已签商家可供给'), q: '商品覆盖还缺哪些品类？' });
+  if (cards.length < 3 && signedTop.length) cards.push({ t: '回访动销提升', b: signedTop.map(m => esc(m.n)).join(SEP), w: tx('订单贡献最高的已签商家'), q: '帮我出这家商家的洽谈要点' });
+  while (cards.length < 3) cards.push({ dim: true, t: '保持节奏', b: tx('本商圈今日无待办 · 保持节奏') });
+  const html = cards.slice(0, 3).map((c, i) => `<div class="actc ${c.dim ? 'dim' : ''}">
+      <div class="ano">${['❶', '❷', '❸'][i]}</div>
+      ${c.q ? `<button class="askbtn" onclick="copyPrompt('${esc(tx(c.q)).replace(/'/g, '')}')">${tx('就此问助手')}</button>` : ''}
+      <div class="at">${tx(c.t)}</div><div class="ab">${c.b}</div>${c.w ? `<div class="aw">${c.w}</div>` : ''}
+    </div>`).join('');
+  return `<div class="sechead"><h2>${tx('今日事项')}</h2></div><div class="acts">${html}</div>`;
+}
+</script>
+<script>
+'use strict';
+/* ---------- 数据变化与预警 ----------
+ * 语义收在「已签之后出问题」：预警回答谁出问题了，不是已签店的待办清单。
+ * 三类真异常逐家列出：渠道回撤（卖过被关） 零上架 已签零单。
+ * 「已签未开通」只出计数不逐行（点击跳名单）：它的落差概览漏斗那一段已经画出来了。
+ * 「待催上架」不作预警类型：门槛放开后多数已签店都会进来，那不叫异常叫名单；
+ *   它已有两个归属地（名单行内标 加 概览缺口行），并由「已签」视角的排序维承接。 */
+function alertsBlock(d) {
+  const ms = d.merchants || [];
+  const sg = ms.filter(m => m.st === 'signed');
+  const hasAfs = ms.some(m => m.afs);
+  const afsBad = hasAfs ? sg.filter(m => m.afs && m.afs.pay >= AFS_MIN_PAY
+    && m.afs.rate >= AFS_RATE && (m.afs.rc + m.afs.rr) >= AFS_MIN_CNT)
+    .sort((a, b) => b.afs.rate - a.afs.rate) : [];
+  const offN = m => (m.dSku || {}).off || 0;
+  const recall = sg.filter(m => offN(m) > 0).sort((a, b) => offN(b) - offN(a));
+  const noList = sg.filter(m => m.dOpen === 1 && !offN(m) && ((m.lst || {}).dsku || 0) === 0).sort((a, b) => (b.o || 0) - (a.o || 0));
+  const zero = sg.filter(m => m.warn === 'zero');
+  const noOpen = sg.filter(m => m.dOpen !== 1);
+  const rows = [];
+  const cell = (m, cls, ic, tag, metric, note) => rows.push([cls, ic,
+    `<b>${esc(m.n)}</b> ${tx(tag)}${metric ? ` · <span class="almx">${metric}</span>` : ''}`,
+    `${esc(tx(m.cat) || m.cat || tx('未分类'))} · ${tx('圈内订单')} ${nf(m.o)} · ${tx(note)}`, m.id]);
+  recall.forEach(m => cell(m, 'red', '⚠', '渠道回撤', `${offN(m)}<span class="g"></span>${tx('SKU 已关')}`, '卖过但渠道已关'));
+  noList.forEach(m => cell(m, 'dn', '◆', '零上架', `0<span class="g"></span>/<span class="g"></span>${(m.lst || {}).sku || 0}<span class="g"></span>SKU`, '已签但一个 SKU 都没上无人机菜单'));
+  zero.forEach(m => cell(m, 'red', '⚠', '已签零单', '', '已签但窗口内零动销 · 优先回访'));
+  afsBad.forEach(m => cell(m, 'red', '⚠', '商责取消',
+    `${m.afs.rate}%<span class="anx"><span class="g"></span>(${m.afs.rc + m.afs.rr}<span class="g"></span>/<span class="g"></span>${nf(m.afs.pay)})</span>`,
+    '商家侧取消占支付单 · 与商家过一遍接单与备货'));
+  const head = `<div class="sechead"><h2>${tx('数据变化与预警')}</h2></div>`;
+  /* 空态分两种：没有可检查的对象，不等于检查过了没问题。 */
+  if (!sg.length) return `<div class="alerts-sec">${head}
+      <div class="ovnote" style="color:var(--mut2)">${tx('本商圈尚无已签商家 · 预警不适用')}</div></div>`;
+  const sums = [
+    ['red', '渠道回撤', recall.length, null, null],
+    ['dn', '零上架', noList.length, null, null],
+    ['red', '已签零单', zero.length, null, null],
+    ['y', '已签未开通', noOpen.length, 'signed', null],
+    ['red', '商责取消', hasAfs ? afsBad.length : null, null, `${tx('商家侧取消 ≥')}${AFS_RATE}% · ${tx('且支付单 ≥')}${AFS_MIN_PAY} · ${tx('取消 ≥')}${AFS_MIN_CNT}`],
+  ];
+  const sumHtml = `<div class="alsum">${sums.map(([c, l, v, go, tip]) => `<div class="alsr${go && v ? ' go' : ''}"${go && v ? ` onclick="setLtab('${go}')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'){setLtab('${go}')}"` : ''}${tip ? ` title="${esc(tip)}"` : ''}>
+      <span class="ai ${c}" style="font-size:8px">●</span><span class="asl">${tx(l)}</span>${v == null
+      ? `<span class="asv na">${tx('待数据')}</span>` : `<span class="asv${v ? '' : ' z'}">${v}</span>`}</div>`).join('')}</div>`;
+  if (!rows.length) return `<div class="alerts-sec">${head}${sumHtml}
+      <div class="ovnote" style="color:var(--mut2)">${tx('已签')} ${sg.length}<span class="g"></span>${tx('家 · 当前无异常')}</div></div>`;
+  const CAP = 8;
+  const more = rows.length > CAP ? `<div class="ovnote" style="color:var(--mut2);margin-top:6px">${tx('还有')} ${rows.length - CAP}<span class="g"></span>${tx('条 · 见名单')}</div>` : '';
+  return `<div class="alerts-sec">${head}${sumHtml}
+    ${rows.slice(0, CAP).map(([cls, ic, main, note, mid]) => `<div class="alrow"><span class="ai ${cls}">${ic}</span><div class="ab">${main}${note ? `<div class="an">${note}</div>` : ''}<button class="albtn" onclick="gotoShop('${mid}')">${tx('查看')}</button></div></div>`).join('')}${more}</div>`;
+}
+/* 预警行 → 「已签」视角定位并展开该店（操作落到看板已有交互，不发明新页面）。 */
+function gotoShop(mid) {
+  ltab = 'signed'; fSt = 'all'; fAct = 'all'; fCat = 'all'; fMCat = 'all';
+  listLimit = 50; listQ = ''; expShop = mid; render();
+  setTimeout(() => { const el = document.querySelector('.prow'); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 50);
+}
+
+/* ---------- 名单 ---------- */
+/* 建议动作：已签回访，签约中跟进，未接触按该品类有没有已签商家分「优先签约」与「品类补充」。 */
+function actKeyOf(m, d) {
+  if (m.st === 'signed') return 'revisit';
+  if (m.st === 'signing') return 'push';
+  const catCnt = d.merchants.filter(x => x.st === 'signed' && x.cat === m.cat).length;
+  return catCnt === 0 ? 'signcat' : 'sign';
+}
+const LTABS = [['today', '今日优先'], ['push', '签约中'], ['signed', '已签'], ['active', '动销'], ['all', '全部'], ['goods', '商品']];
+/* 排序维：订单加 GTV（默认） 订单 GTV 复购 待催 SKU 履约（升序，差在前）。 */
+function applySort(list) {
+  const arr = [...list];
+  if (sortKey === 'o') arr.sort((a, b) => b.o - a.o);
+  else if (sortKey === 'g') arr.sort((a, b) => (b.g || 0) - (a.g || 0));
+  else if (sortKey === 'repeat') arr.sort((a, b) => (b.repeatR || 0) - (a.repeatR || 0));
+  else if (sortKey === 'push') arr.sort((a, b) => {
+    const ua = pushN(a), ub = pushN(b);
+    if (ua !== ub) return ub - ua;
+    return ((b.lst || {}).sku || 0) - ((a.lst || {}).sku || 0);
+  });
+  else if (sortKey === 'fulfill') arr.sort((a, b) => {   /* 履约差在前，空值垫底 */
+    const av = typeof a.fulfill === 'number' ? a.fulfill : 999, bv = typeof b.fulfill === 'number' ? b.fulfill : 999;
+    return av - bv;
+  });
+  else arr.sort((a, b) => (b.o - a.o) || ((b.g || 0) - (a.g || 0)));
+  return arr;
+}
+function listOf(d, key) {
+  const ms = d.merchants;
+  let list;
+  if (key === 'today') {   /* 今日优先 = 未接触与核心商家的交集，无核心标记时退化为全未接触 */
+    const core = ms.filter(m => m.st === 'open' && m.tier === 'core');
+    list = core.length ? core : ms.filter(m => m.st === 'open');
+  }
+  else if (key === 'push') list = ms.filter(m => m.st === 'signing');
+  else if (key === 'signed') list = ms.filter(m => m.st === 'signed');
+  else if (key === 'active') list = ms.filter(m => m.active);
+  else {
+    list = ms;
+    /* 签约状态与商家标签是两个正交维度，各占一列各有各的筛选。
+       并成同一个单选下拉有两个毛病：筛选说二分而徽标说三档，词对不上；
+       单选还意味着两维互斥，筛不出「已签与长尾」这种真实作业口径。
+       只有本视角（全部）两维都在变，故只有这里给这两个筛选。 */
+    if (fSt !== 'all') list = list.filter(m => m.st === fSt);
+    if (fQual !== 'all') list = list.filter(m => (m.tier || 'tail') === fQual);
+    if (fAct !== 'all') list = list.filter(m => actKeyOf(m, d) === fAct);
+  }
+  if (fMCat !== 'all') list = list.filter(m => (m.cat || '未分类') === fMCat);
+  return applySort(list);
+}
+const moreBar = (total, shown) => shown < total
+  ? `<div class="morebar"><span class="mnote">${shown}<span class="g"></span>/<span class="g"></span>${total}</span><button onclick="moreRows(50)">${tx('显示更多')} +50</button><button onclick="moreRows(1e9)">${tx('显示全部')} ${total}</button></div>` : '';
+const searchBox = () => `<input class="lsearch" placeholder="${tx('搜索')}" aria-label="${tx('搜索')}" value="${esc(listQ)}" onchange="setQ(this.value)" onclick="event.stopPropagation()">`;
+/* 商品视角：从「缺什么品」反查「谁能补」。订单降序，品类筛选，供给状态。 */
+function goodsView(d) {
+  const catOf = p => p.cat || '未分类';
+  let items = [...(d.products || [])];
+  const cats = [...new Set(items.map(catOf))].sort((a, b) => String(a).localeCompare(b));
+  if (fCat !== 'all') items = items.filter(p => catOf(p) === fCat);
+  items.sort((a, b) => (b.o || 0) - (a.o || 0));
+  const thCat = `<select class="thsel ${fCat !== 'all' ? 'on' : ''}" aria-label="${tx('品类')}" onchange="setFilter('fCat',this.value)" onclick="event.stopPropagation()">
+      <option value="all" ${fCat === 'all' ? 'selected' : ''}>${tx('品类')}</option>
+      ${cats.map(c => `<option value="${esc(c)}" ${fCat === c ? 'selected' : ''}>${esc(tx(c) || c)}</option>`).join('')}</select>`;
+  const sup = p => p.ok ? `<span class="st signed">${tx('已覆盖')}</span>` : `<span class="st open">${tx('无供给')}</span>`;
+  if (listQ) { const ql = listQ.toLowerCase(); items = items.filter(p => `${p.n} ${p.shop}`.toLowerCase().includes(ql)); }
+  const shown = items.slice(0, listLimit);
+  if (!shown.length) return `<div class="emptyst"><b>${tx('无匹配结果')}</b><span>${tx('换个视角或清除搜索与筛选')}</span>${listQ ? `<button class="emptybtn" onclick="setQ('')">${tx('清除搜索')}</button>` : ''}</div>`;
+  return `<div class="tblwrap"><table>
+      <tr><th></th><th>${tx('商品')}</th><th>${thCat}</th><th>${tx('商家')}</th><th class="num">${tx('圈内订单')}</th><th class="num">${tx('分位')}</th><th title="${tx('已覆盖=该商品所在商家已签约')}">${tx('供给')}</th></tr>
+      ${shown.map((p, i) => `<tr><td class="rank">${i + 1}</td><td><b>${esc(p.n)}</b><span style="color:var(--mut2);font-size:var(--fs-micro)"> #${p._rank || '—'}</span></td><td>${esc(tx(catOf(p)) || catOf(p))}</td><td>${esc(p.shop)}</td><td class="num">${nf(p.o)}</td><td class="num">P${p.pp}</td><td>${sup(p)}</td></tr>`).join('')}
+    </table></div>${moreBar(items.length, shown.length)}
+    <div class="ovnote">${tx('商品=店内高销品 · 品类=商家主品类 · 与商家名单行内展开同源')}</div>`;
+}
+</script>
+<script>
+'use strict';
+function listView(d) {
+  let list = listOf(d, ltab);
+  const actOf = m => {
+    const k = actKeyOf(m, d);
+    if (k === 'revisit') return `<span class="act">${tx('回访动销')}</span>`;
+    if (k === 'push') return `<span class="act"><b class="apush">${tx('跟进落地')}</b></span>`;
+    return `<span class="act"><b>${tx('优先签约')}</b>${k === 'signcat' ? ' · ' + tx('品类补充') : ''}</span>`;
+  };
+  const thSel = (k, cur, opts) => `<select class="thsel ${cur !== 'all' ? 'on' : ''}" aria-label="${tx(opts[0][1])}" onchange="setFilter('${k}',this.value)" onclick="event.stopPropagation()">
+      ${opts.map(([v, lbl]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${tx(lbl)}</option>`).join('')}</select>`;
+  /* 状态列只在「全部」视角出现：其余视角的状态由 tab 本身决定，整列同一个值，逐行再印一遍是纯噪声。
+     那些视角只留右边的商家标签列。 */
+  const showSt = ltab === 'all';
+  const thSt = showSt ? `<th>${thSel('fSt', fSt, [['all', '签约状态'], ['open', '未接触'], ['signing', '签约中'], ['signed', '已签']])}</th>` : '';
+  const tdSt = m => showSt
+    ? `<td><span class="st ${m.st}">${tx(m.st === 'signed' ? '已签' : m.st === 'signing' ? '签约中' : '未接触')}</span></td>` : '';
+  const thQual = showSt
+    ? thSel('fQual', fQual, [['all', '商家标签'], ['core', '核心'], ['quota', '配额'], ['tail', '长尾']])
+    : tx('商家标签');
+  const thAct = showSt
+    ? thSel('fAct', fAct, [['all', '建议动作'], ['sign', '优先签约'], ['signcat', '品类补充'], ['push', '跟进落地'], ['revisit', '回访动销']])
+    : tx('建议动作');
+  const cnt = k => k === 'all' ? d.merchants.length : k === 'goods' ? (d.products || []).length : listOf(d, k).length;
+  const tabs = LTABS.map(([k, lbl]) =>
+    `${k === 'goods' ? '<span class="tsep"></span>' : ''}<button class="${ltab === k ? 'on' : ''}" aria-pressed="${ltab === k}" onclick="setLtab('${k}')">${tx(lbl)} <span class="cnt">${cnt(k)}</span></button>`).join('');
+  if (ltab === 'goods') return `<div class="ltabs">${tabs}${searchBox()}</div>${goodsView(d)}`;
+  const SORTS = [['og', '订单+GTV'], ['o', '订单'], ['g', 'GTV'], ['repeat', '复购'], ['push', '待催 SKU'], ['fulfill', '履约（差在前）']];
+  const sortSel = `<div class="lsort">${tx('排序')} <select class="sortsel" aria-label="${tx('排序')}" onchange="setSort(this.value)">
+      ${SORTS.map(([v, lbl]) => `<option value="${v}" ${sortKey === v ? 'selected' : ''}>${tx(lbl)}</option>`).join('')}</select></div>`;
+  /* 行内标：动销 已签零单 催上架 所属商圈。催上架是本页最强的作业信号，收起态即可见。 */
+  const marks = m => {
+    let s = m.active ? `<span class="actv">${tx('动销')}</span>` : '';
+    if (m.warn === 'zero') s += `<span class="gapb">${tx('已签零单')}</span>`;
+    const ut = pushN(m);
+    if (ut) s += `<span class="pushb">${tx('催上架')}<span class="g"></span>${ut}</span>`;
+    if (m._z) s += `<span class="zb">${esc(m._z)}</span>`;
+    return s;
+  };
+  const chev = m => (d.byShop[String(m.n || '').toLowerCase()] || []).length
+    ? `<button class="pxp ${expShop === m.id ? 'on' : ''}" aria-expanded="${expShop === m.id}" onclick="toggleShopRow('${m.id}')" title="${tx('高销品')}">${expShop === m.id ? '▾' : '▸'}</button>` : '';
+  /* 行内展开：该店高销品全量加覆盖小结。未签店的「缺口」= 签它才能独家补上的高销品（谈判要点）；
+     已签店改无人机口径打标：动销 已上架 未上架三态，动销但当前无任一上架 SKU 记「渠道已关」。 */
+  const prow = (m, span) => {
+    if (expShop !== m.id) return '';
+    const st = shopHiOf(d, m);
+    const ps = st.all;
+    if (!ps.length) return '';
+    const cap = 20, shownP = ps.slice(0, cap);
+    let head, chips;
+    if (m.st === 'signed') {
+      const lst = m.lst || {}, off = (m.dSku || {}).off || 0;
+      const drone = lst.sku
+        ? ` · ${tx('已上架')} <b>${st.lst}</b><span class="g"></span>/<span class="g"></span>${st.hi}<span class="pnote2">（${pctOf(st.lst, st.hi).toFixed(1)}%）</span>`
+        : '';
+      head = `<div class="psum">${tx('店内高销品')} <b>${ps.length}</b>${drone}${ps.length > shownP.length ? ` · ${tx('显示前')} ${shownP.length}` : ''}</div>`;
+      chips = shownP.map(p => {
+        let tag = '', miss = '', tip = '';
+        if (p.moving && !p.listed) { tag = ` <span class="pp" style="color:var(--blockText)">${tx('动销 · 渠道已关')}</span>`; tip = ` title="${tx('卖过无人机单但当前渠道已关')}"`; }
+        else if (p.moving) tag = ` <span class="pp" style="color:var(--doneSoft)">${tx('动销')}</span>`;
+        else if (p.listed) tag = ` <span class="pp">${tx('已上架')}</span>`;
+        else { tag = ` <span class="pp">${tx('未上架')}</span>`; miss = ' miss'; }
+        return `<span class="pchip${miss}"${tip}><b>#${p._rank}</b> ${esc(p.n)} · ${nf(p.o)}<span class="g"></span>${tx('单')}${tag}</span>`;
+      }).join('');
+      void off;
+    } else {
+      const gapN = ps.length - st.cov;
+      head = `<div class="psum">${tx('店内高销品')} <b>${ps.length}</b> · ${tx('圈内已覆盖')} <b style="color:var(--doneSoft)">${st.cov}</b>${gapN ? ` · ${tx('缺口')} <b style="color:var(--blockText)">${gapN}</b> <span class="pnote2">${tx('缺口=签下该店独家补上的高销品')}</span>` : ''}${ps.length > shownP.length ? ` · ${tx('显示前')} ${shownP.length}` : ''}</div>`;
+      chips = shownP.map(p => {
+        const cov = d.covSet.has(String(p.n).toLowerCase());
+        return `<span class="pchip ${cov ? '' : 'miss'}" title="${cov ? tx('圈内已有已签商家在售同名商品（同名视作同品）') : tx('圈内尚无已签商家在售，签下该店即独家补上')}"><b>#${p._rank}</b> ${esc(p.n)} · ${nf(p.o)}<span class="g"></span>${tx('单')} <span class="pp">${cov ? tx('已覆盖') : tx('缺口')}</span></span>`;
+      }).join('');
+    }
+    return `<tr class="prow"><td colspan="${span}">${head}<div class="plist">${chips}</div></td></tr>`;
+  };
+  /* 品类筛选下拉：选项 = 名单品类全集，六个视角都有。 */
+  const mcats = [...new Set(d.merchants.map(m => m.cat || '未分类'))].sort((a, b) => String(a).localeCompare(b));
+  const thMCat = `<select class="thsel ${fMCat !== 'all' ? 'on' : ''}" aria-label="${tx('品类')}" onchange="setFilter('fMCat',this.value)" onclick="event.stopPropagation()">
+      <option value="all" ${fMCat === 'all' ? 'selected' : ''}>${tx('品类')}</option>
+      ${mcats.map(c => `<option value="${esc(c)}" ${fMCat === c ? 'selected' : ''}>${esc(tx(c) || c)}</option>`).join('')}</select>`;
+  /* 已签视角多一列「高销品」：该店在售的 ≥80 分位高销品数，百分比 = 占圈内高销品的覆盖贡献。 */
+  const showHi = ltab === 'signed';
+  const hiTot = (d.pcov && d.pcov.levels && d.pcov.levels['80']) ? d.pcov.levels['80'].tot : 0;
+  const thHi = showHi ? `<th class="num" title="${tx('该商家在售的 ≥80 分位高销品数')} · ${tx('百分比=占圈内高销品的覆盖贡献')}">${tx('高销品')}</th>` : '';
+  const tdHi = m => { if (!showHi) return ''; const n = shopHiOf(d, m).hi; return `<td class="num">${nf(n)}${hiTot && n ? `<span style="color:var(--mut2);font-size:var(--fs-micro)"> · ${(n / hiTot * 100).toFixed(1)}%</span>` : ''}</td>`; };
+  /* 列数：全部视角比其余视角多一列（状态与标签拆开），展开的商品行要跟着 colspan。 */
+  const nCols = (showHi ? 8 : 7) + (showSt ? 1 : 0);
+  /* 档位判定只此一处（筛选与徽标共用），否则筛出来的行和它身上的标又会对不上。 */
+  const qbTitle = { core: '核心=按圈内订单降序累计份额达 80% 前的头部商家，符合建议名单',
+                    quota: '配额=品类结构补位名单（核心之外按品类份额推荐），符合建议名单',
+                    tail: '长尾=不在当前建议名单（核心与配额）内，作参考而非否定' };
+  const qbCls = { core: 'qcore', quota: 'qquota', tail: 'qoff' };
+  const qbTxt = { core: '核心', quota: '配额', tail: '长尾' };
+  /* 长尾在无筛选的全量视角下会满屏都是标签，是噪声，故默认只显核心与配额；
+     一旦按标签筛选（此时「为什么这行在这里」必须看得见），整列都显示，包括长尾。 */
+  const qBadge = m => {
+    const t = m.tier || 'tail';
+    if (t === 'tail' && fQual === 'all' && m.st !== 'signed') return '';
+    return `<span class="qb ${qbCls[t]}" title="${tx(qbTitle[t])}">${tx(qbTxt[t])}</span>`;
+  };
+  if (listQ) { const ql = listQ.toLowerCase(); list = list.filter(m => String(m.n).toLowerCase().includes(ql)); }
+  const shown = list.slice(0, listLimit);
+  if (!shown.length) return `<div class="ltabs">${tabs}${searchBox()}${sortSel}</div>
+    <div class="emptyst"><b>${tx('无匹配结果')}</b><span>${tx('换个视角或清除搜索与筛选')}</span>${listQ ? `<button class="emptybtn" onclick="setQ('')">${tx('清除搜索')}</button>` : ''}</div>`;
+  return `<div class="ltabs">${tabs}${searchBox()}${sortSel}</div>
+    <div class="tblwrap"><table>
+      <tr><th></th><th>${tx('商家')}</th><th>${thMCat}</th><th class="num">${tx('圈内订单')}</th><th class="num">GTV</th>${thHi}${thSt}<th>${thQual}</th><th>${thAct}</th></tr>
+      ${shown.map((m, i) => `<tr><td class="rank">${i + 1}</td><td class="mname" title="${esc(m.n)}"><span class="mcell">${chev(m)}<b>${esc(m.n)}</b>${marks(m)}</span></td><td>${m.cat ? esc(tx(m.cat) || m.cat) : '—'}</td><td class="num">${nf(m.o)}</td><td class="num">${money(m.g || 0)}</td>${tdHi(m)}${tdSt(m)}<td>${qBadge(m)}</td><td>${actOf(m)}</td></tr>${prow(m, nCols)}`).join('')}
+    </table></div>${moreBar(list.length, shown.length)}`;
+}
+
+/* ---------- 底部助手栏（常驻两视图） ---------- */
+const PROMPTS = [
+  { q: '今天我该优先拜访哪些商家？', d: '按转正贡献排序的未签商家名单' },
+  { q: '还有哪些高销商家没签？', d: '带订单量与 GTV 的建议名单' },
+  { q: '哪些高销品还没上架？', d: '催上架与催开通的作业动线' },
+  { q: '帮我出这家商家的洽谈要点', d: '洽谈案与机会点话术方向' },
+  { q: '商品覆盖还缺哪些品类？', d: '高销品覆盖缺口清单' },
+  { q: '离转正还差多少单？', d: '保本线与缺口（与经营工具同源）' },
+  { q: '已签商家最近有什么异常变化？', d: '签约趋势与预警' },
+];
+function promptBar() {
+  const chips = PROMPTS.map(p =>
+    `<button class="pc" title="${esc(tx(p.d))} · ${tx('复制提示词')}" onclick="copyPrompt('${esc(tx(p.q)).replace(/'/g, '')}')">❯ ${tx(p.q)}</button>`).join('');
+  $('pbar').innerHTML = `<span class="plab">${tx('问业务助手')}</span><div class="pchips">${chips}</div><span class="pnote">${tx('复制后粘贴到业务助手')}</span>`;
+  fitBarPad(); fitSticky();
+}
+function copyPrompt(q) {
+  /* 复制文案带当前商圈名：不同商圈复制即不同问句，助手按圈作答。 */
+  const zn = unit === 'all' ? tx('全部商圈') : zShort(uName(unit));
+  const text = LANG === 'en' ? `[${zn}] ${q}` : `【${zn}】${q}`;
+  const done = () => {
+    const t = $('toast'); t.textContent = tx('已复制，粘贴给业务助手提问');
+    t.classList.remove('err'); t.classList.add('ok', 'show');
+    setTimeout(() => t.classList.remove('show'), 2600);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, done);
+  else { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) { } ta.remove(); done(); }
+}
+/* 降级态：该商圈尚无名单明细（与真实数据现状一致，演示时顺带讲清数据边界）。 */
+function nodata(d) {
+  const cnt = d.signed != null ? `${tx('已签')} ${d.signed} · ${tx('签约中')} ${d.signing}` : '';
+  return `<div class="nodata"><b>${tx('该商圈尚未接入名单明细')}</b>${cnt ? `<div class="mono" style="margin-top:8px;color:var(--mut)">${cnt}</div>` : ''}
+    <div class="why">${tx('当前仅商圈级签约计数可用，商家与商品明细待数据侧供给')}</div></div>`;
+}
+</script>
+<script>
+'use strict';
+/* ---------- 经营概览 = 跨商圈管理汇报（全宽多段 图表前置 跨商圈聚合） ---------- */
+const ovHead = (t, sub) => `<div class="sechead"><h2>${tx(t)}</h2>${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+
+/* 顶部 KPI 条：当前焦点范围的合计，核心信息一眼。 */
+function ovKpiStrip(T, goalPct, totalTgt) {
+  const box = (v, l, cls) => `<div class="kbox ${cls || ''}"><div class="kv">${nf(v)}</div><div class="kl">${tx(l)}</div></div>`;
+  const bullet = (goalPct != null && totalTgt) ? `<div class="blt"><span class="bltl">${tx('目标达成')}</span><div class="bltt"><i style="width:${Math.min(100, Math.max(1, goalPct))}%"></i><div class="bltmark"></div></div><span class="bltv"><b>${nf(T.signed)}</b><span style="color:var(--mut2)"> / ${nf(totalTgt)} · ${goalPct}%</span></span></div>` : '';
+  return `<div class="sec"><div class="sechead"><h2>${tx('跨商圈总览')}</h2><span class="sub">${tx('全商圈合计 · 每日播报口径')}</span></div>
+    <div class="kpirow" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">${box(T.signed, '已签', 'ksg')}${box(T.signing, '签约中', 'ksi')}${box(T.open, '待接触')}${box(T.total, '商家合计')}</div>${bullet}</div>`;
+}
+
+/* 签约转化漏斗：商家池 → 已签 → 已开通 → 动销，全部商家维（勿混 SKU 或商品维，量级差两个数量级）。
+ * 梯形按固定坡度等比收窄，不按数据比例缩宽——数据悬殊时按比例画会塌成一条线。
+ * 层色沿用同屏既有语义（池灰 已签绿 动销橙），中间态用绿系连续的 --funF3。 */
+function ovFunnelAgg() {
+  const keys = ovKeys();
+  const sum = k => keys.reduce((a, u) => a + ((rawUnit(u) || {})[k] || 0), 0);
+  const steps = [
+    [tx('商家池'), sum('shops'), 1],
+    [tx('已签'), sum('signed'), 2],
+    [tx('已开通'), sum('opened'), 3],
+    [tx('动销'), sum('active'), 4],
+  ];
+  const wTop = 92, wBot = 58, n = steps.length, top = steps[0][1] || 0;
+  const rows = steps.map(([lbl, v, k], i) => {
+    const wt = wTop - (wTop - wBot) * i / n, wb = wTop - (wTop - wBot) * (i + 1) / n;
+    const tL = ((100 - wt) / 2).toFixed(1), bL = ((100 - wb) / 2).toFixed(1);
+    const share = top ? (v / top * 100) : null;
+    return `<div class="funrow"><div class="funseg"><div class="funtrap" style="background:var(--funF${k});clip-path:polygon(${tL}% 0,${100 - tL}% 0,${100 - bL}% 100%,${bL}% 100%)"></div>
+      <span class="funlbl" style="color:var(--funC${k})">${lbl}<b>${nf(v)}</b>${share != null ? `<small>${share < 10 ? share.toFixed(1) : Math.round(share)}%</small>` : ''}</span></div></div>`;
+  }).join('');
+  const convs = steps.slice(1).map(([, v], i) => {
+    const prev = steps[i][1];
+    const c = prev ? v / prev * 100 : null;
+    return `<div class="funcv"><span class="arw">→</span><b>${c == null ? '—' : (c < 10 ? c.toFixed(1) : Math.round(c)) + '%'}</b></div>`;
+  }).join('');
+  return `<div class="card pcard"><div class="funwrap"><div class="funnel">${rows}</div>
+    <div class="funcvc"><div class="funcvh">${tx('转化率')}</div>${convs}</div></div></div>`;
+}
+
+/* 签约变化趋势。数据只有一条真序列：逐日乘商圈的已签存量与签约中存量。
+ * 参考做法里的三个特征刻意不照搬，逐条有据：
+ * ▸ 按日按周按月不做：原生粒度只有日；且存量只能取期末、流量必须求和，一个控件下藏两套聚合规则是错误高发点。
+ * ▸ 双轴不做：另一条序列在本项目无逐日口径，照搬即臆造。
+ * ▸ 平滑曲线必须撤：存量是阶梯量，样条会在两端点同值的区间造出数据里没有的形态。改阶梯线，它就是存量的真实语义。
+ * 新签是离散事件，用事件标记而非折线；窗口天数由数据派生，不写死。 */
+function ovTrend(bare) {
+  const rows = trendRows();
+  if (!rows.length) return '';
+  const nd = rows.length;
+  const tot = i => rows[i].sg;
+  const newAt = i => i === 0 ? 0 : Math.max(0, rows[i].sg - rows[i - 1].sg);
+  const newTot = rows.reduce((a, r, i) => a + newAt(i), 0);
+  const vals = rows.map((r, i) => tot(i));
+  const maxT = Math.max.apply(null, vals) || 1, minT = Math.min.apply(null, vals);
+  const fmtD = s => s.slice(5);
+  /* 空态判据必须同时看存量与在途：只看存量会把「存量没动但在途有变化」误判为无变化。 */
+  const flat = newTot === 0 && new Set(vals).size === 1 && new Set(rows.map(r => r.si)).size === 1;
+  const span = (maxT - minT) || 1, W = 100, H = 30, H2 = 177;
+  const xAt = i => nd > 1 ? i / (nd - 1) * W : 0;
+  const yAt = v => H - (v - minT) / span * (H - 5) - 2.5;
+  const pts = rows.map((r, i) => [xAt(i), yAt(tot(i))]);
+  /* 阶梯线：值在采样点处跳变，平台段保持水平，不造中间态。 */
+  const stepPath = ps => {
+    if (!ps.length) return '';
+    let s = `M${ps[0][0].toFixed(1)},${ps[0][1].toFixed(1)}`;
+    for (let i = 1; i < ps.length; i++) s += `L${ps[i][0].toFixed(1)},${ps[i - 1][1].toFixed(1)}L${ps[i][0].toFixed(1)},${ps[i][1].toFixed(1)}`;
+    return s;
+  };
+  const curve = stepPath(pts);
+  const spark = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" width="100%" height="${H2}" style="display:block" aria-hidden="true">
+      <defs><linearGradient id="tgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--y)"/><stop offset="1" stop-color="var(--y)" stop-opacity="0"/></linearGradient></defs>
+      <path d="${curve} L${W},${H} L0,${H} Z" fill="url(#tgrad)" opacity="0.16"/>
+      <path d="${curve}" fill="none" stroke="var(--y)" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="miter" stroke-linecap="butt"/>
+    </svg>`;
+  const marks = rows.map((r, i) => {
+    const n = newAt(i); if (!n) return '';
+    return `<div class="trmk" style="left:${(xAt(i) / W * 100).toFixed(1)}%"><span class="trmv">+${n}</span><i></i></div>`;
+  }).join('');
+  const lp = pts[pts.length - 1] || [0, 0];
+  const dotL = (lp[0] / W * 100).toFixed(1), dotT = (lp[1] / H * H2).toFixed(1);
+  const sparkBox = `<div class="sparkwrap" style="height:${H2}px">${spark}${marks}
+    <div class="sparkdot" style="left:calc(${dotL}% - 4px);top:calc(${dotT}px - 4px)"></div>
+    <span class="trcur" style="top:calc(${dotT}px - 20px)">${nf(vals[nd - 1])}</span></div>`;
+  const xax = `<div class="trx"><span>${fmtD(rows[0].d)}</span>${nd > 2 ? `<span>${fmtD(rows[Math.floor((nd - 1) / 2)].d)}</span>` : ''}<span>${fmtD(rows[nd - 1].d)}</span></div>`;
+  /* 窗口天数由数据派生，写死会在下次拉数时变成错的。 */
+  const head = ovHead('签约变化趋势', `${tx('计数口径=签约名单')} · ${tx('窗口')} ${nd}<span class="g"></span>${tx('天')} · ${tx('新签')} <b style="color:var(--txt)">${newTot}</b><span class="g"></span>${tx('家')} · ${tx('存量')} <b style="color:var(--txt)">${minT}→${maxT}</b>`);
+  const body = flat
+    ? `<div class="trempty"><b>${tx('窗口内签约无变化')}</b><div>${tx('存量已签')} ${maxT}<span class="g"></span>${tx('家')} · ${tx('在途')} ${rows[nd - 1].si}<span class="g"></span>${tx('家')} · ${tx('近')} ${nd}<span class="g"></span>${tx('天无新签落地')}</div></div>`
+    : `${sparkBox}${xax}`;
+  const card = `<div class="card pcard">${body}<div class="pleg tleg"><span class="trlg"><i class="ln"></i>${tx('存量已签')}</span><span class="trlg"><i class="mk"></i>${tx('新签事件')}</span>
+    <span style="color:var(--mut2);margin-left:auto">${rows[0].d}<span class="g"></span>→<span class="g"></span>${rows[nd - 1].d}</span></div></div>`;
+  return bare ? `<div class="ovcol">${head}${card}</div>` : `<div class="sec">${head}${card}</div>`;
+}
+
+/* 商圈迷你分布图：各商圈按自身坐标投影落位，气泡大小 = 商家数，色深 = 签约率（相对最强圈归一）。
+ * 底图是生成的抽象场域（网格加密度晕），不描摹任何真实地理。
+ * 这块始终画全部商圈做对比，只把当前焦点高亮，故不随左栏过滤掉其他圈。 */
+function ovZoneGeo(bare) {
+  const zones = (((DATA || {}).ov) || {}).zones || [];
+  if (!zones.length) return '';
+  const lats = zones.map(z => z.lat), lngs = zones.map(z => z.lng);
+  const pad = 0.02;
+  const latMin = Math.min.apply(null, lats) - pad, latMax = Math.max.apply(null, lats) + pad;
+  const lngMin = Math.min.apply(null, lngs) - pad, lngMax = Math.max.apply(null, lngs) + pad;
+  const px = lng => 10 + (lng - lngMin) / ((lngMax - lngMin) || 1) * 80;
+  const py = lat => 14 + (latMax - lat) / ((latMax - latMin) || 1) * 70;
+  const maxTot = Math.max.apply(null, zones.map(z => z.shops)) || 1;
+  const maxRate = Math.max.apply(null, zones.map(z => z.rate)) || 1;
+  const bubbles = zones.map(z => {
+    const x = px(z.lng).toFixed(1), y = py(z.lat).toFixed(1);
+    const pv = Math.round(z.rate * 100);
+    const dm = Math.round(24 + Math.sqrt(z.shops / maxTot) * 42);
+    const inten = Math.round(z.rate / maxRate * 100);
+    const bg = `color-mix(in srgb, var(--mixHi) ${inten}%, var(--mixLo))`;
+    const cur = ovUnit === z.id, dim = ovUnit !== 'all' && !cur;
+    return `<div class="geobub${cur ? ' cur' : ''}${dim ? ' dim' : ''}" role="button" tabindex="0" onclick="setOvUnit('${z.id}')" onkeydown="if(event.key==='Enter'){setOvUnit('${z.id}')}" style="left:${x}%;top:${y}%;width:${dm}px;height:${dm}px;background:${bg};border-color:${cur ? 'var(--y)' : (z.rate > 0.001 ? 'color-mix(in srgb,var(--done) 55%,transparent)' : 'var(--bubEdge)')}" title="${esc(zShort(z.nm))} · ${tx('已签')} ${z.signed}/${z.shops} · ${pv}%"><span class="geoval">${pv}%</span></div><div class="geolbl${cur ? ' cur' : ''}${dim ? ' dim' : ''}" style="left:${x}%;top:calc(${y}% + ${Math.round(dm / 2 + 6)}px)">${esc(zShort(z.nm))}</div>`;
+  }).join('');
+  let note = '';
+  const cur = ovUnit !== 'all' ? zones.find(z => z.id === ovUnit) : null;
+  if (cur) {
+    const h = healthOf([ovUnit]);
+    note = `<div class="ovnote"><b style="color:var(--txt)">${esc(zShort(cur.nm))}</b> · ${tx('已签')} ${cur.signed}/${cur.shops} <span style="color:var(--done)">${Math.round(cur.rate * 100)}%</span> · ${tx('动销率')} ${h ? h.activeRate.toFixed(0) + '%' : '—'}</div>`;
+  }
+  /* 抽象底图：等距网格加每个商圈的密度晕，过高斯模糊后得到场的观感，不是任何真实地形。 */
+  const glow = zones.map(z => `<circle cx="${px(z.lng).toFixed(1)}" cy="${py(z.lat).toFixed(1)}" r="${(8 + Math.sqrt(z.shops / maxTot) * 12).toFixed(1)}" fill="var(--geoLine)" opacity="0.5"/>`).join('');
+  const grid = Array.from({ length: 9 }, (_, i) => {
+    const v = (i + 1) * 10;
+    return `<line x1="${v}" y1="0" x2="${v}" y2="100" stroke="var(--geoLine)" stroke-width=".25" opacity=".5"/><line x1="0" y1="${v}" x2="100" y2="${v}" stroke="var(--geoLine)" stroke-width=".25" opacity=".5"/>`;
+  }).join('');
+  const geoBase = `<svg class="geobase" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <defs><filter id="heatBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.2"/></filter></defs>
+      <rect x="0" y="0" width="100" height="100" fill="var(--geoBg)"/>
+      <g filter="url(#heatBlur)">${glow}</g>${grid}
+    </svg>`;
+  const head = ovHead('各商圈签约率', tx('气泡=商家数 · 色深=签约率 · 位置按商圈坐标投影'));
+  const card = `<div class="card pcard"><div class="geomap">${geoBase}${bubbles}</div>${note}</div>`;
+  return bare ? `<div class="ovcol">${head}${card}</div>` : `<div class="sec">${head}${card}</div>`;
+}
+</script>
+<script>
+'use strict';
+/* squarified treemap 布局：items=[{v,...}]，返回带 {x,y,w,h}（坐标空间 W×H）。 */
+function ovSquarify(items, W, H) {
+  const nodes = items.map(o => Object.assign({}, o));
+  const totalV = nodes.reduce((a, n) => a + n.v, 0) || 1;
+  const scale = (W * H) / totalV;
+  nodes.forEach(n => n._a = Math.max(1e-6, n.v * scale));
+  const result = [];
+  let x = 0, y = 0, w = W, h = H, i = 0, row = [];
+  const rowArea = r => r.reduce((a, n) => a + n._a, 0);
+  const worst = (r, side) => { if (!r.length) return Infinity; const s = rowArea(r), mx = Math.max.apply(null, r.map(n => n._a)), mn = Math.min.apply(null, r.map(n => n._a)); return Math.max((side * side * mx) / (s * s), (s * s) / (side * side * mn)); };
+  function layout(r) {
+    const s = rowArea(r);
+    if (w >= h) { const sw = s / h; let oy = y; r.forEach(n => { const nh = n._a / sw; result.push(Object.assign({}, n, { x, y: oy, w: sw, h: nh })); oy += nh; }); x += sw; w -= sw; }
+    else { const sh = s / w; let ox = x; r.forEach(n => { const nw = n._a / sh; result.push(Object.assign({}, n, { x: ox, y, w: nw, h: sh })); ox += nw; }); y += sh; h -= sh; }
+  }
+  while (i < nodes.length) {
+    const side = Math.min(w, h);
+    if (!row.length || worst(row.concat(nodes[i]), side) <= worst(row, side)) { row.push(nodes[i]); i++; }
+    else { layout(row); row = []; }
+  }
+  if (row.length) layout(row);
+  return result;
+}
+/* 品类构成树图：面积 = 该品类商家总量，色深 = 签约占比（按当前视图最大占比归一）。
+   归一是必须的：真实占比只到一两成，直接当混色比例等于只用了色带前五分之一，八块肉眼同色。 */
+function ovCatAgg() {
+  const agg = {}, keys = ovKeys();
+  keys.forEach(u => {
+    const d = rawUnit(u); if (!d) return;
+    (d.catMatrix || []).forEach(c => {
+      const a = agg[c.cat] = agg[c.cat] || { signed: 0, signing: 0, open: 0 };
+      a.signed += c.signed; a.signing += c.signing; a.open += c.open;
+    });
+  });
+  const cats = Object.keys(agg).map(cat => ({ cat, s: agg[cat].signed, si: agg[cat].signing, o: agg[cat].open, tot: agg[cat].signed + agg[cat].signing + agg[cat].open }))
+    .sort((a, b) => b.tot - a.tot).slice(0, 8);
+  if (!cats.length) return `<div class="card pcard"><div class="ovnote">${tx('待数据')}</div></div>`;
+  const AR = 1.6;   /* 传给 squarify 的容器宽高比，与 .tmap 实测比例一致，错了首块会被切成竖条 */
+  const CW = 380, CH = 250;   /* CH 跟随 .tmap 高度，改 CSS 高度须同步改这里 */
+  /* fits()：这块放不放得下标签。按标签实际所需折算而非纯几何阈值，
+     否则长标签会被裁字。渲染期拿不到真实像素，故用字宽估算，偏保守只会多并一块进「其他」。 */
+  const txtW = s => [...String(s)].reduce((w, c) => w + (/[　-鿿＀-￯]/.test(c) ? 11 : 6.6), 0);
+  const fits = r => {
+    const need = Math.max(txtW(tx(r.cat) || r.cat), txtW(`${r.s}/${r.tot}${r._mg ? ` · ${r._mg.length} ${tx('类')}` : ''}`) * .92);
+    return (r.w / AR) * CW >= need + 16 && (r.h * CH) >= 42;
+  };
+  /* 尾部合并：商圈越小尾部品类越碎，被切成挂不住标签的窄条。
+     从 8 起逐档降，每档把尾部并成「其他」，取所有块都放得下标签的最大档；并入清单挂 title，不做静默合并。 */
+  const mkList = k => {
+    if (k >= cats.length) return cats.slice();
+    const tail = cats.slice(k - 1);
+    const t = tail.reduce((a, c) => ({ s: a.s + c.s, si: a.si + c.si, o: a.o + c.o, tot: a.tot + c.tot }), { s: 0, si: 0, o: 0, tot: 0 });
+    return cats.slice(0, k - 1).concat([{ cat: '其他', s: t.s, si: t.si, o: t.o, tot: t.tot, _mg: tail.map(x => x.cat) }]);
+  };
+  let list = cats, rects = ovSquarify(cats.map(c => Object.assign({}, c, { v: c.tot })), AR, 1);
+  for (let k = cats.length; k >= 3; k--) {
+    const cand = mkList(k), rc = ovSquarify(cand.map(c => Object.assign({}, c, { v: c.tot })), AR, 1);
+    if (rc.every(fits) || k === 3) { list = cand; rects = rc; break; }
+  }
+  void list;
+  const maxShare = Math.max.apply(null, rects.map(r => (r.tot ? r.s / r.tot : 0))) || 1;
+  const tiles = rects.map(r => {
+    const share = r.tot ? Math.round(r.s / r.tot * 100) : 0;
+    const bg = `color-mix(in srgb, var(--mixHi) ${Math.round((r.tot ? r.s / r.tot : 0) / maxShare * 100)}%, var(--mixLo))`;
+    const mg = r._mg;
+    const ttl = `${mg ? tx('其他') + ' · ' + mg.map(c => tx(c) || c).join(' · ') : (tx(r.cat) || r.cat)} · ${tx('已签')} ${r.s}/${r.tot} · ${share}%`;
+    const lbl = mg ? tx('其他') : (tx(r.cat) || r.cat);
+    const val = mg ? `${r.s}/${r.tot} · ${mg.length} ${tx('类')}` : `${r.s}/${r.tot}`;
+    return `<div class="tmtile" style="left:${(r.x / AR * 100).toFixed(2)}%;top:${(r.y * 100).toFixed(2)}%;width:${(r.w / AR * 100).toFixed(2)}%;height:${(r.h * 100).toFixed(2)}%;background:${bg}" title="${esc(ttl)}">${fits(r) ? `<div class="tmlbl">${esc(lbl)}</div><div class="tmv">${esc(val)}</div>` : ''}</div>`;
+  }).join('');
+  return `<div class="card pcard"><div class="tmap">${tiles}</div></div>`;
+}
+
+/* 签约后经营：左卡数动销（店 订单 SKU）加待催上架缺口行，右卡三个健康度环。 */
+function ovActivation() {
+  const keys = ovKeys();
+  const single = ovUnit !== 'all';
+  const a = droneAgg(keys);
+  const h = healthOf(keys) || {};
+  const pct = v => v == null ? '—' : v.toFixed(0) + '%';
+  const box = (v, l, cls) => `<div class="kbox ${cls || ''}"><div class="kv">${nf(v)}</div><div class="kl">${tx(l)}</div></div>`;
+  /* 待催上架高销品：已签可供给（ok）与已上架（lst）之差，取 80 分位档。 */
+  let gOk = 0, gLst = 0;
+  keys.forEach(u => { const d = rawUnit(u); const lv = d && d.pcov && d.pcov.levels && d.pcov.levels['80']; if (lv) { gOk += lv.ok || 0; gLst += lv.lst || 0; } });
+  const gap = gOk - gLst, cov = gOk ? Math.round(gLst / gOk * 100) : null;
+  const gapLine = gap > 0 ? `<div class="actgap" title="${tx('已签可供给但未上无人机菜单')}"><b>${nf(gap)}</b> ${tx('个待催上架高销品')}<span style="color:var(--mut2)"> · ${tx('核心上架覆盖')} ${cov}%</span></div>` : '';
+  const ring = (l, v, c) => { const CC = 2 * Math.PI * 20, dash = CC * (v == null ? 0 : Math.max(0, Math.min(100, v)) / 100); return `<div class="hring"><div class="zrw"><svg viewBox="0 0 52 52" width="60" height="60" aria-hidden="true"><circle r="20" cx="26" cy="26" fill="none" stroke="var(--panel2)" stroke-width="5"/><circle r="20" cx="26" cy="26" fill="none" stroke="${c}" stroke-width="5" stroke-dasharray="${dash} ${CC}" stroke-linecap="${v > 0 ? 'round' : 'butt'}" transform="rotate(-90 26 26)"/></svg><span class="zrp">${pct(v)}</span></div><div class="hrn">${tx(l)}</div></div>`; };
+  const countCard = `<div class="card pcard"><h3>${tx('无人机动销')} <span style="font-weight:400;color:var(--mut2)">· ${single ? esc(zShort(uName(ovUnit))) : tx('全商圈')}</span></h3>
+    <div class="kpirow" style="grid-template-columns:repeat(3,1fr)">${box(a.shops, '动销店', 'kac')}${box(a.orders, '动销订单')}${box(a.skus, '动销 SKU')}</div>${gapLine}
+    <div class="ovnote">${tx('无人机实单 · 窗口内 · 分商圈')} · ${single ? tx('本商圈 · 按店动销明细聚合') : tx('全商圈')}</div></div>`;
+  const healthCard = `<div class="card pcard"><h3>${tx('经营健康度')} <span style="font-weight:400;color:var(--mut2)">· ${tx('全商圈按已签数加权')}</span></h3>
+    <div class="hrings">${ring('动销率', h.activeRate, 'var(--orange)')}${ring('履约成功率', h.fulfillRate, 'var(--done)')}${ring('复购率', h.repeatRate, 'var(--blue)')}</div>
+    <div class="ovnote" style="margin-top:14px">${tx('环=占满 100% 的比例 · 复购为商圈级近似')}</div></div>`;
+  return `<div class="ovgrid2 eq">${countCard}${healthCard}</div>`;
+}
+
+function renderOverview() {
+  $('layout').classList.remove('nol');
+  $('rail').style.display = '';
+  const sw = signingWide();
+  const swF = ovUnit === 'all' ? sw : sw.filter(r => r.unit === ovUnit);
+  const T = swF.reduce((a, r) => ({ signed: a.signed + r.signed, signing: a.signing + r.signing, open: a.open + r.open, total: a.total + r.total }), { signed: 0, signing: 0, open: 0, total: 0 });
+  const totalTgt = swF.reduce((a, r) => a + (getTgt(r.unit).N || 0), 0);
+  const gapF = totalTgt - T.signed;
+  const actF = ovKeys().reduce((a, u) => a + ((rawUnit(u) || {}).active || 0), 0);
+  const goalPct = totalTgt ? Math.round(T.signed / totalTgt * 100) : null;
+  /* 判决句：结论先行。签约中为 0 时整个副行不渲染，不留一句孤零零的口径说明。 */
+  const vdct = `<div class="vdct"><div class="vmain">${gapF > 0 ? gapPhrase(gapF) : tx('已达建议目标')}</div>
+    ${T.signing > 0 ? `<div class="vsub">${tx('签约中')} ${T.signing}<span class="g"></span>${tx('家待落地')}</div>` : ''}</div>`;
+  const kbox = (v, l, cls) => `<div class="kbox ${cls || ''}"><div class="kv">${nf(v)}</div><div class="kl">${tx(l)}</div></div>`;
+  const kpi = `<div class="sec"><div class="sechead"><h2 style="font-size:var(--fs-h3)">${tx('指标达成进度')}</h2></div>
+    <div class="kpirow">${kbox(T.total, '商家总数')}${kbox(T.signed, '已签', 'ksg')}${kbox(T.signing, '签约中', 'ksi')}${kbox(actF, '动销', 'kac')}</div></div>`;
+  /* 环图：段间留 2px 缝（段长够时才留），相邻同色系分档不再糊成一段。viewBox 110 与渲染尺寸 1:1，故 1 单位 = 1px。 */
+  const CC = 2 * Math.PI * 40;
+  const donut = (segs, ctrV, ctrL, ctrColor) => {
+    let off = 0; const tot = segs.reduce((a, s) => a + (s[1] || 0), 0) || 1;
+    const arcs = segs.map(([, v, c]) => { const len = CC * (v || 0) / tot; const dl = len > 5 ? len - 2 : len; const s = `<circle r="40" cx="55" cy="55" fill="none" stroke="${c}" stroke-width="13" stroke-dasharray="${dl} ${CC - dl}" stroke-dashoffset="${-off}" transform="rotate(-90 55 55)"/>`; off += len; return s; }).join('');
+    const leg = segs.map(([lbl, v, c]) => `<div style="display:flex;align-items:center"><i style="background:${c}"></i>${lbl}<span class="dvv">${nf(v)}</span></div>`).join('');
+    return `<div class="drow"><div class="dwrap"><svg viewBox="0 0 110 110" width="110" height="110" aria-hidden="true">${arcs}</svg>
+      <div class="dctr"><div class="dv"${ctrColor ? ` style="color:${ctrColor}"` : ''}>${ctrV}</div><div class="dl">${ctrL}</div></div></div><div class="dleg">${leg}</div></div>`;
+  };
+  const stDonut = `<div class="sec"><div class="sechead"><h2 style="font-size:var(--fs-h3)">${tx('签约状态构成')}</h2></div>
+    ${donut([[tx('已签'), T.signed, 'var(--done)'], [tx('签约中'), T.signing, 'var(--yFill)'], [tx('待接触'), T.open, 'var(--pool)']], nf(T.signed), tx('已签'))}</div>`;
+  const gb = gmvBandOf(ovKeys());
+  const gbTot = Object.values(gb).reduce((a, v) => a + v, 0);
+  /* D 档是最大一段，用去饱和蓝的 tint 而不是灰阶：相邻档位靠色相拉开（灰阶只拉得开亮度、拉不开色相），
+     语义也自洽——去饱和蓝在本页本就是「未分化的大盘」（见漏斗与状态环的 --pool）。 */
+  const bandDonut = gbTot ? `<div class="sec"><div class="sechead"><h2 style="font-size:var(--fs-h3)">${tx('商家GMV分层')}</h2><span class="sub">${tx('S/A/B/C/D 按窗口 GTV')}</span></div>
+    ${donut([['S', gb.S, 'var(--yBright)'], ['A', gb.A, 'var(--doneSoft)'], ['B', gb.B, 'var(--blue)'], ['C', gb.C, 'var(--mut)'], ['D', gb.D, 'color-mix(in srgb, var(--blue) 70%, var(--panel))']], nf(gbTot), tx('商家'), 'var(--y)')}</div>` : '';
+  $('rail').innerHTML = `<div class="sec"><div class="usel-lab">${tx('商圈')}</div><div class="usel">${['all'].concat(unitList()).map(ovSelBtn).join('')}</div></div>
+    ${vdct}${kpi}${stDonut}${bandDonut}`;
+  if (!sw.length) { $('main').innerHTML = `<div class="sec"><div class="nodata"><b>${tx('该商圈尚未接入名单明细')}</b></div></div>`; return; }
+  $('main').innerHTML =
+    ovKpiStrip(T, goalPct, totalTgt) +
+    `<div class="sec"><div class="ovgrid2 eq"><div class="ovcol">${ovHead('签约转化', tx('商家池 → 已签 → 已开通 → 动销 · 逐级转化'))}${ovFunnelAgg()}</div>${ovTrend(true)}</div></div>` +
+    `<div class="sec"><div class="ovgrid2 eq">${ovZoneGeo(true)}<div class="ovcol">${ovHead('供给质量', tx('面积=量级 · 色深=签约占比'))}${ovCatAgg()}</div></div></div>` +
+    `<div class="sec">${ovHead('签约后经营', tx('签了之后真在无人机上动销与履约吗'))}${ovActivation()}</div>`;
+}
+</script>
+<script>
+'use strict';
+/* ---------- 总渲染 ---------- */
+function render() {
+  if (!DATA) return;
+  header();
+  const d = packOf(unit);
+  document.body.classList.toggle('work', VIEW === 'work');
+  $('hero').style.display = VIEW === 'work' ? 'flex' : 'none';
+  $('hband').style.display = 'none';   /* 进度带：工作台有数据时于下方回填 */
+  $('rail').style.display = '';
+  $('layout').classList.remove('nol');
+  $('workEvi').innerHTML = '';         /* 背景证据折叠区：仅工作台满态填充，其余视图清空 */
+  promptBar();
+  if (VIEW === 'ov') { renderOverview(); return; }
+  $('hero').innerHTML = heroBar(d);
+  const hb = heroBand(d);
+  $('hband').innerHTML = hb;
+  $('hband').style.display = hb ? '' : 'none';
+  if (!d.full) {
+    /* 降级态：hero 承担计数与口径，名单区换成数据边界卡，左栏隐藏。 */
+    $('layout').classList.add('nol');
+    $('rail').style.display = 'none';
+    $('rail').innerHTML = '';
+    $('main').innerHTML = `<div class="sec">${nodata(d)}</div>`;
+    return;
+  }
+  $('rail').innerHTML = acts3(d) + alertsBlock(d);
+  $('workEvi').innerHTML = eviFold(d);
+  const sub3 = (d.coreCount != null)
+    ? `${tx('核心商家')} ${d.coreCount}<span class="g"></span>${tx('家')}${tx('（累计贡献 80%）')}`
+    : '';
+  /* 区头随视角切：商品视角换成商品名单标题加专属副题，解商家区头与商品 tab 的割裂。 */
+  const goodsMode = ltab === 'goods';
+  $('main').innerHTML =
+    `<div class="sechead"><h2 style="font-size:var(--fs-h3)">${tx(goodsMode ? '商品名单' : '商家名单')}</h2><span class="sub">${goodsMode ? tx('店内高销品 · 订单降序') : sub3}</span></div>
+     ${listView(d)}`;
+  fitSticky();
+}
+
+/* ---------- 交互 ---------- */
+function setUnit(u) { unit = u; ltab = 'today'; fSt = 'all'; fAct = 'all'; fQual = 'all'; fCat = 'all'; fMCat = 'all'; expShop = null; listLimit = 50; listQ = ''; render(); }
+function setOvUnit(u) { ovUnit = u; render(); }
+function toggleShopRow(id) { expShop = expShop === id ? null : id; render(); }
+function setLtab(k) { ltab = k; fSt = 'all'; fAct = 'all'; fQual = 'all'; fCat = 'all'; fMCat = 'all'; expShop = null; listLimit = 50; listQ = ''; render(); }
+function moreRows(n) { listLimit += n; render(); }
+function setQ(v) { listQ = (v || '').trim(); listLimit = 50; render(); }
+function setFilter(k, v) { if (k === 'fSt') fSt = v; else if (k === 'fQual') fQual = v; else if (k === 'fCat') fCat = v; else if (k === 'fMCat') fMCat = v; else fAct = v; render(); }
+function setSort(v) { sortKey = v; render(); }
+function setView(v) { VIEW = v; render(); }
+function switchLang() {
+  LANG = LANG === 'zh' ? 'en' : 'zh';
+  try { LANG === 'en' ? localStorage.setItem(LANGKEY, 'en') : localStorage.removeItem(LANGKEY); } catch (e) { }
+  applyLang(); render();
+}
+
+/* ============ 主题（深色与浅色两态） ============
+   默认浅色，只有显式选了深色才落键，不跟随系统。五个页面共用 ops_theme 这一个键。 */
+const THKEY='ops_theme';
+const TH_ICON={
+ light:'<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/><path d="M12 1.5v2.7M12 19.8v2.7M4.5 4.5l1.9 1.9M17.6 17.6l1.9 1.9M1.5 12h2.7M19.8 12h2.7M4.5 19.5l1.9-1.9M17.6 6.4l1.9-1.9" stroke="currentColor" stroke-width="2.2"/>',
+ dark:'<path d="M20.6 14.9A8.7 8.7 0 1 1 9.1 3.4a6.9 6.9 0 0 0 11.5 11.5z" fill="currentColor" stroke="none"/>'};
+function thMode(){try{return localStorage.getItem(THKEY)==='dark'?'dark':'light';}catch(e){return 'light';}}
+function renderThemeBtn(){const m=thMode(),ic=document.getElementById('thIco'),bt=document.getElementById('thTog');
+  if(!ic||!bt)return; ic.innerHTML=TH_ICON[m];
+  bt.setAttribute('aria-label',tx('主题')+' · '+tx(m==='light'?'浅色':'深色'));
+  bt.title=tx(m==='light'?'切换到深色':'切换到浅色');}
+function applyTheme(){const m=thMode();
+  if(m==='light')document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  renderThemeBtn();
+  /* 本页的图表全部用 CSS 变量着色，主题一换自动跟随，无需重上色。 */}
+function cycleTheme(){const nx=thMode()==='light'?'dark':'light';
+  try{nx==='dark'?localStorage.setItem(THKEY,'dark'):localStorage.removeItem(THKEY);}catch(e){}
+  applyTheme();}
+
+/* 底栏高度自适应，body 余量动态跟随（chips 换行后固定值不够用）。 */
+function fitBarPad() { const b = $('pbar'); if (b) document.body.style.paddingBottom = (b.offsetHeight + 12) + 'px'; }
+function fitSticky() { const h = document.querySelector('header'), d = $('dock'); const hh = h ? h.offsetHeight : 0; const dh = (d && VIEW === 'work') ? d.offsetHeight : 0; const r = document.documentElement.style; r.setProperty('--headerH', hh + 'px'); r.setProperty('--stickyTop', (hh + dh) + 'px'); }
+
+/* ---------- 启动 ---------- */
+applyLang();
+(function () { const bt = document.getElementById('thTog'); if (bt) bt.onclick = cycleTheme; applyTheme(); })();
+fetch('../data/bdboard.json', { cache: 'no-store' })
+  .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(j => {
+    DATA = j;
+    unit = 'all';
+    render();
+    fitBarPad(); fitSticky();
+  })
+  .catch(e => {
+    const b = $('boot');
+    if (b) { b.className = 'loadst err'; b.innerHTML = `${tx('数据载入失败')} · ${esc(e.message)}<div class="why">${tx('请先运行 scripts/gen_mock.py 生成 site/data/bdboard.json')}</div>`; }
+  });
+window.addEventListener('resize', fitBarPad, { passive: true });
+window.addEventListener('resize', fitSticky, { passive: true });
+/* 回顶浮钮：长名单整页滚配套，滚超 600px 出现。 */
+window.addEventListener('scroll', () => { const b = $('toTop'); if (b) b.classList.toggle('show', window.scrollY > 600); }, { passive: true });
+
+/* ═══ 自绘下拉拦截：替原生 OS 白色菜单。select 本体仍是唯一状态源与 aria 载体，onchange 照旧；
+       触屏（pointer:coarse）整段不接管，回退原生控件。 ═══ */
+(function(){
+  if(window.matchMedia&&matchMedia('(pointer:coarse)').matches)return;
+  let menu=null,cur=null,idx=-1;
+  function close(){if(menu)menu.remove();menu=null;if(cur)cur.setAttribute('aria-expanded','false');cur=null;idx=-1;}
+  function mark(){if(!menu)return;[...menu.children].forEach((d,i)=>d.classList.toggle('on',i===idx));const el=menu.children[idx];if(el)el.scrollIntoView({block:'nearest'});}
+  function commit(i){if(!cur)return;const s=cur;if(i>=0&&s.selectedIndex!==i){s.selectedIndex=i;s.dispatchEvent(new Event('change',{bubbles:true}));}close();s.focus();}
+  function open(sel){
+    close();cur=sel;sel.setAttribute('aria-expanded','true');idx=sel.selectedIndex;
+    menu=document.createElement('div');menu.className='ddmenu';menu.setAttribute('role','listbox');
+    menu.style.fontSize=getComputedStyle(sel).fontSize;   /* 菜单字号跟触发器，宽度随之贴合，勿大于框 */
+    [...sel.options].forEach((o,i)=>{
+      const d=document.createElement('div');d.className='ddo'+(i===sel.selectedIndex?' sel':'');d.setAttribute('role','option');d.setAttribute('aria-selected',i===sel.selectedIndex?'true':'false');
+      /* 第一项（value=all）在菜单里显示「全部」，收起态仍显示列名。
+         不能直接把 option 文本改成「全部」——收起态显示的就是它，列名会消失。 */
+      const otx=(i===0&&o.value==='all')?tx('全部'):o.text;
+      d.innerHTML='<span class="dk"></span>'+otx;
+      d.onmouseenter=()=>{idx=i;mark();};
+      d.onmousedown=e=>{e.preventDefault();e.stopPropagation();};
+      d.onclick=e=>{e.stopPropagation();commit(i);};
+      menu.appendChild(d);});
+    document.body.appendChild(menu);
+    const r=sel.getBoundingClientRect();menu.style.minWidth=Math.min(r.width,menu.offsetWidth+24)+'px';   /* 上限=内容宽加 24px，宽触发框不再把菜单拉出大留白 */
+    const mh=menu.offsetHeight,mw=menu.offsetWidth;
+    let top=r.bottom+4;if(top+mh>innerHeight-8)top=Math.max(8,r.top-mh-4);
+    menu.style.top=top+'px';menu.style.left=Math.max(8,Math.min(r.left,innerWidth-mw-8))+'px';
+    mark();
+  }
+  document.addEventListener('mousedown',e=>{
+    const s=e.target&&e.target.closest?e.target.closest('select'):null;
+    if(s&&!s.disabled){e.preventDefault();if(cur===s)close();else open(s);s.focus();}
+    else if(menu&&!menu.contains(e.target))close();
+  },true);
+  document.addEventListener('keydown',e=>{
+    if(menu){
+      if(e.key==='Escape'){e.stopPropagation();const s=cur;close();if(s)s.focus();}
+      else if(e.key==='ArrowDown'){e.preventDefault();idx=Math.min(idx+1,menu.children.length-1);mark();}
+      else if(e.key==='ArrowUp'){e.preventDefault();idx=Math.max(idx-1,0);mark();}
+      else if(e.key==='Enter'||e.key===' '){e.preventDefault();commit(idx);}
+      else if(e.key==='Tab')close();
+      return;}
+    const a=document.activeElement;
+    if(a&&a.tagName==='SELECT'&&!a.disabled&&(e.key==='Enter'||e.key===' '||(e.altKey&&(e.key==='ArrowDown'||e.key==='ArrowUp'))))
+      {e.preventDefault();open(a);}
+  },true);
+  addEventListener('scroll',e=>{if(menu&&!menu.contains(e.target))close();},true);
+  addEventListener('resize',close);
+})();
+</script>
+</body>
+</html>
