@@ -1,0 +1,1865 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>选址沙盘</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  /* ============================================================
+     主题令牌：深色为基准，浅色只覆盖取值，CSS 结构两档共用。
+     纪律：--y 只用于文字 细线 小圆点；--yFill 用于大面积填充（其上压 --onY）。
+           发光一律 calc(Npx * var(--glowK))，浅色把 --glowK 置 0 关掉 ——
+           白底上的彩色发光只会糊成一团脏晕。
+     ============================================================ */
+  :root{color-scheme:dark;--bg:#07080e;--panel:#10111e;--panel2:#161730;
+    --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
+    --txt:#E9EEF9;--mut:#93A1C0;--mut2:#6B7997;--y:#FFD100;--yglow:rgba(255,209,0,.18);
+    --done:#2ED47A;--doing:#FFD100;--block:#FF5E5E;--teal:#5E84F5;--orange:#ff9a56;--internal:#34D3FF;
+    --yFill:#FFD100;--onY:#1a1300;--onAccent:#08090f;--glowK:1;--tintK:1;
+    --wash:rgba(255,255,255,.02);--washH:rgba(255,255,255,.03);--track:rgba(255,255,255,.12);
+    --pageBg:#050509;--mapBg:#08090f;--sidebarTo:#08090f;--wbTo:#0a0a13;
+    --field:#0c0d17;--pop:#10111e;--tip:#141627;--popTxt:#dbe4f3;--popClose:#7c8aa3;
+    --glass:rgba(7,11,22,.82);--glassSoft:rgba(7,11,22,.5);--labelBg:rgba(7,11,22,.66);
+    --labelHalo:#000;--shadow:rgba(0,0,0,.55);--sectorLbl:rgba(233,238,249,.5);--nfzPink:#ff9ec0;
+    --doneBright:var(--done);--yBright:var(--y);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  :root[data-theme="light"]{color-scheme:light;
+    --bg:#FAFAF9;--panel:#FFFFFF;--panel2:#F6F6F5;--line:rgba(50,49,46,.11);--line2:rgba(50,49,46,.17);
+    --txt:#4F4D46;--mut:#5F5D57;--mut2:#6E6C65;--y:#8F6B00;--yglow:rgba(181,133,10,.32);
+    --done:#147A41;--doing:#B5850A;--block:#C42B35;--teal:#3557C8;--orange:#B4560F;--internal:#0A7095;
+    --yFill:#F0B400;--onY:#1a1300;--onAccent:#FFFFFF;--glowK:0;--tintK:2.6;
+    --wash:rgba(50,49,46,.028);--washH:rgba(50,49,46,.05);--track:#DCE1EA;
+    --pageBg:#E7EAF0;--mapBg:#EEF1F6;--sidebarTo:#F4F6FA;--wbTo:#F4F6FA;
+    --field:#FFFFFF;--pop:#FFFFFF;--tip:#FFFFFF;--popTxt:#1B2333;--popClose:#55617A;
+    --glass:rgba(255,255,255,.88);--glassSoft:rgba(255,255,255,.62);--labelBg:rgba(255,255,255,.86);
+    --labelHalo:rgba(255,255,255,.95);--shadow:rgba(50,49,46,.14);--sectorLbl:rgba(27,35,51,.62);--nfzPink:#C2185B;
+    --doneBright:#17A45C;--yBright:#B5850A}
+  /* 底图署名常驻。压到 9px 半透明贴右下角，不动地图渲染本身 —— 公开底图服务的
+     使用条款要的是可见的署名，别关掉它，也别改成纯装饰性文字。 */
+  .leaflet-control-attribution{font-size:9px;line-height:1.5;padding:1px 6px;border-radius:6px 0 0 0;
+    background:rgba(7,8,14,.42);color:var(--mut2);font-family:var(--sans);box-shadow:none}
+  .leaflet-control-attribution a{color:var(--mut2);text-decoration:none}
+  .leaflet-control-attribution a:hover{color:var(--mut);text-decoration:underline}
+  :root[data-theme="light"] .leaflet-control-attribution{background:rgba(255,255,255,.62)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  html{background:var(--pageBg)}
+  body{background:var(--pageBg);color:var(--txt);font-family:var(--sans);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  .topbar{display:flex;align-items:center;gap:14px;padding:6px 16px;border-bottom:1px solid var(--line);flex:0 0 auto;z-index:1000;background:var(--bg)}
+  .bk{font-family:var(--mono);font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:8px;padding:4px 9px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:3px}
+  .bk:hover{color:var(--y);border-color:var(--y)}
+  .ptstage{font-family:var(--mono);font-size:9.5px;color:var(--y);border:1px solid color-mix(in srgb,var(--y) 45%,transparent);background:color-mix(in srgb,var(--yFill) calc(8% * var(--tintK)),transparent);border-radius:6px;padding:2px 8px;letter-spacing:.4px;flex:0 0 auto;white-space:nowrap}
+  .pt{font-size:18px;font-weight:800;white-space:nowrap}.pt b{color:var(--y)}
+  .ptsub{font-weight:500;color:var(--mut);font-size:14px;letter-spacing:.2px;margin-left:2px}
+  /* 数字与单位之间的极窄间隙。不用空格字符：多数数值走等宽字体，窄空格会被撑成整格。 */
+  .g{display:inline-block;width:.16em}
+  :root[lang="en"] .g{width:auto}
+  :root[lang="en"] .g::before{content:" ";white-space:pre}
+  .cv,.statc .v,.rv,.verdict .vb .v,.uc-m .v{white-space:nowrap}
+  .crumb{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--mut2)}
+  .crumb .live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--doneBright);margin-right:6px;box-shadow:0 0 calc(8px * var(--glowK)) var(--doneBright);animation:bk 1.6s infinite}
+  @keyframes bk{50%{opacity:.35}}
+  .langtog{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden;flex:0 0 auto}
+  .langbtn{font-family:var(--mono);font-size:10px;padding:3px 8px;background:transparent;color:var(--mut);border:none;cursor:pointer;transition:.15s}
+  .langbtn.active{background:var(--yFill);color:var(--onY);font-weight:700}
+  .thtog{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line2);border-radius:999px;padding:0;width:22px;height:22px;background:var(--wash);color:var(--mut);cursor:pointer;flex:0 0 auto;transition:.15s}
+  .thtog:hover{color:var(--txt);border-color:var(--y)}
+  .thtog svg{width:13px;height:13px;flex:0 0 auto;color:var(--yBright)}
+  .stage{flex:1;display:grid;grid-template-columns:288px minmax(360px,1fr) 416px;min-height:0;overflow-x:auto}
+
+  /* ===== 左栏 ===== */
+  #sidebar{background:linear-gradient(180deg,var(--panel),var(--sidebarTo));border-right:1px solid var(--line);overflow-y:auto;padding:0 0 20px}
+  #sidebar::-webkit-scrollbar{width:6px}#sidebar::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
+  .sp{padding:12px 14px;border-bottom:1px solid var(--line)}
+  .sp h3{font-family:var(--mono);font-size:10px;letter-spacing:1.3px;color:var(--y);margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .sp h3 .r{margin-left:auto;color:var(--mut2);font-size:9px;letter-spacing:0}
+  .statg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .statc{background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:7px 8px}
+  .statc .v{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--y)}
+  .statc .k{font-size:8.5px;color:var(--mut2);margin-top:2px}
+  .lt{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;user-select:none}
+  .lt:hover{background:var(--washH)}
+  .lt input{accent-color:var(--teal);width:13px;height:13px;flex:0 0 auto;cursor:pointer}
+  .lt .dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+  .lt .dot.ring{background:transparent!important;border:1.6px solid}
+  .lt .lb{font-size:11px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lt .cnt{font-family:var(--mono);font-size:9.5px;color:var(--teal);min-width:30px;text-align:right}
+  .lt .sub{display:block;font-size:8.5px;color:var(--mut2);margin-top:1px}
+  .ssub{font-size:9px;color:var(--mut2);letter-spacing:1px;margin:8px 0 4px;text-transform:uppercase}
+  details.ref summary{font-family:var(--mono);font-size:10px;letter-spacing:1.3px;color:var(--mut);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
+  details.ref summary::-webkit-details-marker{display:none}
+  details.ref summary::before{content:"▸";color:var(--mut2)}details.ref[open] summary::before{content:"▾"}
+  details.ref .refnote{font-size:9px;color:var(--mut2);line-height:1.5;margin:7px 0;padding:7px 9px;background:rgba(52,211,255,.04);border:1px solid rgba(52,211,255,.18);border-radius:6px}
+  .foot-src{font-size:8.5px;color:var(--mut2);margin-top:6px;padding-left:6px}
+
+  /* ===== 地图 ===== */
+  #map{width:100%;height:100%;background:var(--mapBg)}
+  .mapmask{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 34px 11px var(--bg)}
+  #timebar{position:absolute;left:14px;right:14px;bottom:14px;z-index:600;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;padding:9px 14px 7px;box-shadow:0 10px 34px var(--shadow)}
+  .tbhead{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .tbhead .tbt{font:700 11px var(--mono);letter-spacing:.8px;color:var(--y)}
+  .tbhead .tbsel{font:600 11px var(--mono);color:var(--teal);margin-left:auto}
+  .tbhead .tbrst{font:600 10px var(--mono);color:var(--mut2);cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:2px 9px;user-select:none}
+  .tbhead .tbrst:hover{color:var(--y);border-color:var(--y)}
+  .tbbars{display:flex;align-items:flex-end;gap:2px;height:44px;cursor:crosshair;touch-action:none}
+  .tbbars i{flex:1;background:rgba(120,140,245,.16);border-radius:2px 2px 0 0;min-height:6px;transition:background .12s}
+  .tbbars i.on{background:linear-gradient(180deg,var(--teal),rgba(94,132,245,.32));box-shadow:0 0 calc(5px * var(--glowK)) color-mix(in srgb,var(--teal) 40%,transparent)}
+  .tbaxis{display:flex;justify-content:space-between;font:9px var(--mono);color:var(--mut2);margin-top:3px}
+  .leaflet-container{background:var(--mapBg);font-family:inherit}
+  .sector-label{font-family:var(--mono);font-size:11px;color:var(--sectorLbl);font-weight:700;letter-spacing:.5px;text-shadow:0 1px 4px var(--labelHalo);white-space:nowrap;pointer-events:none}
+  .nfz-label{font-family:var(--mono);font-size:9px;color:var(--nfzPink);text-shadow:0 1px 3px var(--labelHalo);white-space:nowrap;pointer-events:none}
+  .hubIcon{width:14px;height:14px;border-radius:50%;background:var(--yBright);box-shadow:0 0 0 5px var(--yglow),0 0 calc(16px * var(--glowK)) var(--yBright);position:relative}
+  .hubIcon::after{content:"";position:absolute;inset:-9px;border:1.5px solid color-mix(in srgb,var(--y) 50%,transparent);border-radius:50%;animation:hpulse 2.2s infinite}
+  @keyframes hpulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+  .landIcon{width:11px;height:11px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 2.5px color-mix(in srgb,var(--teal) 30%,transparent),0 0 calc(12px * var(--glowK)) var(--teal)}
+  .suggIcon{width:11px;height:11px;border-radius:50%;background:var(--internal);box-shadow:0 0 0 2.5px color-mix(in srgb,var(--internal) 32%,transparent),0 0 calc(12px * var(--glowK)) var(--internal)}
+  .leaflet-popup-content-wrapper{background:var(--pop);color:var(--popTxt);border:1px solid rgba(52,211,255,.3);border-radius:12px;box-shadow:0 8px 28px var(--shadow)}
+  .leaflet-popup-content{margin:11px 13px}
+  .leaflet-popup-tip{background:var(--pop);border:1px solid rgba(52,211,255,.3)}
+  .leaflet-popup-close-button{color:var(--popClose)}
+  .leaflet-tooltip{background:var(--tip);color:var(--popTxt);border:1px solid rgba(52,211,255,.28);border-radius:8px;box-shadow:0 3px 12px var(--shadow);font-family:var(--mono);font-size:11px;padding:4px 8px}
+  .leaflet-tooltip-top:before{border-top-color:var(--tip)}
+  .rkbadge{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1.3px solid var(--internal);color:var(--internal);font-size:9px;font-weight:700;font-family:var(--mono);margin-left:3px;line-height:1;flex:0 0 auto}
+  .suggtag{display:inline-flex;align-items:center;justify-content:center;height:14px;padding:0 5px;border-radius:4px;border:1px solid var(--internal);color:var(--internal);background:rgba(52,211,255,.1);font-size:9px;font-weight:700;font-family:var(--mono)}
+  .moreunits{margin-top:2px}
+  .moreunits>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mut);font-family:var(--mono);padding:9px 4px}
+  .moreunits>summary::-webkit-details-marker{display:none}
+  .moreunits[open] .caret{transform:rotate(90deg)}
+  .beaconHub,.beaconLand{position:relative;border-radius:50%}
+  .beaconHub{width:13px;height:13px;background:var(--yBright);color:var(--yBright);box-shadow:0 0 calc(10px * var(--glowK)) var(--yBright),0 0 0 3px var(--yglow);cursor:pointer}
+  .beaconLand{width:9px;height:9px;background:var(--teal);color:var(--teal);box-shadow:0 0 calc(9px * var(--glowK)) var(--teal)}
+  .beaconHub::before,.beaconHub::after,.beaconLand::before{content:"";position:absolute;inset:0;border-radius:50%;border:1.5px solid currentColor;animation:bpulse 2.4s cubic-bezier(.2,.55,.3,1) infinite;pointer-events:none}
+  .beaconHub::after{animation-delay:1.2s}
+  @keyframes bpulse{0%{transform:scale(1);opacity:.85}80%,100%{transform:scale(3.6);opacity:0}}
+  .bLabel{position:absolute;left:15px;top:50%;transform:translateY(-50%);white-space:nowrap;font:700 10.5px/1 var(--mono);letter-spacing:.5px;color:var(--y);text-shadow:0 1px 4px var(--labelHalo);background:var(--labelBg);padding:3px 7px;border-radius:6px;border:1px solid var(--yglow)}
+  .mapbtns{position:absolute;top:10px;right:54px;display:flex;gap:6px;z-index:600}
+  .mapbtns .mb{font-family:var(--mono);font-size:11px;color:var(--mut);background:var(--glass);border:1px solid var(--line2);border-radius:8px;padding:5px 10px;cursor:pointer}
+  .mapbtns .mb:hover{border-color:var(--y);color:var(--y)}
+  .mapbtns .mb.arming{background:var(--yFill);color:var(--onY)}
+  .mapbtns .mb.on{border-color:var(--y);color:var(--y)}
+
+  /* ===== 右栏工作台 ===== */
+  .wb{background:linear-gradient(165deg,var(--panel),var(--wbTo));border-left:1px solid var(--line);overflow-y:auto;padding:14px}
+  .wb::-webkit-scrollbar{width:7px}.wb::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
+  .lhead{margin-bottom:12px}.lhead .nm{font-size:16px;font-weight:800}.lhead .meta{font-family:var(--mono);font-size:10px;color:var(--mut);margin-top:3px}
+  .ucard{border:1px solid var(--line2);border-radius:12px;padding:13px 14px;margin-bottom:11px;background:var(--wash);cursor:pointer;transition:.15s}
+  .ucard:hover{border-color:var(--y);background:color-mix(in srgb,var(--yFill) calc(4% * var(--tintK)),transparent);transform:translateY(-1px)}
+  .uc-top{display:flex;align-items:center;gap:8px}
+  .uc-top .d{width:9px;height:9px;border-radius:50%;background:var(--yBright);box-shadow:0 0 calc(8px * var(--glowK)) var(--yBright);flex:0 0 auto}
+  .uc-top .nm{font-size:14px;font-weight:800}
+  .uc-top .badge{margin-left:auto;font-family:var(--mono);font-size:9.5px;padding:3px 8px;border-radius:6px;border:1px solid}
+  .uc-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:11px}
+  .uc-m{background:var(--glassSoft);border:1px solid var(--line);border-radius:8px;padding:8px 9px}
+  .uc-m .k{font-size:9px;color:var(--mut2);font-family:var(--mono)}
+  .uc-m .v{font-size:14px;font-weight:800;font-family:var(--mono);margin-top:3px}
+  .uc-foot{font-family:var(--mono);font-size:9.5px;color:var(--mut2);margin-top:10px;display:flex;align-items:center}
+  .uc-foot .go{margin-left:auto;color:var(--y)}
+  .ucnote{font-size:8.5px;color:var(--mut2);font-family:var(--mono);margin-left:4px;letter-spacing:.2px}
+  html[lang="en"] .ucnote{display:block;margin-left:0;margin-top:2px}
+  html[lang="en"] .uc-m .k{min-height:25px}
+  .uadd{border:1px dashed var(--line2);border-radius:12px;padding:12px;text-align:center;font-size:12px;color:var(--mut);cursor:pointer}
+  .uadd:hover{border-color:var(--y);color:var(--y)}
+  .mdl{flex:0 0 auto;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:6px;color:var(--internal);border:1px solid color-mix(in srgb,var(--internal) 40%,transparent);background:color-mix(in srgb,var(--internal) 10%,transparent);white-space:nowrap}
+  .mdl.lr{color:var(--done);border-color:color-mix(in srgb,var(--done) 40%,transparent);background:color-mix(in srgb,var(--done) 10%,transparent)}
+  .plansec{margin-top:14px;border:1px dashed rgba(46,212,122,.3);border-radius:12px;padding:12px 13px;background:rgba(46,212,122,.03)}
+  .plansec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px}
+  .plansec>summary::-webkit-details-marker{display:none}
+  .plansec>summary .nm{font-size:12px;font-weight:800;color:var(--done)}
+  .plansec>summary .mdl{margin-left:auto}
+  .caret{font-size:9px;color:var(--mut2);transition:transform .15s;flex:0 0 auto}
+  .plansec[open] .caret{transform:rotate(90deg)}
+  .plansub{font-family:var(--mono);font-size:9.5px;color:var(--mut2);margin-top:4px}
+  .planrow{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:11px}
+  .planrow .zd{width:7px;height:7px;border-radius:50%;background:var(--doneBright);flex:0 0 auto}
+  .planrow .zn{font-weight:600}
+  .planrow .zc{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--mut2);white-space:nowrap}
+  .addbox{border:1px solid color-mix(in srgb,var(--y) 40%,transparent);border-radius:12px;padding:13px;margin-bottom:11px;background:color-mix(in srgb,var(--yFill) calc(4% * var(--tintK)),transparent)}
+  .addbox .rowf{display:flex;gap:7px;align-items:center;margin-top:8px;font-size:11px}
+  .addbox input{flex:1;background:var(--field);border:1px solid var(--line2);border-radius:6px;color:var(--txt);font-family:var(--mono);font-size:11px;padding:6px 8px}
+  .addbox input:focus{outline:none;border-color:var(--y)}
+  .addbox .btns{display:flex;gap:8px;margin-top:10px}
+  .addbox .b{flex:1;text-align:center;font-size:11px;border-radius:8px;padding:7px;cursor:pointer;font-family:var(--mono)}
+  .addbox .b.ok{background:var(--yFill);color:var(--onY);font-weight:700}.addbox .b.no{border:1px solid var(--line2);color:var(--mut)}
+  .bk-list{font-family:var(--mono);font-size:11px;color:var(--mut);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .bk-list:hover{color:var(--y)}
+  .wbnav{position:sticky;top:0;z-index:6;display:flex;gap:6px;padding:7px 0 6px;margin:-4px 0 4px;background:linear-gradient(180deg,var(--panel) 78%,transparent)}
+  .wbnav span{font-family:var(--mono);font-size:9.5px;color:var(--mut);border:1px solid var(--line2);border-radius:999px;padding:2px 9px;cursor:pointer;transition:.12s;white-space:nowrap}
+  .wbnav span:hover{color:var(--y);border-color:var(--y)}
+  .wbhead{display:flex;align-items:flex-start;gap:10px;margin:8px 0 12px}
+  .wbhead .nm{font-size:15px;font-weight:800}.wbhead .meta{font-family:var(--mono);font-size:10px;color:var(--mut);margin-top:3px}
+  .badge{margin-left:auto;font-size:10px;font-family:var(--mono);padding:4px 9px;border-radius:8px;border:1px solid;white-space:nowrap}
+  .sec{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--y);margin:15px 0 9px;display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+  .sec::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--yglow),transparent)}
+  .sec .x{flex:0 0 auto;font-size:9.5px;color:var(--mut2);letter-spacing:0}
+  .sec .smain{flex:0 0 auto;white-space:nowrap}
+  .sec .stg{flex:0 0 auto;font-size:9px;color:var(--y);border:1px solid color-mix(in srgb,var(--y) 40%,transparent);background:color-mix(in srgb,var(--yFill) calc(7% * var(--tintK)),transparent);border-radius:6px;padding:1px 7px;letter-spacing:.4px}
+  .verdict{border:1px solid color-mix(in srgb,var(--y) 35%,transparent);border-radius:12px;padding:13px 14px;background:linear-gradient(120deg,color-mix(in srgb,var(--yFill) calc(8% * var(--tintK)),transparent),color-mix(in srgb,var(--orange) calc(4% * var(--tintK)),transparent))}
+  .verdict .vt{font-size:13px;font-weight:800;display:flex;align-items:center}
+  .verdict .vt .ico{width:19px;height:19px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:900;flex:0 0 auto;margin-right:8px}
+  .verdict .vrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .verdict .vb{flex:1;min-width:96px;background:var(--glassSoft);border:1px solid var(--line);border-radius:8px;padding:8px 9px}
+  .verdict .vb .k{font-size:9.5px;color:var(--mut2);font-family:var(--mono)}
+  .verdict .vb .v{font-size:13px;font-weight:700;margin-top:4px;font-family:var(--mono)}
+  .vlev{margin-top:11px;padding-top:10px;border-top:1px solid var(--line);font-size:11.5px;color:var(--mut);line-height:1.8}
+  .coordbar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:11px}
+  .coordbar .cl{color:var(--mut);flex:0 0 auto}
+  .coordbar input{width:72px;background:var(--field);border:1px solid var(--line2);border-radius:6px;color:var(--txt);font-family:var(--mono);font-size:11px;padding:4px 6px}
+  .coordbar input:focus{outline:none;border-color:var(--y)}
+  .coordbar.cmini{padding:5px 9px;font-size:10px;background:transparent}
+  .coordbar.cmini input{width:84px;font-size:10px;padding:3px 6px}
+  .chain{display:flex;flex-direction:column;gap:6px}
+  .ch{display:flex;align-items:center;gap:10px;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+  .ch .ci{width:23px;height:23px;border-radius:6px;flex:0 0 auto;display:grid;place-items:center;font-family:var(--mono);font-size:11px;color:var(--mut)}
+  .ch .ck{font-size:11px;color:var(--mut)}.ch .ck small{display:block;font-size:9px;color:var(--mut2);margin-top:1px}
+  .ch .cv{margin-left:auto;font-family:var(--mono);font-size:15px;font-weight:800;text-align:right}
+  .ch .cv u{text-decoration:none;font-size:9px;color:var(--mut);font-weight:400;display:block}
+  .ch.k{border-color:color-mix(in srgb,var(--y) 40%,transparent);background:color-mix(in srgb,var(--yFill) calc(5% * var(--tintK)),transparent)}.ch.k .cv{color:var(--y)}
+  .ch .ed{width:52px;background:var(--field);border:1px solid var(--line2);border-radius:6px;color:var(--y);font-family:var(--mono);font-size:13px;font-weight:700;padding:3px 4px;text-align:right}
+  .ch .ed:focus{outline:none;border-color:var(--y)}
+  .edw{display:inline-flex;align-items:center;margin-left:auto}
+  .three{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:1px}
+  .t-fact{background:var(--doneBright)}.t-calc{background:var(--internal)}.t-guess{background:var(--yBright)}
+  .lprow{position:relative;display:flex;align-items:center;gap:7px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;padding:7px 10px;background:var(--wash)}
+  .lprow .ld{width:8px;height:8px;border-radius:50%;background:var(--teal);flex:0 0 auto}
+  .lprow .ln{font-size:12px;font-weight:700;flex:0 1 auto;min-width:42px;max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;outline:none}
+  .lprow .ln:focus{max-width:none;overflow:visible}
+  .lprow .lo{font-family:var(--mono);font-size:10px;color:var(--y);flex:0 0 auto;white-space:nowrap}
+  .lprow input[type=range]{flex:1 1 64px;min-width:64px;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;background:var(--track);outline:none}
+  .lprow input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--y);cursor:pointer}
+  .lprow .rv{font-family:var(--mono);font-size:10px;color:var(--y);width:42px;text-align:right;flex:0 0 auto}
+  .lprow .lx{cursor:pointer;color:var(--mut2);font-size:13px;padding:0 2px;flex:0 0 auto}.lprow .lx:hover{color:var(--block)}
+  .lprow .lcc{flex:0 0 100%;font-family:var(--mono);font-size:9.5px;color:var(--mut2);cursor:pointer;padding:1px 0 0 16px;letter-spacing:.3px;display:flex;align-items:center;gap:2px}
+  .lprow .lcc:hover{color:var(--y)}
+  .lprow .cce{width:74px;background:var(--field);border:1px solid var(--line2);border-radius:6px;color:var(--txt);font-family:var(--mono);font-size:10px;padding:2px 5px;margin:0 3px}
+  .lprow .ccok{cursor:pointer;color:var(--y);font-weight:700;padding:0 5px;font-size:12px}
+  .supfact{font-family:var(--mono);font-size:10px;color:var(--mut);padding:7px 10px;background:var(--washH);border:1px solid var(--line);border-radius:8px;margin:8px 0 0;line-height:1.7}
+  .supfact b{color:var(--y);font-weight:700}
+  .signbar{display:flex;height:12px;border-radius:6px;overflow:hidden;gap:1px;margin-top:6px}
+  .signbar span{display:block;min-width:2px}
+  .signleg{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:9.5px;color:var(--mut)}
+  .signleg span{display:flex;align-items:center;gap:4px}.signleg i{width:8px;height:8px;border-radius:2px;flex:0 0 auto}
+  .signleg em.bdtag{font-style:normal;color:var(--mut2);margin-left:1px}
+  .rentrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:8px}
+  .rentrow .rrl{display:inline-flex;align-items:center;gap:6px}
+  .rentrow .ed{width:66px;background:var(--field);border:1px solid var(--line2);border-radius:6px;color:var(--txt);font-family:var(--mono);font-size:12px;padding:4px 6px;text-align:right}
+  .rentrow .ed:focus{outline:none;border-color:var(--y)}
+  .rentrow .rrx{margin-left:auto;color:var(--mut)}
+  .gobtn{display:flex;align-items:center;justify-content:center;width:100%;margin-top:13px;border:1px solid var(--y);color:var(--y);background:color-mix(in srgb,var(--yFill) calc(6% * var(--tintK)),transparent);border-radius:12px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);text-decoration:none}
+  .gobtn:hover{background:var(--yFill);color:var(--onY)}
+  .note{font-size:10px;color:var(--mut2);margin-top:9px;line-height:1.6}
+  .loading{display:grid;place-items:center;height:100%;font-family:var(--mono);font-size:12px;color:var(--mut2);text-align:center;line-height:1.9;padding:0 16px}
+  :focus-visible{outline:2px solid var(--y);outline-offset:1px}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+</style>
+<script>/* 主题预置，先于首屏绘制，避免选了浅色时闪一下深色。
+   默认浅色，只有显式选了深色才落键，不跟随系统。五个页面共用 ops_theme 这一个键。 */
+(function(){try{if(localStorage.getItem('ops_theme')!=='dark')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();
+</script>
+</head>
+<body>
+  <div class="topbar">
+    <a class="bk" id="bkLink" href="../ops-deck/"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><span id="bkTxt">返回经营门户</span></a>
+    <span class="ptstage" id="ptStage">开航① · 开在哪</span>
+    <div class="pt" id="ptTitle"><b>选址</b> 沙盘<span class="ptsub"> · 圈选测算 · 需求洞察</span></div>
+    <div class="crumb"><span class="live" id="liveTxt">实时测算</span><span id="crumbTxt"></span></div>
+    <span class="langtog"><button class="langbtn active" data-lang="zh" onclick="switchLang('zh')">中</button><button class="langbtn" data-lang="en" onclick="switchLang('en')">EN</button></span>
+    <button class="thtog" id="thTog" type="button"><svg id="thIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg></button>
+  </div>
+  <div class="stage">
+    <div id="sidebar"></div>
+    <div style="position:relative">
+      <div id="map"></div>
+      <div class="mapmask"></div>
+      <div class="mapbtns">
+        <div class="mb" id="bAdd">＋ 点选加降落点</div>
+        <div class="mb on" id="bRoute">✦ 航线连接</div>
+        <div class="mb" id="bFit">⤢ 全域</div>
+        <div class="mb" id="bShot" title="只导出图层与图例，左右两栏数据不进图">⧉ 截图</div>
+      </div>
+      <div id="timebar">
+        <div class="tbhead"><span class="tbt" id="tbtTitle">⏱ 时段分布 · 当地时间</span><span class="tbsel" id="tbsel"></span><span class="tbrst" id="tbrst">重置</span></div>
+        <div class="tbbars" id="tbbars"></div>
+        <div class="tbaxis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+      </div>
+    </div>
+    <div class="wb" id="wb"><div class="loading">载入演示数据…</div></div>
+  </div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script id="ue-model">/*UE_MODEL_START*/
+/* ============================================================================
+ * 单元经济测算引擎 —— 全站唯一口径单源
+ *
+ * 浏览器：window.UEModel   Node：globalThis.UEModel
+ * 用法：  UEModel.compute({dailyOrders: 200, landingPts: 4, takeoffRent: 9000, ...})
+ *         UEModel.findBreakeven(cfg)            → 真实保本线
+ *         UEModel.rentFromPoints(rentPoints[,y]) → 逐点租金折算成标量
+ *         UEModel.project(cfg[, growth])         → 五年逐年推演
+ *
+ * 结构要点
+ *   收入 = 单均配送收入(客单价×佣金率 + 平台费 + C端配送费) × 月单量 + 广告收入
+ *   成本 = 人力 + 设备折旧 + 电池 + 场地办公 + 其他 + 网络运维 + 营销补贴
+ *   驱动 = 日均单量。人力与设备都是阶梯量(ceil)，所以利润对单量非单调。
+ *   租金 = 逐点四模式(固定 / 仅营业额提成 / 固定+营业额提成 / 固定+配送费提成)
+ *          在 rentFromPoints 独立折算后写回标量，compute 只消费标量。
+ *
+ * 三页共用这一份文件，由 scripts/inject_ue.py 注入到各页的
+ * /*UE_MODEL_START* / … /*UE_MODEL_END* / 标记区。改公式只改这里，改完重新注入。
+ *
+ * 演示说明：本文件里的全部参数取值均为虚构演示值，与任何真实业务无关。
+ * ==========================================================================*/
+(function (g) {
+  'use strict';
+  var ceil = Math.ceil, min = Math.min, max = Math.max, pow = Math.pow;
+
+  /* —— 默认参数。★ 标的是业务输入，其余是规格常量。全部为虚构演示值 —— */
+  var DEFAULTS = {
+    // A 单量与运营（★业务输入）
+    takeoffPts: 1,            // 起飞点数量
+    landingPts: 4,            // 降落点数量（有逐点租金表时 = 表行数派生）
+    routeDist: 2500,          // 平均航线距离 m（单程）
+    dailyOrders: 200,         // ★日均单量 = 全部成本的驱动
+    peakShare: 0.12,          // 峰值小时单量占比
+    lastMileLandingPts: 2,    // 送货上门降落点数（末端配送人数下限）
+    lastMileShare: 0.30,      // 送货上门订单占比
+    // B 收入参数（★业务输入）
+    aov: 52,                  // 实付客单价
+    commissionRate: 0.18,     // 商家佣金率
+    platformFee: 2,           // 平台费 /单
+    deliveryFee: 11,           // C端配送费 /单
+    marketing: 8000,          // 广告收入 /月（计入收入与利润）
+    subsidyPerOrder: 0,       // 营销补贴 /单（我方承担，调用方按视图传档）
+    // C 场地成本（★唯一真正可谈的成本）
+    takeoffRent: 9000,
+    landingRent: 12000,
+    takeoffFitoutPerPt: 3500, // 起飞点每点装修月摊
+    landingFitoutPerPt: 900,  // 降落点每点装修月摊
+    // 人效与调休（规格）
+    annualLeaveDays: 30, weeklyOffDays: 52,   // restFactor = 365/(365-30-52)
+    pilotProd: 280, maintProd: 460, groundProd: 110,
+    pickupProd: null,         // 取餐人效：null = 按取餐方式取值；显式数值优先
+    pickupType: 'Ride',
+    pickupProdByType: { Ride: 30, Walk: 50, Other: 40 },
+    lastMileProd: 32, patrolProd: 180,
+    patrolMinOrders: 180,     // 日均低于此值不配末端巡游
+    groundCapPerTakeoff: 4,
+    // 人力月薪
+    salPilot: 9200, salMaint: 8600, salPickup: 3400, salGround: 4500,
+    salLastMile: 3400, salPatrol: 3400,
+    // 设备配比（规格）
+    droneSpeed: 10,           // m/s 巡航
+    takeoffLandingMin: 4,     // 起降阶段合计分钟
+    droneIdle: 0.3,           // 闲置率（充电与维护）
+    maxDrones: 24,            // 单起飞点机队上限
+    markerPerTakeoff: 6,
+    cabinetPerOrders: 150,    // 恒温柜：每 150 日单 1 个
+    cabinetMaxPerTakeoff: 4,
+    chargingPerCabinet: 2,
+    storagePerDrones: 2,
+    // 设备月折旧单价
+    depDrone: 640, depMarker: 45, depPort: 2900, depCabinet: 300,
+    depCharging: 120, depStorage: 85, depSpare: 115, depBoxReturn: 44,
+    // 电池（规格）
+    batteryPrice: 1700, batteryCycleLife: 600, batteryPackEnergy: 390,
+    elecCost: 0.41, coulombic: 0.93,
+    baseConsume: 0.35, marginalConsume: 0.08, baselineDist: 1700, batterySafety: 0.75,
+    // 其他成本（规格）
+    equipOM: 1000, opsSupplies: 900,
+    simDrone: 580, simPort: 580, simHandheld: 480,
+    vehiclePerTakeoff: 600, boxPerOrder: 0.3,
+    droneInsurance: 130, rtkPerTakeoff: 200,
+    venueElecPerUnit: 300, broadband: 1000, networkOM: 1000,
+    daysPerMonth: 30,         // 月度视图 30；五年视图 project 内用 365/12
+
+    /* 地面协同人力：取餐 + 末端配送 + 末端巡游。
+       总开关 groundStaff 管取餐员（没有它餐到不了起飞点，不是划不划算的选项），
+       末端两项另受 ROI 闸 lastMileSwitch 管，逐单量判。 */
+    groundStaff: true,
+    roiMultiple: 2,           // 末端 ROI 阈值倍数（假定值，待校准）
+    lastMileSwitch: 'auto',   // auto 按 ROI 逐单量判 / on 恒计入 / off 恒不计
+    equipDepOn: true,
+
+    /* 逐点末端闸。不传 landingPools 时整段不启用，退回商圈级单闸。
+         landingPools: [{ share, bands:[≤1km 占比, 1–2km 占比] }, …]
+       归属口径 = 最近点：一单只归离它最近且在圈内的那个降落点，不重复计。 */
+    landingPools: null,
+
+    /* 关闸的标价：某个降落点关掉末端配送后只能柜取，该点上门订单按距离的留存率。
+       这不是绝对自提意愿，是改变履约形态时的相对调整 —— 因为配送方式选择率的口径
+       是「在大网配送与无人机配送之间选无人机的概率」，本身混合了柜取与上门两种形态。
+       只取两档：≤1km 视为不丢单，1–2km 取 0.5，超出本就在降落圈外。 */
+    lmKeepBands: [{ maxKm: 1.0, keep: 1.00 }, { maxKm: 2.0, keep: 0.50 }]
+  };
+
+  /* 营销补贴分档（假定值）。取值随站龄走，调用方按视图取档，不要在引擎里写死一个数。 */
+  var SUBSIDY_TIERS = { steady: 2.5, firstYear: 7.5, firstHalf: 10 };
+
+  /* 商圈上下文覆盖：起飞点就在商场里，取餐是楼内步行，人效远高于跑单口径。 */
+  var DISTRICT_OVERRIDES = { pickupProd: 80, peakShare: 0.12 };
+
+  function compute(o) {
+    var p = Object.assign({}, DEFAULTS, o || {});
+    var rest = 365 / (365 - p.annualLeaveDays - p.weeklyOffDays);
+    var monthlyOrders = p.dailyOrders * p.daysPerMonth;
+    var peakHourVol = p.dailyOrders * p.peakShare;
+    var lastMileDaily = p.dailyOrders * p.lastMileShare;
+
+    /* 单均收入前移：末端 ROI 闸在人力段就要用它。 */
+    var merchantCommission = p.aov * p.commissionRate + p.platformFee;
+    var revPerOrder = merchantCommission + p.deliveryFee;
+    /* 净单均 = 毛单均 − 我方承担的补贴。末端 ROI 闸的分子只许用它：
+       闸问的是多派这一班末端人力撬动的订单值不值这份人力，而订单拖进来的补贴是
+       逐单流出，不管报表上它坐在收入减项还是成本行。分子分母必须同口径。 */
+    var revPerOrderNet = revPerOrder - p.subsidyPerOrder;
+    var pickupProd = (p.pickupProd != null) ? p.pickupProd
+      : (p.pickupProdByType[p.pickupType] != null ? p.pickupProdByType[p.pickupType] : p.pickupProdByType.Other);
+
+    /* —— 逐点末端闸 ——
+       ① 每个降落点各判各的 ROI，分子分母都只算该点的上门订单与末端人力；
+       ② 关闸的点只能柜取，该点上门订单按 lmKeepBands 留存率打折，收入与成本一起减。
+       必须同时减收入：只删成本不删收入的话，关一个点永远是净赚，保本线只会降，
+       那不是经济性变好，是模型少算一笔账。
+       ROI 用该点未打折的需求算 —— 问的是在这里开末端值不值，开着就不丢单。 */
+    var lmPts = null, demandDaily = p.dailyOrders;
+    if (Array.isArray(p.landingPools) && p.landingPools.length) {
+      var shTot = 0, i;
+      for (i = 0; i < p.landingPools.length; i++) shTot += (+p.landingPools[i].share || 0);
+      var even = !(shTot > 0);
+      lmPts = p.landingPools.map(function (q, idx) {
+        var sh = even ? 1 / p.landingPools.length : (+q.share || 0) / shTot;
+        var dI = demandDaily * sh;
+        var lmDI = dI * p.lastMileShare;
+        // 逐点人数下限 = 1。商圈级的 lastMileLandingPts 在这一档不参与，
+        // 否则低单量下每个点都 2 人起，ROI 被除散，逐点化会退化成全关。
+        var staff = max(1, ceil(lmDI / p.lastMileProd)) * rest;
+        var costI = staff * p.salLastMile;
+        var leverI = dI * p.daysPerMonth * p.lastMileShare * revPerOrderNet;
+        var roiI = costI > 0 ? leverI / costI : Infinity;
+        var onI = !!p.groundStaff && (p.lastMileSwitch === 'on' ? true
+          : p.lastMileSwitch === 'off' ? false : roiI >= p.roiMultiple);
+        var bd = q.bands || [1], bsum = 0, keep = 0, k;
+        for (k = 0; k < p.lmKeepBands.length; k++) bsum += (+bd[k] || 0);
+        if (bsum <= 0) keep = p.lmKeepBands[0].keep;
+        else for (k = 0; k < p.lmKeepBands.length; k++)
+          keep += ((+bd[k] || 0) / bsum) * p.lmKeepBands[k].keep;
+        return { i: idx, share: sh, daily: dI, lmDaily: lmDI, staff: staff, cost: costI,
+                 leverRev: leverI, roi: roiI, on: onI, keep: keep,
+                 lostDaily: onI ? 0 : lmDI * (1 - keep) };
+      });
+      var lost = 0;
+      for (i = 0; i < lmPts.length; i++) lost += lmPts[i].lostDaily;
+      p.dailyOrders = demandDaily - lost;
+      monthlyOrders = p.dailyOrders * p.daysPerMonth;
+      peakHourVol = p.dailyOrders * p.peakShare;
+      lastMileDaily = p.dailyOrders * p.lastMileShare;
+    }
+
+    // —— 机队规模 ——
+    var cycleMin = p.routeDist * 2 / p.droneSpeed / 60 + p.takeoffLandingMin;
+    var tripsPerHr = 60 / cycleMin;
+    var peakDrones = peakHourVol > 0 ? ceil(peakHourVol / tripsPerHr) : 0;
+    var fleetLimit = p.maxDrones * p.takeoffPts;   // 上限随起飞点数放大
+    var drones = min(ceil(peakDrones * (1 + p.droneIdle)), fleetLimit);
+
+    // —— 人力（阶梯用工 × 调休系数）——
+    var nPilot = ceil(p.dailyOrders / p.pilotProd) * rest;
+    var nMaint = ceil(p.dailyOrders / p.maintProd) * rest;
+    var nPickup = ceil(p.dailyOrders / pickupProd) * rest;
+    var nGround = min(ceil(p.dailyOrders / p.groundProd), p.groundCapPerTakeoff * p.takeoffPts) * rest;
+    var lmOpenN = 0, lmOpenDaily = 0, z;
+    if (lmPts) for (z = 0; z < lmPts.length; z++) if (lmPts[z].on) {
+      lmOpenN++; lmOpenDaily += lmPts[z].lmDaily;
+    }
+    var nLastMile = lmPts
+      ? (lmOpenN ? max(lmOpenN, ceil(lmOpenDaily / p.lastMileProd)) * rest : 0)
+      : max(p.lastMileLandingPts, ceil(lastMileDaily / p.lastMileProd)) * rest;
+    var nPatrol = p.dailyOrders < p.patrolMinOrders ? 0 : ceil(p.dailyOrders / p.patrolProd) * rest;
+
+    var cPilot = nPilot * p.salPilot, cMaint = nMaint * p.salMaint, cGround = nGround * p.salGround;
+    /* 三项地面人力的原值始终算出（供 ROI 判决），计入 labor 分两层门控：
+         取餐员   只随总开关 groundStaff
+         末端两项 受 ROI 闸，分母只算这两项，与分子（上门订单收入）同口径，逐单量判
+       分母若混进取餐员，ROI 会恒在 1 以下、闸恒关，取餐员被一起剔除，
+       等于模型认为餐是自己飞到起飞点的。 */
+    var cPickupRaw = nPickup * p.salPickup,
+        cLastMileRaw = nLastMile * p.salLastMile,
+        cPatrolRaw = nPatrol * p.salPatrol;
+    var gsOn = p.groundStaff ? 1 : 0;
+    var cPickup = cPickupRaw * gsOn;
+
+    /* 逐点档下 nLastMile 只含开闸点的人力，全关时是 0，直接拿它当分母商圈级 ROI 会变 Infinity。
+       所以逐点档的商圈级 ROI 改成把每个点都当作开着的合计，语义仍是
+       「在这个商圈铺末端配送划不划算」，且恒有定义。逐点的真实判决在 lmPts[].on 上。 */
+    var lmCost, lmLeverRev;
+    if (lmPts) {
+      var cAll = 0, rAll = 0;
+      for (z = 0; z < lmPts.length; z++) { cAll += lmPts[z].cost; rAll += lmPts[z].leverRev; }
+      lmCost = cAll + cPatrolRaw;
+      lmLeverRev = rAll;
+    } else {
+      lmCost = cLastMileRaw + cPatrolRaw;
+      lmLeverRev = monthlyOrders * p.lastMileShare * revPerOrderNet;
+    }
+    var lmRoi = lmCost > 0 ? lmLeverRev / lmCost : Infinity;
+    var lmAdvise = lmRoi >= p.roiMultiple;
+    var lmOn = lmPts ? (gsOn && lmOpenN > 0 ? 1 : 0)
+      : gsOn && (p.lastMileSwitch === 'on' ? 1
+        : p.lastMileSwitch === 'off' ? 0 : (lmAdvise ? 1 : 0));
+    var cLastMile = cLastMileRaw * lmOn, cPatrol = cPatrolRaw * lmOn;
+    var staffCostAll = cPickupRaw + cLastMileRaw + cPatrolRaw;
+    var labor = cPilot + cMaint + cPickup + cGround + cLastMile + cPatrol;
+
+    // —— 设备折旧 ——
+    var nMarker = p.takeoffPts * p.markerPerTakeoff;
+    var nPort = p.landingPts;
+    var nCabinet = min(ceil(p.dailyOrders / p.cabinetPerOrders), p.cabinetMaxPerTakeoff * p.takeoffPts);
+    var nCharging = nCabinet * p.chargingPerCabinet;
+    var nStorage = ceil(drones / p.storagePerDrones);
+    var nSpare = p.takeoffPts;
+    var nBoxReturn = p.landingPts;
+    var equipDepRaw = drones * p.depDrone + nMarker * p.depMarker + nPort * p.depPort
+      + nCabinet * p.depCabinet + nCharging * p.depCharging + nStorage * p.depStorage
+      + nSpare * p.depSpare + nBoxReturn * p.depBoxReturn;
+    var equipDep = p.equipDepOn ? equipDepRaw : 0;
+
+    // —— 电池（随航程）——
+    var consumeRatio = p.baseConsume + (p.routeDist / 1000 - p.baselineDist / 1000) * p.marginalConsume;
+    var batHwPerOrder = consumeRatio / p.batterySafety * (p.batteryPrice / p.batteryCycleLife);
+    var batElecPerOrder = consumeRatio * p.batteryPackEnergy / p.coulombic * p.elecCost / 1000;
+    var batteryHw = batHwPerOrder * monthlyOrders;
+    var batteryElec = batElecPerOrder * monthlyOrders;
+    var battery = batteryHw + batteryElec;
+
+    // —— 场地与办公 ——
+    var rent = p.takeoffRent + p.landingRent;
+    var takeoffFitoutM = (p.takeoffFitoutM != null) ? p.takeoffFitoutM : p.takeoffPts * p.takeoffFitoutPerPt;
+    var landingFitoutM = (p.landingFitoutM != null) ? p.landingFitoutM : p.landingPts * p.landingFitoutPerPt;
+    var fitout = takeoffFitoutM + landingFitoutM;
+    var venueElec = p.venueElecPerUnit * (p.landingPts + p.takeoffPts);
+    var venueOffice = rent + fitout + venueElec + p.broadband;
+
+    // —— 其他成本 ——
+    var nHandheld = (p.handheldCount != null) ? p.handheldCount : ceil(nGround + nPickup);
+    var simDroneC = ceil(drones) * p.simDrone,
+        simPortC = ceil(nPort) * p.simPort,
+        simHandheldC = nHandheld * p.simHandheld;
+    var simTotal = simDroneC + simPortC + simHandheldC;
+    var vehicle = p.takeoffPts * p.vehiclePerTakeoff;
+    var box = monthlyOrders * p.boxPerOrder;
+    var insurance = drones * p.droneInsurance;
+    var rtk = p.takeoffPts * p.rtkPerTakeoff;
+    var other = p.equipOM * p.takeoffPts + p.opsSupplies * p.takeoffPts
+      + simTotal + vehicle + box + insurance + rtk;
+
+    /* 营销补贴单列成科目，不并进「其他」：它是当前最大的一笔逐单流出，
+       并进去以后在成本结构里就看不见了。 */
+    var subsidy = p.subsidyPerOrder * monthlyOrders;
+    var deliveryCost = labor + equipDep + battery + venueOffice + other + p.networkOM + subsidy;
+
+    // —— 收入 ——
+    var revDelivery = revPerOrder * monthlyOrders;
+    var revenue = revDelivery + p.marketing;
+
+    // —— 利润 ——
+    var profit = revenue - deliveryCost;
+    var margin = revenue ? profit / revenue : 0;
+    var costPerOrder = monthlyOrders ? deliveryCost / monthlyOrders : 0;
+    var profitPerOrder = revPerOrder - costPerOrder;
+
+    /* 局部估计的平衡点：可变成本只算电池与餐箱，其余视为固定。
+       远低于平衡点时会严重低估，真实保本走 findBreakeven。 */
+    var varCostPerOrder = monthlyOrders > 0 ? (battery + box) / monthlyOrders : 0;
+    var contributionPerOrder = revPerOrder - varCostPerOrder;
+    var breakEvenMonthly = contributionPerOrder > 0 ? deliveryCost / contributionPerOrder : Infinity;
+    var breakEvenDaily = breakEvenMonthly / p.daysPerMonth;
+
+    /* 成本反向倒推：给定单量、其余成本已知时，仍能保本的最大可承受月租金。
+       这是谈判锚点 —— 不正向填租金算盈亏，而由收益反推能承受多少。 */
+    var nonRentCost = deliveryCost - rent;
+    var rentCeiling = revenue - nonRentCost;
+    var negotiationRoom = rentCeiling - rent;
+
+    return {
+      inputs: p, restFactor: rest,
+      monthlyOrders: monthlyOrders, dailyOrders: p.dailyOrders,
+      peakHourVol: peakHourVol, drones: drones, peakDrones: peakDrones,
+      revPerOrder: revPerOrder, revPerOrderNet: revPerOrderNet,
+      merchantCommission: merchantCommission,
+      revDelivery: revDelivery, marketing: p.marketing, revenue: revenue,
+      labor: labor, equipDep: equipDep, battery: battery, venueOffice: venueOffice,
+      other: other, networkOM: p.networkOM, subsidy: subsidy,
+      subsidyPerOrder: p.subsidyPerOrder, deliveryCost: deliveryCost,
+      rent: rent, nonRentCost: nonRentCost,
+      profit: profit, margin: margin, costPerOrder: costPerOrder, profitPerOrder: profitPerOrder,
+      varCostPerOrder: varCostPerOrder, breakEvenMonthly: breakEvenMonthly,
+      breakEvenDaily: breakEvenDaily,
+      rentCeiling: rentCeiling, negotiationRoom: negotiationRoom,
+      /* 这是读数不是入参。任何一个字段都不许回填进 cfg 再喂给跨单量的扫描与推演 ——
+         那会把某一个单量上的判决冻结着用到整条扫描上。
+         要 ROI 的分母就用 lmCost（末端两项），要三项总额就用 costAll，两者别混算。 */
+      groundStaffEval: {
+        on: !!p.groundStaff, costAll: staffCostAll, lmCost: lmCost, leverRev: lmLeverRev,
+        roi: lmRoi, advise: lmAdvise, lmOn: !!lmOn, pickupOn: !!gsOn,
+        perPoint: !!lmPts, openPts: lmPts ? lmOpenN : null, points: lmPts,
+        demandDaily: demandDaily, effDaily: p.dailyOrders,
+        lostDaily: lmPts ? demandDaily - p.dailyOrders : 0
+      },
+      breakdown: {
+        labor: { total: labor, items: [
+          ['飞手', nPilot, p.salPilot, cPilot], ['机务', nMaint, p.salMaint, cMaint],
+          ['取餐员', nPickup, p.salPickup, cPickup], ['地勤', nGround, p.salGround, cGround],
+          ['末端配送', nLastMile, p.salLastMile, cLastMile], ['末端巡游', nPatrol, p.salPatrol, cPatrol]
+        ] },
+        equipDep: { total: equipDep, items: [
+          ['无人机 A1', drones, p.depDrone], ['地面标识', nMarker, p.depMarker],
+          ['降落柜', nPort, p.depPort], ['室外恒温柜', nCabinet, p.depCabinet],
+          ['充电柜', nCharging, p.depCharging], ['机库', nStorage, p.depStorage],
+          ['备品柜', nSpare, p.depSpare], ['餐箱回收柜', nBoxReturn, p.depBoxReturn]
+        ] },
+        battery: { total: battery, hardware: batteryHw, electricity: batteryElec, consumeRatio: consumeRatio },
+        venueOffice: { total: venueOffice, rent: rent, takeoffRent: p.takeoffRent, landingRent: p.landingRent,
+          fitout: fitout, takeoffFitout: takeoffFitoutM, landingFitout: landingFitoutM,
+          venueElec: venueElec, broadband: p.broadband },
+        other: { total: other, sim: simTotal, simDrone: simDroneC, simPort: simPortC, simHandheld: simHandheldC,
+          vehicle: vehicle, box: box, insurance: insurance, rtk: rtk,
+          equipOM: p.equipOM * p.takeoffPts, opsSupplies: p.opsSupplies * p.takeoffPts }
+      }
+    };
+  }
+
+  /* ==========================================================================
+   * 逐点租金层 —— 独立于 compute 的纯函数。
+   * UI 维护 rentPoints → rentFromPoints 折算 → 写回四个标量 → compute 与全部
+   * 既有消费方（热力图 / 反推 / URL 载荷）零改动。
+   * RentPoint = { name, mode, fixed, pct, growthRent, fitoutTotal, amortMonths,
+   *               dailyOrders, aov, cfee, growthOrders, growthAov, growthCfee }
+   * ========================================================================*/
+  var RENT_MODES = ['fixed', 'pct_gmv', 'fixed_pct_gmv', 'fixed_pct_cfee'];
+  function modeHasFixed(m) { return m === 'fixed' || m === 'fixed_pct_gmv' || m === 'fixed_pct_cfee'; }
+  function modeHasGmv(m) { return m === 'pct_gmv' || m === 'fixed_pct_gmv'; }
+  function modeHasCfee(m) { return m === 'fixed_pct_cfee'; }
+
+  function pointMonthly(pt, yearIdx) {
+    var y = yearIdx || 1;
+    var fixedM = modeHasFixed(pt.mode) ? (pt.fixed || 0) * pow(1 + (pt.growthRent || 0), y - 1) : 0;
+    var d = (pt.dailyOrders || 0) * pow(1 + (pt.growthOrders || 0), y - 1);
+    var aov = (pt.aov || 0) * pow(1 + (pt.growthAov || 0), y - 1);
+    var cf = (pt.cfee || 0) * pow(1 + (pt.growthCfee || 0), y - 1);
+    var base = (modeHasGmv(pt.mode) ? d * aov : 0) + (modeHasCfee(pt.mode) ? d * cf : 0);
+    return fixedM + base * (pt.pct || 0) * 365 / 12;
+  }
+  function pointFitoutM(pt) {
+    var mo = pt.amortMonths || 12;
+    return mo > 0 ? (pt.fitoutTotal || 0) / mo : 0;
+  }
+  function rentFromPoints(rp, yearIdx) {
+    var to = (rp && rp.takeoff) || [], la = (rp && rp.landing) || [];
+    var r = { takeoffRent: 0, landingRent: 0, takeoffFitoutM: 0, landingFitoutM: 0,
+              takeoffPts: to.length || 1, landingPts: la.length };
+    to.forEach(function (pt) { r.takeoffRent += pointMonthly(pt, yearIdx); r.takeoffFitoutM += pointFitoutM(pt); });
+    la.forEach(function (pt) { r.landingRent += pointMonthly(pt, yearIdx); r.landingFitoutM += pointFitoutM(pt); });
+    return r;
+  }
+  /* 商圈快照 → 默认逐点表（全固定、均摊）。
+     恒等式：rentFromPoints(defaultRentPoints(u)) ≡ 快照里的四个标量。 */
+  function defaultRentPoints(u, fitoutT, fitoutL) {
+    var lands = u.lands || 0, names = u.landNames || [];
+    var per = lands ? +((u.landingRent || 0) / lands).toFixed(2) : 0;
+    var arr = [];
+    for (var i = 0; i < lands; i++) arr.push({
+      name: names[i] || null, nameKey: '降落点', nameIdx: i + 1,
+      mode: 'fixed', fixed: per, pct: 0, growthRent: 0,
+      fitoutTotal: fitoutL != null ? fitoutL : 10800, amortMonths: 12,
+      dailyOrders: null, aov: null, cfee: null, growthOrders: 0, growthAov: 0, growthCfee: 0
+    });
+    return {
+      takeoff: [{
+        name: u.hubName || null, nameKey: '起飞点', nameIdx: null,
+        mode: 'fixed', fixed: (u.takeoffRent != null ? u.takeoffRent : DEFAULTS.takeoffRent),
+        pct: 0, growthRent: 0,
+        fitoutTotal: fitoutT != null ? fitoutT : 42000, amortMonths: 12,
+        dailyOrders: null, aov: null, cfee: null, growthOrders: 0, growthAov: 0, growthCfee: 0
+      }],
+      landing: arr
+    };
+  }
+
+  /* ==========================================================================
+   * 五年逐年推演
+   *   年 = 日均 × 365（daysPerMonth 取 365/12）；设备逐年重算；折旧五年不到期；
+   *   装修计入首年一次性（月度视图仍按 amortMonths 摊，两个口径并存）；
+   *   租金随逐点表逐年推演（固定部分复利，提成部分随该年营业额或配送费）。
+   * ========================================================================*/
+  var GROWTH_DEF = {
+    orders: [0, 0.12, 0.12, 0.10, 0.10],
+    salary: 0.03, aov: 0.03, marketing: 0.10,
+    commission: 0, platformFee: 0, cfee: 0
+  };
+  function project(o, gr) {
+    var base = Object.assign({}, o || {});
+    var G = Object.assign({}, GROWTH_DEF, gr || {});
+    var orders = G.orders && G.orders.length ? G.orders : GROWTH_DEF.orders;
+    var d0 = (base.dailyOrders != null) ? base.dailyOrders : DEFAULTS.dailyOrders;
+    var rp = base.rentPoints || null;
+    var fitout1 = 0;
+    if (rp) {
+      (rp.takeoff || []).concat(rp.landing || []).forEach(function (pt) { fitout1 += pt.fitoutTotal || 0; });
+    } else {
+      var tfM = (base.takeoffFitoutM != null) ? base.takeoffFitoutM
+        : ((base.takeoffPts != null ? base.takeoffPts : DEFAULTS.takeoffPts) * DEFAULTS.takeoffFitoutPerPt);
+      var lfM = (base.landingFitoutM != null) ? base.landingFitoutM
+        : ((base.landingPts != null ? base.landingPts : DEFAULTS.landingPts) * DEFAULTS.landingFitoutPerPt);
+      fitout1 = (tfM + lfM) * 12;
+    }
+    var pick = function (k) { return (base[k] != null) ? base[k] : DEFAULTS[k]; };
+    var aov0 = pick('aov'), mkt0 = pick('marketing'), cr0 = pick('commissionRate'),
+        pf0 = pick('platformFee'), df0 = pick('deliveryFee');
+    var salKeys = ['salPilot', 'salMaint', 'salPickup', 'salGround', 'salLastMile', 'salPatrol'];
+    var sal0 = {}; salKeys.forEach(function (k) { sal0[k] = pick(k); });
+
+    var years = [], landYear = null, daily = d0, totRev = 0, totCost = 0, totProfit = 0;
+    for (var t = 1; t <= 5; t++) {
+      if (t > 1) daily = daily * (1 + (orders[t - 1] || 0));
+      var f = pow(1 + G.salary, t - 1);
+      var cfgY = Object.assign({}, base, {
+        rentPoints: undefined,
+        dailyOrders: daily,
+        daysPerMonth: 365 / 12,
+        aov: aov0 * pow(1 + G.aov, t - 1),
+        marketing: mkt0 * pow(1 + G.marketing, t - 1),
+        commissionRate: cr0 * pow(1 + G.commission, t - 1),
+        platformFee: pf0 * pow(1 + G.platformFee, t - 1),
+        deliveryFee: df0 * pow(1 + G.cfee, t - 1),
+        equipDepOn: true,
+        takeoffFitoutM: 0, landingFitoutM: 0
+      });
+      salKeys.forEach(function (k) { cfgY[k] = sal0[k] * f; });
+      if (rp) {
+        var r = rentFromPoints(rp, t);
+        cfgY.takeoffRent = r.takeoffRent; cfgY.landingRent = r.landingRent;
+        if (o == null || o.takeoffPts == null) cfgY.takeoffPts = r.takeoffPts;
+        if (o == null || o.landingPts == null) cfgY.landingPts = r.landingPts;
+      }
+      var m = compute(cfgY);
+      var rev = m.revenue * 12;
+      var cost = m.deliveryCost * 12 + (t === 1 ? fitout1 : 0);
+      var pr = rev - cost;
+      if (landYear == null && pr >= 0) landYear = t;
+      totRev += rev; totCost += cost; totProfit += pr;
+      years.push({ t: t, daily: daily, annualOrders: daily * 365, monthlyOrders: m.monthlyOrders,
+        revenue: rev, cost: cost, profit: pr, margin: rev ? pr / rev : 0, rent: m.rent * 12, m: m });
+    }
+    return { years: years, landYear: landYear,
+      totals: { revenue: totRev, cost: totCost, profit: totProfit },
+      fitoutOneOff: fitout1, growth: G };
+  }
+
+  /* ==========================================================================
+   * 真实保本线
+   *   compute().breakEvenDaily 是局部估计（成本冻结在当前单量），远低于平衡点时严重低估。
+   *   这里把成本随单量的阶梯上升也算进去，逐单量扫描。
+   *
+   *   判据 = 持续为正，取最后一段连续为正的起点，不取首次穿越：
+   *   利润对单量非单调（人力是 ceil 阶梯、收入是线性，每上一级台阶利润掉一次），
+   *   首次穿零的那个单量未必稳得住。
+   *   因此必须扫满 CAP，不许一穿越就 return，也不许用二分 ——
+   *   非单调下二分会落进某个孤立的正区间里。
+   * ========================================================================*/
+  function findBreakeven(o) {
+    var cfg = o || {};
+    var dpm = cfg.daysPerMonth || DEFAULTS.daysPerMonth;
+    var CAP = 3000;
+    /* 机队运力上限：只报不拦。封顶之后引擎还在按单量加收入、不再加飞机，
+       成本摊薄让保本线仍然解得出来，但那个单量这套机队飞不了。
+       判据用真实运力（封顶后在飞架数 × 每架每小时趟数 ÷ 峰值占比），
+       不是「飞机数撞顶」那一刻 —— 撞顶只是成本停涨点。 */
+    var p0 = Object.assign({}, DEFAULTS, cfg);
+    var cyc = p0.routeDist * 2 / p0.droneSpeed / 60 + p0.takeoffLandingMin;
+    var tph = 60 / cyc;
+    var flying = (p0.maxDrones * p0.takeoffPts) / (1 + p0.droneIdle);
+    var fleetCapDaily = p0.peakShare > 0 ? Math.floor(flying * tph / p0.peakShare) : null;
+
+    var stable = null, firstCross = null;
+    for (var d = 1; d <= CAP; d++) {
+      if (compute(Object.assign({}, cfg, { dailyOrders: d })).profit >= 0) {
+        if (firstCross === null) firstCross = d;
+        if (stable === null) stable = d;
+      } else {
+        stable = null;
+      }
+    }
+    if (stable === null) {
+      return { daily: Infinity, monthly: Infinity, feasible: false,
+               firstCross: firstCross, dipAfterFirst: firstCross !== null,
+               fleetCapDaily: fleetCapDaily, overFleet: false };
+    }
+    return { daily: stable, monthly: stable * dpm, feasible: true,
+             firstCross: firstCross, dipAfterFirst: firstCross !== null && firstCross !== stable,
+             fleetCapDaily: fleetCapDaily,
+             overFleet: fleetCapDaily != null && stable > fleetCapDaily };
+  }
+
+  var API = {
+    DEFAULTS: DEFAULTS, GROWTH_DEF: GROWTH_DEF, SUBSIDY_TIERS: SUBSIDY_TIERS,
+    DISTRICT_OVERRIDES: DISTRICT_OVERRIDES, RENT_MODES: RENT_MODES,
+    compute: compute, findBreakeven: findBreakeven,
+    rentFromPoints: rentFromPoints, defaultRentPoints: defaultRentPoints,
+    pointMonthly: pointMonthly, project: project
+  };
+  g.UEModel = API;
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+/*UE_MODEL_END*/</script>
+<script>
+/* =====================================================================
+ * 选址沙盘
+ * 链路：画圈 → 圈内订单池 → 可承接率 × 选择率 → 日均单量 → 测算引擎
+ *       → 月利润 / 保本线 / 可承受租金上限
+ * 数据：全部由 scripts/gen_mock.py 生成，与任何真实业务无关。
+ *       代码与数据分离，页面只认 ../data/*.json 的结构，换一份数据即换一座城。
+ * ===================================================================== */
+'use strict';
+
+/* 热力插件每帧都从画布读回像素，浏览器会提示该加 willReadFrequently。
+   插件内部没有暴露这个选项，所以在这里按类名给它的画布补上 —— 这同时也是一条真实的性能建议。
+   ⚠ 只认热力层那一块画布：这个标志会把画布切到软件渲染路径，
+     无差别加到所有 2D 画布上会拖慢矢量图层与截图合成。 */
+(function(){const g=HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext=function(type,attrs){
+    if(type==='2d'&&typeof this.className==='string'&&this.className.indexOf('leaflet-heatmap-layer')>=0)
+      attrs=Object.assign({willReadFrequently:true},attrs||{});
+    return g.call(this,type,attrs);};})();
+
+/* 取词函数必须叫 tx，不能叫 L —— L 是 Leaflet 的全局对象，同名会让 L.map 变成字符串函数。 */
+let LANG='zh';
+function tx(s){return (LANG==='en'&&s!=null&&EN[s]!==undefined)?EN[s]:s;}
+const EN={
+ '返回经营门户':'Back to Ops Portal','开航① · 开在哪':'Pre-Launch ① · Where','圈选测算 · 需求洞察':'Zoning · Demand Insight',
+ '实时测算':'Live calc','选址沙盘':'Site Sandbox','演示数据 · 脚本生成':'Demo data · script-generated','载入演示数据…':'Loading demo data…',
+ '点选加降落点':'Click-add landing','航线连接':'Routes','全域':'All area','截图':'Screenshot',
+ '⏱ 时段分布 · 当地时间':'⏱ Hourly distribution · local time','重置':'Reset','全天':'All day','时':'h','时段':'window',
+ '数据概览':'Data overview','演示城市':'Demo metro','总订单':'Total orders','交易额':'GMV','客单价':'AOV','出单商家':'Merchants','餐饮POI':'F&B POIs','免配占比':'Free-deliv %',
+ '图层控制':'Layers','供给热力 (取货)':'Supply heat (pickup)','需求热力 (送货)':'Demand heat (drop-off)','订单流向':'Order flow','区域围栏':'Area fences','别墅区围栏':'Villa fences',
+ '公网POI':'Public POIs','供给侧':'Supply side','潜在供给商家 (餐饮)':'Potential merchants (F&B)','大型商场':'Large malls','中型/社区商场':'Mid / community malls','小型/社区中心':'Small / community centres',
+ '需求侧':'Demand side','公寓/住宅':'Apartments','酒店':'Hotels','写字楼/商业':'Offices','学校':'Schools','公园':'Parks','别墅':'Villas',
+ '空域限制':'Airspace','禁飞区':'Prohibited','绝对禁飞 · 不可申请':'Absolute no-fly · no permit','敏感区':'Sensitive','可申请资质 · 需协调':'Permit possible · needs coordination','报备区':'Notification','已取资质 · 开航需报备':'Permitted · notify before launch',
+ '空域分区为演示生成，不对应任何真实公告':'Airspace zones are generated for this demo and match no real notice',
+ '潜在选点参考 (算法测算)':'Candidate sites (algorithmic)','潜在中心机场':'Potential hubs','降落点 (楼宇)':'Landing (building)','降落点 (别墅)':'Landing (villa)','潜在航线':'Potential routes',
+ '按供给密度与需求密度测算潜在起降点，已硬过滤禁飞区。':'Scores potential takeoff and landing points by supply and demand density, with no-fly zones hard-filtered. ',
+ '仅供选址参考，不参与测算':'Reference only, not in the calculation','真实点位以右侧商圈为准。':' The districts on the right are the operating ones.',
+ '商圈':'Districts','点卡片进入工作台':'Click a card to open the workbench','单底图':' orders on the basemap',
+ '日均订单池':'Daily order pool','未乘转化':'pre-conversion','保本线':'Break-even','月利润 · 利润率':'Profit · margin',
+ '起飞点':'Takeoff','降落点':'Landing','进入工作台 ▸':'Open workbench ▸','＋ 新增商圈':'＋ Add district','点':'pts','家':'',
+ '新增商圈':'Add district','搜地名查坐标':'Search a place','输入地名，回车自动填坐标':'Type a place, press Enter','查询中…':'searching…','未找到':'not found','查询失败':'lookup failed','名称':'Name','新商圈':'New district','确定并进入':'Create & open','取消':'Cancel','纬度':'Lat','经度':'Lng',
+ '请输入有效经纬度':'Enter valid coordinates','坐标不在演示范围内，仍要添加？':'Coordinates outside the demo area. Add anyway?','坐标不在演示范围内，仍要修改？':'Coordinates outside the demo area. Change anyway?',
+ '长航程 · 规划覆盖区':'Long-range · planned coverage','规划 · 索降 · 不参与测算':'Planned · winch-down · not in the calculation','地图显示':'Show on map',
+ '返回商圈列表':'Back to district list','机型':'Model','线索':'Lead','开航准备':'Pre-launch','经营':'Operating',
+ 'UE 为正 · 月利润':'UE positive · monthly profit','距 UE 转正':'Gap to UE-positive','当前日均单量':'Current daily orders','不可行':'infeasible',
+ '三个增长杠杆：':'3 growth levers: ','配送方式选择率':'delivery-option pick rate','增设降落点':'add landing points','商家商品覆盖':'merchant & item coverage',
+ '开航① 开在哪':'Pre-Launch ① Where','经纬度可改 · 可拖动地图金点':'Editable · or drag the gold pin','或在地图上拖动起点':'or drag the hub on the map',
+ '半径可拖拽 · 下方录入新增':'Drag to resize · add by coordinates below','加降落点':'Add landing','录入添加':'Add by coordinates','点击改名':'click to rename','拖动改半径':'drag to resize','点击改坐标':'click to edit coordinates',
+ '暂无降落点 · 用地图上方「＋ 点选加降落点」添加':'No landing points yet · use ＋Click-add landing above',
+ '系统推荐降落点':'Suggested landing points','密度 × 起讫模型':'density × OD model','采纳':'Adopt','采纳为降落点':'Adopt as landing point','潜在':'potential','距起飞点':'distance',
+ '该商圈 1–3.5km 内无可行候选':'No viable candidate within 1–3.5 km','候选':'candidate','来自系统推荐':'from the suggestion list',
+ '开航② 经济性':'Pre-Launch ② Economics','决策链 · 圈内实时测算':'Decision chain · live in-zone calc','如何实现转正':'how to turn positive',
+ '01 做大可分配订单池':'01 Grow the addressable pool','当前经营重点':'current focus','圈内大盘订单':'In-zone market orders',
+ '月化 · 起点∈取餐圈 · 终点∈降落圈':'monthly · origin in pickup circle, destination in landing circle',
+ '× 可承接率':'× Servable rate','商家覆盖 × 商品覆盖 · 可改':'merchant coverage × item coverage · editable','假定值 · 待订单数据 · 可改':'assumed · pending order data · editable',
+ '可分配订单池':'Addressable pool','大盘 × 可承接率 · 阶段产物':'market × servable · intermediate',
+ '02 提升订单转化':'02 Lift conversion','× 配送方式选择率':'× Delivery-option pick rate','转化 · 假定值 · 可调':'conversion · assumed, editable','= 无人机订单 · 日均':'= Drone orders · daily','÷ 30 · 驱动测算引擎':'÷30 · drives the engine',
+ '月收入':'Monthly revenue','月配送成本':'Monthly delivery cost','单均':'per order','收入 − 配送成本':'revenue − delivery cost',
+ '供给 · 签约进度':'Supply · signing','签约率':'signed rate','按商家家数 · 未按订单加权':'by merchant count, not order-weighted','无签约数据':'no signing data','签约名单商家':'Merchants in list',
+ '已签':'Signed','签约中':'Signing','待签':'To sign','→ BD 跟进':'→ BD follow-up',
+ '供给四维体检 · 参照':'4-dim supply check · reference','有效商家':'valid merchants','品类':'categories','品牌':'brands',
+ '场地租金':'Site rent','改租金看利润':'edit rent, watch profit','起飞':'Takeoff','降落':'Landing','此租金月利润':'Profit at this rent',
+ '打开单元经济台':'Open Unit Economics','日均':'daily','单预填':' orders prefilled',
+ '该区暂无可配对订单 · 换个位置或扩大半径':'No matchable orders here · move the hub or widen the radius',
+ '万':'k','万/月':'k/mo','单/月':'/mo','单/天':'/day',
+ '出图中':'Rendering','出图失败':'Export failed','出图已中止：图层里出现了不该进图的数据文字':'Export aborted — a layer contains data text that must not enter the image',
+ '低':'low','高':'high','热力为相对密度 · 不含绝对量':'Heat shows relative density, not absolute volume',
+ '浅色':'Light','深色':'Dark','主题':'Theme','切换到浅色':'Switch to light','切换到深色':'Switch to dark','验证期':'pilot stage',
+ '北湾商圈':'Northbay District','河畔商圈':'Riverside District','西门商圈':'Westgate District','湖景商圈':'Lakeview District'
+};
+
+/* ============ 主题。默认浅色，两态手动切换，不跟随系统 ============ */
+const THKEY='ops_theme';
+const TH_ICON={
+ light:'<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/><path d="M12 1.5v2.7M12 19.8v2.7M4.5 4.5l1.9 1.9M17.6 17.6l1.9 1.9M1.5 12h2.7M19.8 12h2.7M4.5 19.5l1.9-1.9M17.6 6.4l1.9-1.9" stroke="currentColor" stroke-width="2.2"/>',
+ dark:'<path d="M20.6 14.9A8.7 8.7 0 1 1 9.1 3.4a6.9 6.9 0 0 0 11.5 11.5z" fill="currentColor" stroke="none"/>'};
+function thMode(){try{return localStorage.getItem(THKEY)==='dark'?'dark':'light';}catch(e){return 'light';}}
+function renderThemeBtn(){const m=thMode(),ic=document.getElementById('thIco'),bt=document.getElementById('thTog');
+  if(!ic||!bt)return; ic.innerHTML=TH_ICON[m];
+  bt.setAttribute('aria-label',tx('主题')+' · '+tx(m==='light'?'浅色':'深色'));
+  bt.title=tx(m==='light'?'切换到深色':'切换到浅色');}
+function applyTheme(){const m=thMode();
+  if(m==='light')document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  renderThemeBtn();
+  try{applyMapTheme(m);}catch(e){}
+  try{buildSidebar();}catch(e){}
+  try{if(active!=null)renderUnit();}catch(e){}}
+function cycleTheme(){const nx=thMode()==='light'?'dark':'light';
+  try{nx==='dark'?localStorage.setItem(THKEY,'dark'):localStorage.removeItem(THKEY);}catch(e){}
+  applyTheme();}
+
+/* ============ 状态 ============ */
+let M=null, OD=null, DISTRICTS=null, DAYS=60, C=null;
+let units=[], planZones=[], view='list', active=null, arming=false, showRoutes=true, hourRange=[0,23];
+let SUPPLY_RKM_DEF=0.75;
+const hav=(a,b,c,d)=>{const R=6371,t=Math.PI/180,x=(c-a)*t,y=(d-b)*t,
+  h=Math.sin(x/2)**2+Math.cos(a*t)*Math.cos(c*t)*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(h));};
+const wan=v=>(v/10000).toFixed(1);
+const nW=v=>LANG==='en'?Math.round(v/1000).toLocaleString():wan(v);
+const moOf=raw=>Math.round(raw*30/DAYS);
+/* 极低单量下利润率百分比没有意义：固定成本摊在几单上，算出来是几千甚至上万个百分点，
+   读者会把它当成一个可比的经营指标。低于这个量级一律改说「验证期」，让人去看缺口而不是比率。 */
+const LOWVOL=30;
+const marginTxt=(ue,daily)=>daily<LOWVOL?tx('验证期')
+  :(ue.margin*100).toFixed(0)+'<span class="g"></span>%';
+
+/* ---------- 地图 ---------- */
+/* 底图 key 单源。无 key 时服务端会整砖盖水印，而 HTTP 仍回 200 加一张合法 PNG ——
+   前端不报错、onload 照常触发，所有「取得到就算好」的探针都会被骗过。
+   ⚠ 参数名是 key，不是 api_key；写成 api_key 同样静默返回水印。
+   ⚠ 三处 tile URL（baseTile 与 MAPPAL 两档）必须走同一个常量，漏一处切到那个主题就是脏图。
+   此 key 为前端公开 key，安全靠服务商控制台的域名限制，不靠保密。 */
+const CARTO_KEY='cb1_3j5n_1_7a1776b1593d6664412ebebc';
+const CARTO_TILE=s=>'https://basemaps.cartocdn.com/'+s+'/{z}/{x}/{y}{r}.png?key='+CARTO_KEY;
+const CARTO_ATTR='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+const map=L.map('map',{zoomControl:false,attributionControl:true,preferCanvas:true,zoomSnap:.5,zoomDelta:.5});
+const baseTile=L.tileLayer(CARTO_TILE('dark_nolabels'),{maxZoom:19,updateWhenZooming:false,updateWhenIdle:true,
+  crossOrigin:'anonymous',attribution:CARTO_ATTR}).addTo(map);
+L.control.zoom({position:'topright'}).addTo(map);
+[['heatPane',320],['flowPane',330],['sectorPane',340],['areaPane',350],['villaPane',355],['nfzPane',360],
+ ['poiPane',410],['dronePane',460],['labelPane',620],['mallPane',650]].forEach(([n,z])=>{
+  map.createPane(n);map.getPane(n).style.zIndex=z;map.getPane(n).style.pointerEvents='none';});
+map.setView([25.16,55.26],11);
+
+/* 两条热力色带。需求走电蓝、供给走暖橙，色相锁定，浅色档只反转明暗方向。
+   ⚠ 两条色带的明度曲线刻意不对称：暖色压到低明度会塌成锈斑，冷色不会，
+     所以供给色带的低端整体比需求高一档。这是色彩感知本身不对称，不是两边没对齐。
+   ⚠ 两层热力用 normal 叠加，不用 screen 或 multiply：混出来的第三色撞公网 POI 是
+     数学必然，不是选色失误 —— 只要需求是蓝、供给是暖色，加色必然往粉紫走。 */
+const MAPPAL={
+  dark:{
+    tile:CARTO_TILE('dark_nolabels'),
+    dem:{.22:'#0b0f2c',.42:'#1d2a7e',.62:'#3554c2',.82:'#6486e6',1:'#a3bcff'},
+    sup:{.18:'#261600',.40:'#7d2f00',.60:'#cc5214',.80:'#ff7c3e',1:'#ffb98a'},
+    comm:{opacity:.25,fillOpacity:.04}, sect:{opacity:.4},
+    flow:{color:'#ff9a56',oBase:.12,oSpan:.4},
+    villa:{color:'#6bcb77',opacity:.4,fillOpacity:.05},
+    nfz:{pink:'#ff00ff',red:'#ff3333',beige:'#ffaa00',fillPink:.20,fillOther:.15},
+    poiSup:'#F2A99B', poiDem:['#5cb3f0','#b06bd6','#9aa6b5','#ffce4d','#ff7a9c','#5fd37e'],
+    mall:{0:'#FBCFC6',1:'#F2A99B',2:'#C97E71'}, poiFill:.55, mallFill:.75,
+    dHub:'#d98a82', landB:'#74a9c4', landV:'#7bbf99', droute:'#a9b6c6', drouteOp:.32, dotOp:.7, dotFill:.06,
+    ringSup:{color:'#ff9a56',fillOpacity:.06,weight:1.5},
+    ringLand:{color:'#FFD100',fillOpacity:.05,weight:1.5},
+    ringSugg:{fillOpacity:.05,weight:1.6}
+  },
+  light:{
+    tile:CARTO_TILE('light_nolabels'),
+    dem:{.22:'#e6edfd',.42:'#a9c1f4',.62:'#5c80e0',.82:'#2c4cb0',1:'#131f63'},
+    sup:{.18:'#FFF1E7',.40:'#FBCFA8',.60:'#F2984F',.80:'#DE6A18',1:'#B84A08'},
+    comm:{opacity:.45,fillOpacity:.10}, sect:{opacity:.6},
+    flow:{color:'#C2560D',oBase:.18,oSpan:.45},
+    villa:{color:'#2E7D32',opacity:.55,fillOpacity:.10},
+    nfz:{pink:'#C2185B',red:'#D32F2F',beige:'#E08600',fillPink:.16,fillOther:.13},
+    /* 浅底上 POI 显脏的病根是饱和度不是明度：低饱和的褐调读作土色，提亮又会撞掉热力。
+       落点是明度 59% 配饱和 65% 的珊瑚色，alpha 提到 .95 补偿小点的可见度。
+       ⚠ 点径两档必须一致，不许按主题分档 —— 点一变大就与深色档不是一个东西了。 */
+    poiSup:'#D96F55', poiDem:['#3D82D8','#9B4BBF','#7A929E','#B08F1F','#D8497F','#54A158'],
+    mall:{0:'#E89880',1:'#D96F55',2:'#B85539'}, poiFill:.95, mallFill:.95,
+    dHub:'#A14A40', landB:'#3D6E8C', landV:'#3D7D5C', droute:'#6B7A8C', drouteOp:.5, dotOp:.85, dotFill:.12,
+    ringSup:{color:'#B4560F',fillOpacity:.18,weight:2.2},
+    ringLand:{color:'#B5850A',fillOpacity:.14,weight:2},
+    ringSugg:{fillOpacity:.12,weight:2}
+  }
+};
+/* 图例圆点与地图层同步取色，避免地图上的点已经换色、左栏图例还停在旧色。
+   ⚠ poiDem 数组下标与这里的键名不同序：0 住宅 1 酒店 2 写字楼 3 学校 4 公园 5 别墅。 */
+const LEGPAL={
+ dark:{supply:'#ff6b35',demand:'#5E84F5',flow:'#ff9a56',areas:'#5E84F5',villaZones:'#6bcb77',poiSupply:'#F2A99B',
+  mallL:'#FBCFC6',mallM:'#F2A99B',mallS:'#C97E71',poiVilla:'#5fd37e',poiResi:'#5cb3f0',poiHotel:'#b06bd6',
+  poiOffice:'#9aa6b5',poiSchool:'#ffce4d',poiPark:'#ff7a9c',nfzPink:'#ff00ff',nfzRed:'#ff3333',nfzBeige:'#ffaa00',
+  dHub:'#d98a82',landB:'#74a9c4',landV:'#7bbf99',dRoute:'#a9b6c6'},
+ light:{supply:'#C2410C',demand:'#3557C8',flow:'#C2560D',areas:'#3557C8',villaZones:'#2E7D32',poiSupply:'#D96F55',
+  mallL:'#E89880',mallM:'#D96F55',mallS:'#B85539',poiVilla:'#54A158',poiResi:'#3D82D8',poiHotel:'#9B4BBF',
+  poiOffice:'#7A929E',poiSchool:'#B08F1F',poiPark:'#D8497F',nfzPink:'#C2185B',nfzRed:'#D32F2F',nfzBeige:'#E08600',
+  dHub:'#A14A40',landB:'#3D6E8C',landV:'#3D7D5C',dRoute:'#6B7A8C'}};
+function legDot(id,fb){const t=thMode();return (LEGPAL[t]&&LEGPAL[t][id])||fb;}
+
+let demLayer,supLayer,areaLayer,flowLayer,villaZoneLayer,poiSupply,poiDemand=[],mallG={},nfzG={},
+    dHubLayer,dLandBLayer,dLandVLayer,dRouteLayer,suggLayer,planLayer,LREG={},checked={},
+    demMax=1,supMax=1,dRB=[12,9],sRB=[12,9];
+
+const PANEL=[
+ {sec:'图层控制',items:[
+   {id:'supply',lb:'供给热力 (取货)',dot:'#ff6b35'},
+   {id:'demand',lb:'需求热力 (送货)',dot:'#5E84F5'},
+   {id:'flow',lb:'订单流向',dot:'#ff9a56'},
+   {id:'areas',lb:'区域围栏',dot:'#5E84F5'},
+   {id:'villaZones',lb:'别墅区围栏',dot:'#6bcb77'}]},
+ {sec:'公网POI',items:[
+   {sub:'供给侧'},
+   {id:'poiSupply',lb:'潜在供给商家 (餐饮)',dot:'#F2A99B',cntKey:'supply'},
+   {id:'mallL',lb:'大型商场',dot:'#FBCFC6',cntKey:'mallsLarge'},
+   {id:'mallM',lb:'中型/社区商场',dot:'#F2A99B',cntKey:'mallsMedium'},
+   {id:'mallS',lb:'小型/社区中心',dot:'#C97E71',cntKey:'mallsSmall'},
+   {sub:'需求侧'},
+   {id:'poiVilla',lb:'别墅',dot:'#5fd37e',cntKey:'villa'},
+   {id:'poiResi',lb:'公寓/住宅',dot:'#5cb3f0',cntKey:'residential'},
+   {id:'poiHotel',lb:'酒店',dot:'#b06bd6',cntKey:'hotel'},
+   {id:'poiOffice',lb:'写字楼/商业',dot:'#9aa6b5',cntKey:'office'},
+   {id:'poiSchool',lb:'学校',dot:'#ffce4d',cntKey:'school'},
+   {id:'poiPark',lb:'公园',dot:'#ff7a9c',cntKey:'park'}]},
+ {sec:'空域限制',items:[
+   {id:'nfzPink',lb:'禁飞区',dot:'#ff00ff',sub2:'绝对禁飞 · 不可申请'},
+   {id:'nfzRed',lb:'敏感区',dot:'#ff3333',sub2:'可申请资质 · 需协调'},
+   {id:'nfzBeige',lb:'报备区',dot:'#ffaa00',sub2:'已取资质 · 开航需报备'}],
+  foot:'空域分区为演示生成，不对应任何真实公告'}];
+
+/* ---------- 数据载入 ---------- */
+Promise.all([
+  fetch('../data/mapdata.json').then(r=>r.json()),
+  fetch('../data/od_matrix.json').then(r=>r.json()),
+  fetch('../data/districts.json').then(r=>r.json())
+]).then(([md,od,ds])=>{M=md;OD=od;DISTRICTS=ds;boot();})
+ .catch(e=>{document.getElementById('wb').innerHTML=
+   '<div class="loading">演示数据尚未生成。<br>先在仓库根目录跑 <code>python3 scripts/gen_mock.py</code>，再刷新本页。</div>';
+   console.error(e);});
+
+function boot(){
+  DAYS=M.window_days||60; C=M.pois.counts; SUPPLY_RKM_DEF=DISTRICTS.supplyRkm||0.75;
+  units=DISTRICTS.order.map(id=>{
+    const u=DISTRICTS.units[id], lands=DISTRICTS.landings[id];
+    return {id,nm:u.nm,hubName:u.hubName,model:u.model,status:u.status,
+      hubLat:u.hubLat,hubLng:u.hubLng,supplyRkm:SUPPLY_RKM_DEF,
+      lands:lands.map(L0=>({nm:L0.name,lat:L0.lat,lng:L0.lng,rkm:L0.rkm})),
+      pickRate:u.pickRate,takeoffRent:u.takeoffRent,landingRent:u.landingRent,
+      supply:u.supply,routeDist:u.routeDist};});
+  planZones=DISTRICTS.planZones||[];
+  buildLayers(); fitAll();
+  document.getElementById('thTog').onclick=cycleTheme;
+  applyTheme(); applyStatic(); buildSidebar(); applyAll(); renderList(); setupTimeBar();
+  document.getElementById('bFit').onclick=fitAll;
+  document.getElementById('bShot').onclick=e=>exportShot(e.currentTarget);
+  document.getElementById('bRoute').onclick=function(){showRoutes=!showRoutes;
+    this.classList.toggle('on',showRoutes);if(active!=null)buildLands();};
+  document.getElementById('bAdd').onclick=function(){if(view!=='unit')return;
+    arming=!arming;this.classList.toggle('arming',arming);
+    map.getContainer().style.cursor=arming?'crosshair':'';};
+  map.on('click',e=>{if(!arming||view!=='unit')return;const u=units[active];
+    u.lands.push({nm:tx('降落点')+' '+(u.lands.length+1),lat:e.latlng.lat,lng:e.latlng.lng,rkm:1.0});
+    syncLandingRent(u);arming=false;document.getElementById('bAdd').classList.remove('arming');
+    map.getContainer().style.cursor='';buildLands();renderUnit();});
+  /* 容器尺寸要自己盯着。首屏布局还没算完时 fitBounds 会按 0 宽算，得出一个离谱的缩放；
+     之后换窗口宽度、进出全屏、拖到另一块屏都不一定伴随 window resize 事件。
+     ⚠ 只在列表态重新取景 —— 进了工作台再自动拉回全域会把用户的视角抢走。 */
+  const relayout=()=>{try{map.invalidateSize(false);}catch(_){}if(view==='list')fitAll();};
+  [60,320,900].forEach(ms=>setTimeout(relayout,ms));
+  let rzT=null;
+  const onResize=()=>{clearTimeout(rzT);rzT=setTimeout(relayout,150);};
+  window.addEventListener('resize',onResize);
+  if(window.ResizeObserver)new ResizeObserver(onResize).observe(document.getElementById('map'));
+}
+function fitAll(){const b=[[M.bbox[0],M.bbox[1]],[M.bbox[2],M.bbox[3]]];
+  map.fitBounds(b,{animate:false});map.setZoom(map.getZoom()+0.5,{animate:false});}
+
+/* ---------- 图层构建 ---------- */
+const dynMax=(arr,idx)=>{const v=arr.map(p=>p[idx]).filter(x=>x>0).sort((a,b)=>a-b);
+  if(!v.length)return 1;return Math.max(v[Math.floor(v.length*.90)]||v[v.length-1],1);};
+const heatRB=n=>n>20000?[7,6]:n>5000?[9,7]:n>1000?[12,9]:[17,12];
+function cellDemand(c){try{return (hourRange[0]===0&&hourRange[1]===23)?c[2]
+  :c[3].slice(hourRange[0],hourRange[1]+1).reduce((s,x)=>s+x,0);}catch(e){return c[2]||0;}}
+
+function buildLayers(){
+  const P=MAPPAL[thMode()];
+  dRB=heatRB(M.demand.length); sRB=heatRB(M.shops.length);
+  demLayer=L.heatLayer(M.demand.map(c=>[c[0],c[1],c[2]]),
+    {radius:dRB[0],blur:dRB[1],maxZoom:15,max:dynMax(M.demand,2),gradient:P.dem,pane:'heatPane'});
+  /* 供给权重开方后再进热力。商家销量是幂律长尾，直接拿销量当权重的话，
+     头部几家会变成一串孤立的亮点，读出来是「哪几家大」而不是「哪片供给密」——
+     而选址要看的是后者。开方压掉长尾，密度才显出来。 */
+  const supW=M.shops.map(s=>[s[0],s[1],Math.sqrt(s[6]||1)]);
+  supLayer=L.heatLayer(supW,{radius:sRB[0],blur:sRB[1],maxZoom:15,
+    max:dynMax(supW,2)*1.15,gradient:P.sup,pane:'heatPane'});
+  supMax=dynMax(supW,2)*1.15;
+  demMax=dynMax(M.demand,2)*1.3;
+
+  const areaCv=L.canvas({pane:'areaPane'}),secCv=L.canvas({pane:'sectorPane'});
+  areaLayer=L.layerGroup();
+  M.communities.forEach(c=>L.polygon(c.poly,{color:c.color,weight:.5,opacity:.25,fillColor:c.color,
+    fillOpacity:.04,pane:'areaPane',renderer:areaCv,interactive:false,lyr:'comm'}).addTo(areaLayer));
+  M.sectors.forEach(s=>{L.polygon(s.poly,{color:s.color,weight:1.5,opacity:.4,fill:false,dashArray:'10,6',
+    pane:'sectorPane',renderer:secCv,interactive:false,lyr:'sect'}).addTo(areaLayer);
+    L.marker(s.centroid,{icon:L.divIcon({className:'sector-label',html:s.name,iconSize:[170,18],iconAnchor:[85,9]}),
+      pane:'labelPane',interactive:false}).addTo(areaLayer);});
+
+  ['pink','red','beige'].forEach(k=>{const col=P.nfz[k],op=k==='pink'?P.nfz.fillPink:P.nfz.fillOther;
+    const g=L.layerGroup();
+    M.nfz[k].forEach(z=>{const pg=L.polygon(z.coords,{color:col,weight:1.3,fillColor:col,fillOpacity:op,
+      pane:'nfzPane',interactive:false,lyr:'nfz',lyrK:k});pg.addTo(g);
+      if(z.name)L.marker(pg.getBounds().getCenter(),{icon:L.divIcon({className:'nfz-label',html:z.name,
+        iconSize:[110,12],iconAnchor:[55,6]}),pane:'labelPane',interactive:false}).addTo(g);});
+    nfzG[k]=g;});
+
+  const flowCv=L.canvas({pane:'flowPane',padding:1.2});flowLayer=L.layerGroup();
+  const maxF=M.flows.length?M.flows[0][4]:1;
+  const bez=(a,b,c,d,seg)=>{const mx=(a+c)/2,my=(b+d)/2,nx=-(d-b)*0.2,ny=(c-a)*0.2,cx=mx+nx,cy=my+ny,pts=[];
+    for(let i=0;i<=seg;i++){const t=i/seg,u=1-t;pts.push([u*u*a+2*u*t*cx+t*t*c,u*u*b+2*u*t*cy+t*t*d]);}return pts;};
+  M.flows.forEach(fl=>{const ratio=fl[4]/maxF;
+    L.polyline(bez(fl[0],fl[1],fl[2],fl[3],12),{color:P.flow.color,weight:1.1+ratio*4,
+      opacity:P.flow.oBase+ratio*P.flow.oSpan,pane:'flowPane',renderer:flowCv,interactive:false,
+      lyr:'flow',lyrR:ratio}).addTo(flowLayer);});
+
+  const villaCv=L.canvas({pane:'villaPane'});villaZoneLayer=L.layerGroup();
+  M.villaZones.forEach(z=>L.polygon(z.poly,{color:P.villa.color,weight:1.1,opacity:P.villa.opacity,
+    fillColor:P.villa.color,fillOpacity:P.villa.fillOpacity,dashArray:'6,4',pane:'villaPane',
+    renderer:villaCv,interactive:false,lyr:'villa'}).addTo(villaZoneLayer));
+
+  /* 配色三层：真实经营点位用发光金与电蓝，公网 POI 用低饱和实心退到背景，
+     算法候选用空心环。三层之间不许互换，否则候选点会与真实点位看着一样。 */
+  const poiCv=L.canvas({pane:'poiPane'});
+  const dotLayer=(pts,col,r,tag)=>{const g=L.layerGroup();
+    pts.forEach(p=>L.circleMarker([p[0],p[1]],{radius:r,weight:0,fillColor:col,fillOpacity:P.poiFill,
+      pane:'poiPane',renderer:poiCv,interactive:false,lyr:tag}).addTo(g));return g;};
+  poiSupply=dotLayer(M.pois.supply,P.poiSup,1.1,'poiSup');
+  poiDemand=M.pois.demand.map((pts,i)=>dotLayer(pts,P.poiDem[i],1.2,'poiDem'+i));
+  mallG={0:L.layerGroup(),1:L.layerGroup(),2:L.layerGroup()};
+  const MALLR={0:4,1:3,2:2.5};
+  M.pois.malls.forEach(m=>{const t=m[2];
+    L.circleMarker([m[0],m[1]],{radius:MALLR[t],weight:0,fillColor:P.mall[t],fillOpacity:P.mallFill,
+      pane:'mallPane',lyr:'mall',lyrT:t}).addTo(mallG[t]);});
+
+  const droneCv=L.canvas({pane:'dronePane'});
+  const mkDots=(arr,col,r,tag)=>{const g=L.layerGroup();
+    arr.forEach(p=>L.circleMarker([p[0],p[1]],{radius:r,weight:1.1,color:col,opacity:P.dotOp,fill:true,
+      fillColor:col,fillOpacity:P.dotFill,pane:'dronePane',renderer:droneCv,interactive:false,lyr:tag}).addTo(g));
+    return g;};
+  dHubLayer=mkDots(M.drone.hubs,P.dHub,2.8,'dHub');
+  dLandBLayer=mkDots(M.drone.portsBldg,P.landB,2.2,'landB');
+  dLandVLayer=mkDots(M.drone.portsVilla,P.landV,2.2,'landV');
+  dRouteLayer=L.layerGroup();
+  M.drone.routes.forEach(r=>L.polyline([[r[0],r[1]],[r[2],r[3]]],{color:P.droute,weight:.8,
+    opacity:P.drouteOp,dashArray:'3,5',pane:'dronePane',renderer:droneCv,interactive:false,
+    lyr:'droute'}).addTo(dRouteLayer));
+
+  suggLayer=L.layerGroup(); planLayer=L.layerGroup(); buildPlanZones();
+
+  LREG={supply:{layer:supLayer},demand:{layer:demLayer},areas:{layer:areaLayer},flow:{layer:flowLayer},
+    villaZones:{layer:villaZoneLayer},
+    poiSupply:{layer:poiSupply,poi:1},poiResi:{layer:poiDemand[0],poi:1},poiHotel:{layer:poiDemand[1],poi:1},
+    poiOffice:{layer:poiDemand[2],poi:1},poiSchool:{layer:poiDemand[3],poi:1},poiPark:{layer:poiDemand[4],poi:1},
+    poiVilla:{layer:poiDemand[5],poi:1},
+    mallL:{layer:mallG[0]},mallM:{layer:mallG[1]},mallS:{layer:mallG[2]},
+    nfzPink:{layer:nfzG.pink},nfzRed:{layer:nfzG.red},nfzBeige:{layer:nfzG.beige},
+    dHub:{layer:dHubLayer},landB:{layer:dLandBLayer},landV:{layer:dLandVLayer},dRoute:{layer:dRouteLayer},
+    sugg:{layer:suggLayer},planZone:{layer:planLayer}};
+  checked={supply:1,demand:1,areas:1,flow:1,villaZones:1,poiSupply:1,poiVilla:1,mallL:1,mallM:1,mallS:1,
+    dHub:0,landB:0,landV:0,dRoute:0,sugg:0,planZone:0,
+    poiResi:0,poiHotel:0,poiOffice:0,poiSchool:0,poiPark:0,nfzPink:0,nfzRed:0,nfzBeige:0};
+  map.on('zoomend',tuneHeat);
+  map.on('zoomend',()=>Object.keys(LREG).forEach(id=>{if(LREG[id].poi)applyLayer(id);}));
+  map.whenReady(()=>setTimeout(tuneHeat,300));
+}
+const POI_Z=11;
+function applyLayer(id){const e=LREG[id];if(!e||!e.layer)return;
+  const want=checked[id]&&(!e.poi||map.getZoom()>=POI_Z);
+  if(want&&!map.hasLayer(e.layer))e.layer.addTo(map);
+  else if(!want&&map.hasLayer(e.layer))map.removeLayer(e.layer);}
+function applyAll(){Object.keys(LREG).forEach(applyLayer);}
+
+/* 网格是 222 m 的采样格，放大后半径钉死就会越放越稀，所以让半径跟着格距走。
+   ⚠ 不做网格插值：拉到很近时会看见采样网格，这是数据分辨率的固有结果，不是渲染缺陷。 */
+const cellPx=()=>222/(156543.03392*Math.cos(map.getCenter().lat*Math.PI/180)/Math.pow(2,map.getZoom()));
+function rebuildDemHeat(){const pts=[],ws=[];
+  for(const c of M.demand){const v=cellDemand(c);if(v>0){pts.push([c[0],c[1],v]);ws.push(v);}}
+  ws.sort((a,b)=>a-b);demMax=Math.max((ws[Math.floor(ws.length*0.92)]||1)*1.3,1);
+  demLayer.setLatLngs(pts);tuneHeat();}
+function tuneHeat(){if(!demLayer)return;
+  const z=map.getZoom(),foc=z>=13,rf=z<=10?-4:foc?3:1,mf=foc?0.72:0.85;
+  const g=foc?Math.round(cellPx()*0.48):0;
+  const dR=Math.max(6,dRB[0]+rf,g),sR=Math.max(6,sRB[0]+rf,g);
+  /* 各自 try 不可省：图层被关掉后热力插件的画布是 null，setOptions 内部重绘会抛。
+     用 try 而不是 hasLayer 跳过 —— setOptions 是先写 options 再重绘，
+     抛错时赋值已经完成，跳过反而会让关闭期间的参数更新丢失。 */
+  try{demLayer.setOptions({radius:dR,blur:Math.max(7,Math.round(dR*0.75)),max:demMax*mf});}catch(e){}
+  try{supLayer.setOptions({radius:sR,blur:Math.max(7,Math.round(sR*0.7)),max:supMax*mf});}catch(e){}}
+
+function applyMapTheme(mode){
+  if(!demLayer)return;
+  const P=MAPPAL[mode]||MAPPAL.dark;
+  try{baseTile.setUrl(P.tile);}catch(e){}
+  try{demLayer.setOptions({gradient:P.dem});}catch(e){}
+  try{supLayer.setOptions({gradient:P.sup});}catch(e){}
+  const restyle=g=>{if(!g||!g.eachLayer)return;g.eachLayer(l=>{
+    if(l.eachLayer){restyle(l);return;}
+    if(!l.setStyle||!l.options)return;
+    const k=l.options.lyr;if(!k)return;
+    if(k==='comm')l.setStyle(P.comm);
+    else if(k==='sect')l.setStyle(P.sect);
+    else if(k==='nfz')l.setStyle({color:P.nfz[l.options.lyrK],fillColor:P.nfz[l.options.lyrK],
+      fillOpacity:l.options.lyrK==='pink'?P.nfz.fillPink:P.nfz.fillOther});
+    else if(k==='flow')l.setStyle({color:P.flow.color,opacity:P.flow.oBase+(l.options.lyrR||0)*P.flow.oSpan});
+    else if(k==='villa')l.setStyle({color:P.villa.color,fillColor:P.villa.color,
+      opacity:P.villa.opacity,fillOpacity:P.villa.fillOpacity});
+    /* 只换颜色与不透明度，不碰 radius：点径两档必须一致，否则切主题时点会变大变小。 */
+    else if(k==='poiSup')l.setStyle({fillColor:P.poiSup,fillOpacity:P.poiFill});
+    else if(k.indexOf('poiDem')===0)l.setStyle({fillColor:P.poiDem[+k.slice(6)]||P.poiDem[0],fillOpacity:P.poiFill});
+    else if(k==='mall')l.setStyle({fillColor:P.mall[l.options.lyrT],fillOpacity:P.mallFill});
+    else if(k==='dHub'||k==='landB'||k==='landV'){const c=P[k];
+      l.setStyle({color:c,fillColor:c,opacity:P.dotOp,fillOpacity:P.dotFill});}
+    else if(k==='droute')l.setStyle({color:P.droute,opacity:P.drouteOp});
+    else if(k==='ringSup')l.setStyle({color:P.ringSup.color,fillColor:P.ringSup.color,
+      fillOpacity:P.ringSup.fillOpacity,weight:P.ringSup.weight});
+    else if(k==='ringLand')l.setStyle({color:P.ringLand.color,fillColor:P.ringLand.color,
+      fillOpacity:P.ringLand.fillOpacity,weight:P.ringLand.weight});
+    else if(k==='ringSugg')l.setStyle({fillOpacity:P.ringSugg.fillOpacity,weight:P.ringSugg.weight});});};
+  [areaLayer,flowLayer,villaZoneLayer,poiSupply,mallG[0],mallG[1],mallG[2],
+   dHubLayer,dLandBLayer,dLandVLayer,dRouteLayer].forEach(restyle);
+  poiDemand.forEach(restyle);['pink','red','beige'].forEach(k=>restyle(nfzG[k]));
+  restyle(map);   // 取餐圈 降落圈 推荐圈是直接 addTo(map) 的，不在任何 layerGroup 里
+}
+
+/* ---------- 起讫配对 ---------- */
+/* odNear：以起飞点为心枚举附近起点格，还原成 [起点纬,起点经,终点纬,终点经,单量] 五元组。
+   只取起点落在取餐圈内的格子，消费方各自再过滤终点。
+   ⚠ 起点格步长跟着数据走，不硬编码 —— 它由取数的归格步长决定。
+     两边写死两个值时，细格会折叠进粗键、起点被还原到偏半格的位置，一声不吭地算错池子。 */
+function odNear(hLat,hLng,SR){const OG=OD.origin_grid,out=[],
+    ci=Math.round(hLat/OG),cj=Math.round(hLng/OG),
+    nI=Math.ceil(SR/111/OG)+1,nJ=Math.ceil(SR/(111*Math.cos(hLat*Math.PI/180))/OG)+1;
+  for(let i=-nI;i<=nI;i++){const oLa=+((ci+i)*OG).toFixed(5);
+    for(let j=-nJ;j<=nJ;j++){const cell=OD.byCell[(ci+i)+','+(cj+j)];if(!cell)continue;
+      const oLn=+((cj+j)*OG).toFixed(5);if(hav(oLa,oLn,hLat,hLng)>SR)continue;
+      for(let m=0;m<cell.length;m++){const d=cell[m];out.push([oLa,oLn,d[0],d[1],d[2]]);}}}
+  return out;}
+
+/* 归属口径 = 最近点：一单只归离它最近、且在该点圈内的降落点，不重复计。
+   并集口径（每个点各算各的圈）会把同一单算给多个点，订单池虚高。
+   bands 按到所归降落点的实际距离落档，供引擎算「关闸的标价」。 */
+function odMatch(u){
+  const SR=(u.supplyRkm!=null?u.supplyRkm:SUPPLY_RKM_DEF),lands=u.lands,nL=lands.length,
+    KB=(window.UEModel&&UEModel.DEFAULTS.lmKeepBands)||[{maxKm:1,keep:1}],NB=KB.length,
+    bd=lands.map(L0=>({L:L0,odPoolWin:0,bands:new Array(NB).fill(0)})),od=odNear(u.hubLat,u.hubLng,SR);
+  let unit=0;
+  for(let i=0;i<od.length;i++){const f=od[i];
+    if(hav(f[0],f[1],u.hubLat,u.hubLng)>SR)continue;
+    let bi=-1,b=Infinity;
+    for(let j=0;j<nL;j++){const d=hav(f[2],f[3],lands[j].lat,lands[j].lng);
+      if(d<=lands[j].rkm&&d<b){b=d;bi=j;}}
+    if(bi<0)continue;
+    bd[bi].odPoolWin+=f[4];
+    let bk=NB-1;for(let k=0;k<NB;k++){if(b<=KB[k].maxKm){bk=k;break;}}
+    bd[bi].bands[bk]+=f[4];unit+=f[4];}
+  return {unitPoolWin:unit,breakdown:bd,supplyRkm:SR};}
+
+function aggUnit(u){
+  const SR=(u.supplyRkm!=null?u.supplyRkm:SUPPLY_RKM_DEF);
+  const odm=odMatch(u),o=odm.unitPoolWin;
+  let valid=0,merch=0,sku=0;const cats=new Set(),brands=new Set();
+  for(const s of M.shops)if(hav(s[0],s[1],u.hubLat,u.hubLng)<=SR){
+    merch++;if(s[2])valid++;if(s[3])cats.add(s[3]);if(s[4])brands.add(s[4]);sku+=s[5];}
+  const mo=moOf(o);
+  /* 可承接率 = 商家覆盖 × 商品覆盖。
+     商品覆盖乘的是条件比率（已上架 ÷ 已签可供给），不是 已上架 ÷ 圈内高销品 ——
+     后者分母含未签店，本身已经包含商家覆盖，再乘一次会把商家覆盖算两遍。
+     商家覆盖是假定值的商圈整档维持假定，不叠乘实测的商品覆盖：
+     假定值 × 实测 0% 得到的「0 单/天」是个假精确，看着像结论，其实一半是猜的。 */
+  const sup=u.supply||null, cov=sup&&sup.coverage, cn=cov?cov[cov.default||'near']:null;
+  const pc=(sup&&sup.itemCov&&typeof sup.itemCov.rate==='number')?sup.itemCov.rate:null;
+  const mix=(cn!=null)&&(pc!=null);
+  const acc=(u.servableRate!=null)?u.servableRate:(mix?cn*pc:(cn!=null?cn:0.4));
+  const kdMonthly=mo*acc*u.pickRate, dailyOrders=kdMonthly/30;
+  let rd=2500;
+  if(u.lands.length){let s=0;for(const L0 of u.lands)s+=hav(u.hubLat,u.hubLng,L0.lat,L0.lng)*1000;
+    rd=Math.max(500,Math.min(6000,Math.round(s/u.lands.length)));}
+  /* 逐点末端闸接线：把每个降落点的池子占比与距离构成交给引擎，由引擎逐点判开关。
+     ⚠ 没有起讫数据时不传 —— 引擎会退成等分，而等分在这里是个假精确。 */
+  const landingPools=(odm.unitPoolWin>0)
+    ?odm.breakdown.map(b=>({share:b.odPoolWin,bands:b.bands})):null;
+  const cfg=Object.assign({takeoffPts:1,landingPts:u.lands.length||1,routeDist:rd,
+    takeoffRent:u.takeoffRent,landingRent:u.landingRent,
+    marketing:0,                                   // 商圈没有商业化数据，不替商圈创造
+    takeoffFitoutM:3500,landingFitoutM:(u.lands.length||1)*900,
+    landingPools:landingPools,
+    subsidyPerOrder:UEModel.SUBSIDY_TIERS.steady}, UEModel.DISTRICT_OVERRIDES);
+  const ue=UEModel.compute(Object.assign({dailyOrders},cfg));
+  const be=UEModel.findBreakeven(cfg);             // 真实保本，成本随单量阶梯
+  const signRate=sup?((sup.signed+sup.signing)/Math.max(sup.shops,1)):null;
+  return {o,mo,merch,valid,cats:cats.size,brands:brands.size,sku,acc,kdMonthly,dailyOrders,
+    routeDist:rd,ue,win:ue.profit>=0,be,sup,signRate,od:odm};}
+
+/* ---------- 系统推荐降落点 ---------- */
+const SUGGP={R_MIN:1.0,R_MAX:3.5,CLUSTER:1.0,SEP:1.0,TOP:3,DECAY:0.15,GEN:12};
+let SUGG=[];
+function pipJS(la,ln,poly){let inside=false,n=poly.length,j=n-1;
+  for(let i=0;i<n;i++){const yi=poly[i][0],xi=poly[i][1],yj=poly[j][0],xj=poly[j][1];
+    if(((yi>la)!=(yj>la))&&(ln<(xj-xi)*(la-yi)/((yj-yi)||1e-12)+xi))inside=!inside;j=i;}
+  return inside;}
+function sectorNameJS(la,ln){for(const s of (M.sectors||[])){
+    if(s.poly&&pipJS(la,ln,s.poly))return (String(s.name||'').split('·').pop()||'').trim()||tx('候选');}
+  return tx('候选');}
+function findSuggested(u,acc){
+  const P=SUGGP,GH=0.002,SR=(u.supplyRkm!=null?u.supplyRkm:SUPPLY_RKM_DEF),
+    od=odNear(u.hubLat,u.hubLng,SR),lands=u.lands;
+  if(!od.length)return [];
+  const gk=(la,ln)=>Math.round(la/GH)+'_'+Math.round(ln/GH);
+  const hard=(M.nfz.pink||[]).concat(M.nfz.red||[]).map(z=>z.coords);
+  const inConf=(la,ln)=>lands.some(L0=>hav(la,ln,L0.lat,L0.lng)<=L0.rkm);
+  const inHard=(la,ln)=>hard.some(z=>pipJS(la,ln,z));
+  const odcell={};
+  for(const f of od){if(hav(f[0],f[1],u.hubLat,u.hubLng)<=SR){const k=gk(f[2],f[3]);odcell[k]=(odcell[k]||0)+f[4];}}
+  const cv=c=>odcell[gk(c[0],c[1])]||0;
+  let curWin=0;
+  for(const f of od){if(hav(f[0],f[1],u.hubLat,u.hubLng)<=SR&&inConf(f[2],f[3]))curWin+=f[4];}
+  const curDaily=curWin/DAYS;
+  const pool=[];
+  for(const c of M.demand){if(cv(c)<=0)continue;
+    const dh=hav(u.hubLat,u.hubLng,c[0],c[1]);
+    if(dh<P.R_MIN||dh>P.R_MAX)continue;
+    if(inConf(c[0],c[1])||inHard(c[0],c[1]))continue;
+    pool.push(c);}
+  pool.sort((a2,b)=>cv(b)-cv(a2));
+  const used=new Array(pool.length).fill(false),cands=[];
+  for(let idx=0;idx<pool.length;idx++){
+    if(used[idx]||cands.length>=P.GEN)continue;
+    const seed=pool[idx],mem=[];
+    for(let k=0;k<pool.length;k++){if(!used[k]&&hav(seed[0],seed[1],pool[k][0],pool[k][1])<=P.CLUSTER)mem.push(k);}
+    if(!mem.length)continue;
+    let cov=0,wl=0,wn=0;
+    for(const k of mem){const v=cv(pool[k]);cov+=v;wl+=pool[k][0]*v;wn+=pool[k][1]*v;}
+    if(cov<=0){mem.forEach(k=>used[k]=true);continue;}
+    wl/=cov;wn/=cov;
+    if(lands.some(L0=>hav(wl,wn,L0.lat,L0.lng)<P.SEP)||cands.some(c=>hav(wl,wn,c.lat,c.lng)<P.SEP)){
+      mem.forEach(k=>used[k]=true);continue;}
+    cands.push({lat:+wl.toFixed(5),lng:+wn.toFixed(5),coveredWindow:cov,
+      distHubKm:+hav(u.hubLat,u.hubLng,wl,wn).toFixed(2)});
+    mem.forEach(k=>used[k]=true);}
+  for(const c of cands){const cd=c.coveredWindow/DAYS;
+    let dem=0;for(const cc of M.demand)if(hav(cc[0],cc[1],c.lat,c.lng)<=P.CLUSTER)dem+=cc[2];
+    c.coveredDaily=+cd.toFixed(1);
+    c.odWeight=dem>0?+(c.coveredWindow/dem).toFixed(3):0;
+    c.score=+(cd*Math.max(0.5,1-P.DECAY*c.distHubKm)).toFixed(1);
+    c.dailyPotential=+(cd*acc*u.pickRate).toFixed(1);
+    c.vsBaselinePct=curDaily>0?Math.round(cd/curDaily*100):0;
+    c.name=sectorNameJS(c.lat,c.lng);delete c.coveredWindow;}
+  cands.sort((a2,b)=>b.score-a2.score);
+  const top=cands.slice(0,P.TOP);
+  /* 同一个分区里可能选出两个候选，光靠分区名会重名。重名的按序号补一个后缀，
+     免得列表里出现两行一模一样的标题、采纳完也分不清哪个是哪个。 */
+  const seen={};
+  top.forEach((c,i)=>{c.rank=i+1;
+    seen[c.name]=(seen[c.name]||0)+1;
+    if(seen[c.name]>1)c.name=c.name+' '+seen[c.name];});
+  return top;}
+function buildSugg(){suggLayer.clearLayers();
+  SUGG.forEach((f,i)=>{const col='#34D3FF',P=MAPPAL[thMode()];
+    const ring=L.circle([f.lat,f.lng],{radius:1000,color:col,weight:P.ringSugg.weight,dashArray:'2 6',
+      fillColor:col,fillOpacity:P.ringSugg.fillOpacity,interactive:true,lyr:'ringSugg'});
+    const badge=L.marker([f.lat,f.lng],{zIndexOffset:900,
+      icon:L.divIcon({className:'',html:'<div class="suggIcon"></div>',iconSize:[11,11],iconAnchor:[5.5,5.5]})});
+    const pop='<div style="font:11px/1.6 sans-serif;min-width:180px"><b style="font-size:11.5px">'+
+      (f.rank||i+1)+' · '+(f.name||'')+'</b><br>'+tx('潜在')+' '+f.dailyPotential+tx('单/天')+
+      ' (+'+f.vsBaselinePct+'%)<br>'+tx('距起飞点')+' '+f.distHubKm+' km<br>'+
+      '<button style="margin-top:6px;cursor:pointer;font-size:10px;background:transparent;color:#34D3FF;'+
+      'border:1px solid #34D3FF;border-radius:6px;padding:2px 9px;font-weight:600" onclick="adoptSugg('+i+')">✓ '+
+      tx('采纳为降落点')+'</button></div>';
+    badge.bindTooltip((f.name||'')+' · +'+f.dailyPotential+tx('单/天'),{direction:'top',opacity:.95});
+    ring.bindPopup(pop);badge.bindPopup(pop);
+    ring.addTo(suggLayer);badge.addTo(suggLayer);});}
+window.adoptSugg=function(i){if(active==null||view!=='unit')return;
+  const u=units[active],f=SUGG[i];if(!f)return;
+  u.lands.push({nm:f.name,lat:f.lat,lng:f.lng,rkm:1.0,fromSugg:true});
+  syncLandingRent(u);buildLands();renderUnit();map.closePopup();};
+function setSugg(acc){const u=units[active];
+  SUGG=u?findSuggested(u,acc):[];buildSugg();applyLayer('sugg');}
+function paintSuggList(){const il=document.getElementById('suggList');if(!il)return;
+  il.innerHTML=SUGG.length?SUGG.map((f,i)=>
+    `<div class="lprow"><span class="ld" style="background:#34D3FF"></span>
+     <span class="ln" style="cursor:default"><span class="rkbadge">${f.rank||i+1}</span><span style="margin-left:5px">${f.name}</span></span>
+     <span class="lo" style="color:var(--internal)">+${f.dailyPotential}<span class="g"></span>${tx('单/天')}
+       <small style="color:var(--mut2)">${f.distHubKm}km</small></span>
+     <button data-adopt="${i}" style="font-family:var(--mono);font-size:10px;color:#08121a;background:#34D3FF;border:none;border-radius:6px;padding:2px 9px;cursor:pointer">${tx('采纳')}</button></div>`).join('')
+    :`<div class="note">${tx('该商圈 1–3.5km 内无可行候选')}</div>`;
+  il.querySelectorAll('[data-adopt]').forEach(b=>b.onclick=e=>adoptSugg(+e.target.dataset.adopt));}
+
+/* ---------- 长航程规划层 ---------- */
+function buildPlanZones(){planLayer.clearLayers();
+  planZones.forEach(z=>z.pts.forEach(p=>{
+    const isTk=/起飞/.test(p.role),col='#2ED47A';
+    const m=L.circleMarker([p.lat,p.lng],{radius:isTk?6:5,color:col,weight:2,
+      fillColor:isTk?col:'#0b0c14',fillOpacity:isTk?.45:.85});
+    m.bindTooltip('A1X · '+z.nm+' · '+p.role+'：'+p.nm,{direction:'top',opacity:.95});
+    m.addTo(planLayer);}));}
+
+/* ---------- 左栏 ---------- */
+function buildSidebar(){
+  if(!M)return;
+  const sb=document.getElementById('sidebar');
+  /* ⚠ 这组 KPI 的地理口径是数据文件的边界框，不是任何行政边界。
+     标出来是为了别让人把它当成某个城市的完整大盘引用。 */
+  let h=`<div class="sp"><h3>${tx('数据概览')}<span class="r">${tx('演示城市')}<span class="g"></span>·<span class="g"></span>${M.window}</span></h3><div class="statg">
+    <div class="statc"><div class="v">${LANG==='en'?(M.tot_orders/1e6).toFixed(2)+'<span class="g"></span>M':(M.tot_orders/10000).toFixed(0)+'<span class="g"></span>万'}</div><div class="k">${tx('总订单')}</div></div>
+    <div class="statc"><div class="v">${LANG==='en'?(M.stats.gmv/1e6).toFixed(0)+'<span class="g"></span>M':(M.stats.gmv/1e8).toFixed(2)+'<span class="g"></span>亿'}</div><div class="k">${tx('交易额')}</div></div>
+    <div class="statc"><div class="v">${M.stats.aov}</div><div class="k">${tx('客单价')}</div></div>
+    <div class="statc"><div class="v">${M.tot_merch.toLocaleString()}</div><div class="k">${tx('出单商家')}</div></div>
+    <div class="statc"><div class="v">${C.supply.toLocaleString()}</div><div class="k">${tx('餐饮POI')}</div></div>
+    <div class="statc"><div class="v">${M.stats.free_pct}<span class="g"></span>%</div><div class="k">${tx('免配占比')}</div></div>
+  </div></div>`;
+  PANEL.forEach(p=>{
+    h+=`<div class="sp"><h3>${tx(p.sec)}</h3>`;
+    p.items.forEach(it=>{
+      if(it.sub){h+=`<div class="ssub">${tx(it.sub)}</div>`;return;}
+      const cnt=it.cntKey?C[it.cntKey]:null;
+      h+=`<label class="lt"><input type="checkbox" data-lid="${it.id}" ${checked[it.id]?'checked':''}>
+        <span class="dot" style="background:${legDot(it.id,it.dot)}"></span>
+        <span class="lb">${tx(it.lb)}${it.sub2?`<span class="sub">${tx(it.sub2)}</span>`:''}</span>
+        ${cnt!=null?`<span class="cnt">${cnt.toLocaleString()}</span>`:''}</label>`;});
+    if(p.foot)h+=`<div class="foot-src">${tx(p.foot)}</div>`;
+    h+=`</div>`;});
+  h+=`<div class="sp"><details class="ref"><summary>${tx('潜在选点参考 (算法测算)')}</summary>
+    <div class="refnote">${tx('按供给密度与需求密度测算潜在起降点，已硬过滤禁飞区。')}<b style="color:var(--mut)">${tx('仅供选址参考，不参与测算')}</b>；${tx('真实点位以右侧商圈为准。')}</div>
+    <label class="lt"><input type="checkbox" data-lid="dHub"><span class="dot ring" style="border-color:${legDot('dHub')}"></span><span class="lb">${tx('潜在中心机场')}</span><span class="cnt">${M.drone.hubs.length}</span></label>
+    <label class="lt"><input type="checkbox" data-lid="landB"><span class="dot ring" style="border-color:${legDot('landB')}"></span><span class="lb">${tx('降落点 (楼宇)')}</span><span class="cnt">${M.drone.portsBldg.length}</span></label>
+    <label class="lt"><input type="checkbox" data-lid="landV"><span class="dot ring" style="border-color:${legDot('landV')}"></span><span class="lb">${tx('降落点 (别墅)')}</span><span class="cnt">${M.drone.portsVilla.length}</span></label>
+    <label class="lt"><input type="checkbox" data-lid="dRoute"><span class="dot" style="background:${legDot('dRoute')}"></span><span class="lb">${tx('潜在航线')}</span><span class="cnt">${M.drone.routes.length}</span></label>
+  </details></div>`;
+  sb.innerHTML=h;
+  sb.querySelectorAll('input[data-lid]').forEach(inp=>inp.onchange=e=>{
+    checked[e.target.dataset.lid]=e.target.checked?1:0;applyLayer(e.target.dataset.lid);});}
+
+/* ---------- 右栏 ---------- */
+const STATUS={'线索':'#5E6E92','开航准备':'#FFD100','经营':'#2ED47A'};
+const STATUS_LIGHT={'线索':'#4A5878','开航准备':'#8F6B00','经营':'#147A41'};
+const stColor=s=>((thMode()==='light'?STATUS_LIGHT:STATUS)[s])||(thMode()==='light'?'#4A5878':'#5E6E92');
+const wb=document.getElementById('wb');
+let listMarkers=[],unitMk=null,unitLands=[],hubCircle=null;
+function syncLandingRent(u){u.landingRent=u.lands.length*3000;}
+function clearUnitMarkers(){
+  if(unitMk){map.removeLayer(unitMk);unitMk=null;}
+  if(hubCircle){map.removeLayer(hubCircle);hubCircle=null;}
+  unitLands.forEach(o=>{if(o._c)map.removeLayer(o._c);if(o._m)map.removeLayer(o._m);if(o._r)map.removeLayer(o._r);});
+  unitLands=[];SUGG=[];if(suggLayer)suggLayer.clearLayers();}
+function showListMarkers(){clearUnitMarkers();
+  listMarkers.forEach(m=>map.removeLayer(m));listMarkers=[];
+  units.forEach(u=>{
+    u.lands.forEach(L0=>{const ln=L.polyline([[u.hubLat,u.hubLng],[L0.lat,L0.lng]],
+      {color:'#FFD100',weight:1,opacity:.3,dashArray:'2,6',interactive:false}).addTo(map);listMarkers.push(ln);
+      const lm=L.marker([L0.lat,L0.lng],{interactive:false,
+        icon:L.divIcon({className:'',html:'<div class="beaconLand"></div>',iconSize:[9,9],iconAnchor:[4.5,4.5]})}).addTo(map);
+      listMarkers.push(lm);});
+    const mk=L.marker([u.hubLat,u.hubLng],{zIndexOffset:1000,
+      icon:L.divIcon({className:'',html:`<div class="beaconHub"><span class="bLabel">${tx(u.nm)}</span></div>`,
+        iconSize:[13,13],iconAnchor:[6.5,6.5]})}).addTo(map);
+    mk.on('click',()=>enterUnit(u.id));listMarkers.push(mk);});}
+function hideListMarkers(){listMarkers.forEach(m=>map.removeLayer(m));listMarkers=[];}
+
+function renderList(){
+  view='list';active=null;
+  document.getElementById('bAdd').style.display='none';
+  document.getElementById('bRoute').style.display='none';
+  fitAll();showListMarkers();
+  const cards=units.map(u=>{const a=aggUnit(u),sc=stColor(u.status);
+    return `<div class="ucard" data-uid="${u.id}" tabindex="0" role="button">
+      <div class="uc-top"><span class="d"></span><span class="nm">${tx(u.nm)}</span>
+        <span class="mdl" title="${tx('机型')}">${u.model}</span>
+        <span class="badge" style="color:${sc};border-color:${sc}55;background:${sc}14">${tx(u.status)}</span></div>
+      <div class="uc-grid">
+        <div class="uc-m"><div class="k">${tx('日均订单池')}<span class="ucnote">${tx('未乘转化')}</span></div><div class="v">${Math.round(a.mo/30).toLocaleString()}<small style="font-size:10px;opacity:.6"><span class="g"></span>${tx('单/天')}</small></div></div>
+        <div class="uc-m"><div class="k">${tx('保本线')}</div><div class="v">${a.be.feasible?a.be.daily.toLocaleString():'—'}<small style="font-size:10px;opacity:.6"><span class="g"></span>${tx('单/天')}</small></div></div>
+        <div class="uc-m"><div class="k">${tx('月利润 · 利润率')}</div><div class="v" style="color:${a.win?'var(--done)':'var(--block)'}">${a.win?'+':'−'}${nW(Math.abs(a.ue.profit))}<span class="g"></span>${tx('万')} <small style="font-size:10px;opacity:.6">${marginTxt(a.ue,a.dailyOrders)}</small></div></div>
+      </div>
+      <div class="uc-foot">${tx('起飞点')} ${u.hubName} · ${u.lands.length}<span class="g"></span>${tx('降落点')}<span class="go">${tx('进入工作台 ▸')}</span></div>
+    </div>`;}).join('');
+  const planHtml=`<details class="plansec"><summary><span class="caret">▸</span><span class="nm">${tx('长航程 · 规划覆盖区')} (${planZones.length})</span><span class="mdl lr">A1X</span></summary>
+    <div class="plansub" style="display:flex;align-items:center;margin-top:9px"><span>${tx('规划 · 索降 · 不参与测算')}</span>
+      <label style="margin-left:auto;font-size:9px;color:var(--mut);display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" id="planShow" ${checked.planZone?'checked':''}> ${tx('地图显示')}</label></div>
+    ${planZones.map(z=>`<div class="planrow"><span class="zd"></span><span class="zn">${z.nm}</span><span class="zc">${z.pts.length}<span class="g"></span>${tx('点')}</span></div>`+
+      z.pts.map(p=>`<div class="planrow" style="padding-left:15px;opacity:.82"><span class="zn" style="font-size:10px">${p.role} · ${p.nm}</span><span class="zc">${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</span></div>`).join('')).join('')}</details>`;
+  wb.innerHTML=`<div class="lhead"><div class="nm">${tx('商圈')}</div><div class="meta">${tx('点卡片进入工作台')} · ${LANG==='en'?(M.tot_orders/1e6).toFixed(2)+'M':(M.tot_orders/1e4).toFixed(0)+'万'}${tx('单底图')}</div></div>
+    ${cards}<div class="uadd" id="addUnit">${tx('＋ 新增商圈')}</div>${planHtml}`;
+  wb.querySelectorAll('.ucard').forEach(c=>{const go=()=>enterUnit(c.dataset.uid);
+    c.onclick=go;c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}};});
+  document.getElementById('addUnit').onclick=showAddBox;
+  const sw=document.getElementById('planShow');
+  if(sw)sw.onchange=e=>{checked.planZone=e.target.checked?1:0;applyLayer('planZone');};}
+
+/* 地名查坐标。用公开的 Nominatim 服务，viewbox 限定在演示范围内并 bounded=1，
+   这样搜出来的点一定落在图上；不写国家代码，范围由 bbox 自己决定。 */
+function bindGeo(){
+  const ge=document.getElementById('auGeo'); if(!ge)return;
+  const row=document.getElementById('auGeoRow'),
+        q=document.getElementById('auGeoQ'),
+        st=document.getElementById('auGeoS');
+  ge.onclick=()=>{row.style.display=row.style.display==='none'?'flex':'none';
+    if(row.style.display==='flex')q.focus();};
+  q.onkeydown=e=>{
+    if(e.key!=='Enter')return;
+    e.preventDefault();
+    const kw=q.value.trim(); if(!kw)return;
+    st.textContent=tx('查询中…');
+    const vb=[M.bbox[1],M.bbox[2],M.bbox[3],M.bbox[0]].join(',');
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&bounded=1&viewbox='+vb+'&q='+encodeURIComponent(kw))
+      .then(r=>r.json())
+      .then(j=>{
+        if(!j||!j.length){st.textContent=tx('未找到');return;}
+        document.getElementById('auLa').value=(+j[0].lat).toFixed(5);
+        document.getElementById('auLn').value=(+j[0].lon).toFixed(5);
+        st.textContent='';})
+      .catch(()=>{st.textContent=tx('查询失败');});};
+}
+
+function showAddBox(){
+  wb.querySelector('#addUnit').outerHTML=`<div class="addbox"><div style="font-size:12px;font-weight:700">${tx('新增商圈')}</div>
+    <div class="rowf">${tx('名称')} <input id="auNm" value="${tx('新商圈')}"></div>
+    <div class="rowf">${tx('起飞点')} <input id="auLa" placeholder="${tx('纬度')}"> , <input id="auLn" placeholder="${tx('经度')}"> <span id="auGeo" title="${tx('搜地名查坐标')}" style="cursor:pointer;color:var(--blue);font-size:14px;padding:0 4px;user-select:none">⌖</span></div>
+    <div class="rowf" id="auGeoRow" style="display:none"><input id="auGeoQ" placeholder="${tx('输入地名，回车自动填坐标')}" style="flex:1"><span id="auGeoS" style="font-size:11px;color:var(--mut2);white-space:nowrap"></span></div>
+    <div class="btns"><span class="b ok" id="auOk">${tx('确定并进入')}</span><span class="b no" id="auNo">${tx('取消')}</span></div></div>`;
+  bindGeo();
+  document.getElementById('auNo').onclick=renderList;
+  document.getElementById('auOk').onclick=()=>{
+    const la=parseFloat(document.getElementById('auLa').value),ln=parseFloat(document.getElementById('auLn').value);
+    if(isNaN(la)||isNaN(ln)){alert(tx('请输入有效经纬度'));return;}
+    if(la<M.bbox[0]||la>M.bbox[2]||ln<M.bbox[1]||ln>M.bbox[3]){
+      if(!confirm(tx('坐标不在演示范围内，仍要添加？')))return;}
+    const id='u'+Date.now();
+    units.push({id,nm:document.getElementById('auNm').value||tx('新商圈'),hubName:'—',model:'A1',
+      status:'线索',hubLat:la,hubLng:ln,lands:[],pickRate:0.05,supplyRkm:SUPPLY_RKM_DEF,
+      takeoffRent:9000,landingRent:0,supply:null});
+    enterUnit(id);};}
+
+function enterUnit(id){
+  view='unit';active=units.findIndex(u=>u.id===id);
+  const u=units[active];
+  hideListMarkers();
+  document.getElementById('bAdd').style.display='';
+  document.getElementById('bRoute').style.display='';
+  map.flyTo([u.hubLat,u.hubLng],13);
+  const R=MAPPAL[thMode()].ringSup;
+  hubCircle=L.circle([u.hubLat,u.hubLng],{radius:(u.supplyRkm||SUPPLY_RKM_DEF)*1000,dashArray:'4 4',
+    interactive:false,lyr:'ringSup',color:R.color,fillColor:R.color,weight:R.weight,fillOpacity:R.fillOpacity}).addTo(map);
+  unitMk=L.marker([u.hubLat,u.hubLng],{draggable:true,
+    icon:L.divIcon({className:'',html:'<div class="hubIcon"></div>',iconSize:[15,15],iconAnchor:[7.5,7.5]})}).addTo(map);
+  unitMk.on('drag',e=>{const p=e.target.getLatLng();u.hubLat=p.lat;u.hubLng=p.lng;
+    if(hubCircle)hubCircle.setLatLng(p);
+    const a=document.getElementById('hubLa'),b=document.getElementById('hubLn');
+    if(a)a.value=p.lat.toFixed(5);if(b)b.value=p.lng.toFixed(5);
+    u.lands.forEach(L0=>{if(L0._r)L0._r.setLatLngs([[p.lat,p.lng],[L0.lat,L0.lng]]);});});
+  unitMk.on('dragend',renderUnit);
+  buildLands();renderUnit();}
+
+function buildLands(){const u=units[active];
+  unitLands.forEach(o=>{if(o._c)map.removeLayer(o._c);if(o._m)map.removeLayer(o._m);if(o._r)map.removeLayer(o._r);});
+  unitLands=[];
+  const R=MAPPAL[thMode()].ringLand;
+  u.lands.forEach(L0=>{
+    const c=L.circle([L0.lat,L0.lng],{radius:L0.rkm*1000,dashArray:'5 4',lyr:'ringLand',
+      color:R.color,fillColor:R.color,weight:R.weight,fillOpacity:R.fillOpacity}).addTo(map);
+    const rt=showRoutes?L.polyline([[u.hubLat,u.hubLng],[L0.lat,L0.lng]],
+      {color:'#FFD100',weight:1,opacity:.45,dashArray:'2,6',interactive:false}).addTo(map):null;
+    const m=L.marker([L0.lat,L0.lng],{draggable:true,
+      icon:L.divIcon({className:'',html:'<div class="landIcon"></div>',iconSize:[11,11],iconAnchor:[5.5,5.5]})}).addTo(map);
+    m.bindTooltip(L0.nm,{direction:'top',opacity:.95});
+    m.on('drag',e=>{const p=e.target.getLatLng();L0.lat=p.lat;L0.lng=p.lng;c.setLatLng(p);
+      if(L0._r)L0._r.setLatLngs([[u.hubLat,u.hubLng],[p.lat,p.lng]]);});
+    m.on('dragend',renderUnit);
+    L0._c=c;L0._m=m;L0._r=rt;unitLands.push(L0);});}
+
+function renderUnit(){
+  const u=units[active],a=aggUnit(u),win=a.win,sc=stColor(u.status),ue=a.ue;
+  const beTxt=a.be.feasible?a.be.daily.toLocaleString():tx('不可行');
+  const gapTrue=a.be.feasible?Math.round(a.dailyOrders)-a.be.daily:0;
+  const doTxt=a.dailyOrders.toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1});
+  /* 缺口一律 ceil，与单元经济台同式。改成 round 会让两页给出两个不一样的数。 */
+  const gapN=a.be.feasible?Math.max(0,Math.ceil(a.be.daily-a.dailyOrders)).toLocaleString():'—';
+  const ICO_CHK='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+  const ICO_UP='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>';
+  const vd=win?{ico:ICO_CHK,col:'var(--done)',t:`${tx('UE 为正 · 月利润')} +${nW(ue.profit)}<span class="g"></span>${tx('万')}`,lev:''}
+    :{ico:ICO_UP,col:'var(--doing)',t:`${tx('距 UE 转正')} ${gapN}<span class="g"></span>${tx('单/天')}`,
+      lev:`${tx('三个增长杠杆：')}<b style="color:var(--y)">①</b> ${tx('配送方式选择率')}　<b style="color:var(--y)">②</b> ${tx('增设降落点')}　<b style="color:var(--y)">③</b> ${tx('商家商品覆盖')}`};
+  const hf=hourRange[0]>0||hourRange[1]<23;
+  const hfTxt=hf?`${hourRange[0]}–${hourRange[1]}${tx('时')}`:tx('全天');
+  const sc0=wb.scrollTop,af=document.activeElement,afId=af&&af.id;
+  const sup=a.sup;
+  const covLine=(()=>{if(!sup)return tx('假定值 · 待订单数据 · 可改');
+    const cov=sup.coverage,ic=sup.itemCov,cn=cov?cov[cov.default||'near']:null;
+    if(cn==null)return tx('假定值 · 待订单数据 · 可改');
+    return `${(cn*100).toFixed(1)}% × ${(ic.rate*100).toFixed(1)}% · ${tx('商家覆盖 × 商品覆盖 · 可改')}`;})();
+
+  wb.innerHTML=`<div class="bk-list" id="back"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>${tx('返回商圈列表')}</div>
+   <div class="wbnav"><span onclick="document.getElementById('wb').scrollTo({top:0,behavior:'smooth'})">${tx('保本线')}</span><span onclick="document.getElementById('secChain').scrollIntoView({behavior:'smooth'})">${tx('决策链 · 圈内实时测算')}</span><span onclick="document.getElementById('secSup').scrollIntoView({behavior:'smooth'})">${tx('供给 · 签约进度')}</span><span onclick="document.getElementById('secRent').scrollIntoView({behavior:'smooth'})">${tx('场地租金')}</span></div>
+   <div class="wbhead"><div><div class="nm">${tx(u.nm)}</div><div class="meta">${tx('起飞点')} ${u.hubName} · ${u.lands.length}<span class="g"></span>${tx('降落点')} · ${M.window}${hf?' · '+tx('时段')+' '+hfTxt:''}</div></div>
+     <div style="display:flex;gap:6px;align-items:center;margin-left:auto"><span class="mdl">${u.model}</span><span class="badge" style="color:${sc};border-color:${sc}55;background:${sc}14;margin-left:0">${tx(u.status)}</span></div></div>
+   <div class="verdict"><div class="vt"><span class="ico" style="background:${vd.col};color:#08090f;display:inline-flex;align-items:center;justify-content:center">${vd.ico}</span>${vd.t}</div>
+     <div class="vrow"><div class="vb"><div class="k">${tx('保本线')}</div><div class="v">${beTxt}<small><span class="g"></span>${tx('单/天')}</small></div></div>
+       <div class="vb"><div class="k">${tx('当前日均单量')}</div><div class="v" style="color:${gapTrue>=0?'var(--done)':'var(--block)'}">${doTxt}<small><span class="g"></span>${tx('单/天')}</small></div></div>
+       <div class="vb"><div class="k">${tx('月利润 · 利润率')}</div><div class="v" style="color:${win?'var(--done)':'var(--block)'}">${win?'+':'−'}${nW(Math.abs(ue.profit))}<span class="g"></span>${tx('万')}<small style="font-size:11px;opacity:.65"> ${marginTxt(ue,a.dailyOrders)}</small></div></div></div>
+     ${vd.lev?`<div class="vlev">${vd.lev}</div>`:''}
+     ${(u.lands.length>0&&a.o===0)?`<div class="vlev" style="color:#e07b7b">${tx('该区暂无可配对订单 · 换个位置或扩大半径')}</div>`:''}</div>
+   <div class="sec"><span class="stg">${tx('开航① 开在哪')}</span><span class="smain">${tx('起飞点')}</span> <span class="x">${tx('经纬度可改 · 可拖动地图金点')}</span></div>
+   <div class="coordbar"><span class="cl">${tx('纬度')}</span><input id="hubLa" value="${u.hubLat.toFixed(5)}"> , <input id="hubLn" value="${u.hubLng.toFixed(5)}"><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mut2)">${tx('或在地图上拖动起点')}</span></div>
+   <div class="lprow" style="margin-top:6px"><span class="ld" style="background:#ff9a56"></span><span class="ln" style="cursor:default" title="${u.hubName}">${u.hubName}</span>
+     <span class="lo" style="color:var(--orange)">${a.merch.toLocaleString()}<span class="g"></span>${tx('家')||'家'}</span>
+     <input type="range" min="0.5" max="3" step="0.1" value="${u.supplyRkm||SUPPLY_RKM_DEF}" id="supR" title="${tx('拖动改半径')}">
+     <span class="rv">${(u.supplyRkm||SUPPLY_RKM_DEF).toFixed(1)}<span class="g"></span>km</span></div>
+   <div class="sec"><span class="smain">${tx('降落点')}</span> <span class="x">${tx('半径可拖拽 · 下方录入新增')}</span></div><div id="landList"></div>
+   <div class="coordbar cmini" style="margin-top:6px"><span class="cl">${tx('加降落点')}</span><input id="newLa" placeholder="${tx('纬度')}"> , <input id="newLn" placeholder="${tx('经度')}"><button id="bAddLL" style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mut);background:transparent;border:1px solid var(--line2);border-radius:6px;padding:2px 9px;cursor:pointer">＋ ${tx('录入添加')}</button></div>
+   <div class="sec"><span class="smain" style="color:var(--internal)">${tx('系统推荐降落点')}</span> <span class="x">${tx('密度 × 起讫模型')}</span>
+     <label style="margin-left:auto;font-size:10px;color:var(--mut);display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="suggShow" ${checked.sugg?'checked':''}> ${tx('地图显示')}</label></div>
+   <div id="suggList"></div>
+   <div class="sec" id="secChain"><span class="stg">${tx('开航② 经济性')}</span><span class="smain">${tx('决策链 · 圈内实时测算')}</span> <span class="x">${tx('如何实现转正')}</span></div>
+   <div class="chain">
+     <div style="font-size:10px;font-family:var(--mono);color:var(--y);letter-spacing:.6px;margin:1px 0 5px">${tx('01 做大可分配订单池')} · ${tx('当前经营重点')}</div>
+     <div class="ch"><span class="ci">①</span><span class="ck"><span class="three t-fact"></span>${tx('圈内大盘订单')}<small>${tx('月化 · 起点∈取餐圈 · 终点∈降落圈')}</small></span><span class="cv">${a.mo.toLocaleString()}<span class="g"></span><u>${tx('单/月')}</u></span></div>
+     <div class="ch"><span class="ci">②</span><span class="ck"><span class="three ${sup&&sup.coverage&&sup.coverage.near!=null?'t-fact':'t-guess'}"></span>${tx('× 可承接率')}<small>${covLine}</small></span><span class="edw"><input class="ed" id="edAcc" value="${(a.acc*100).toFixed(1)}"><span class="g"></span><span style="font-family:var(--mono);color:var(--mut)">%</span></span></div>
+     <div class="ch k"><span class="ci">=</span><span class="ck">${tx('可分配订单池')}<small>${tx('大盘 × 可承接率 · 阶段产物')}</small></span><span class="cv">${Math.round(a.mo*a.acc).toLocaleString()}<span class="g"></span><u>${tx('单/月')}</u></span></div>
+     <div style="font-size:10px;font-family:var(--mono);color:var(--y);letter-spacing:.6px;margin:8px 0 5px">${tx('02 提升订单转化')}</div>
+     <div class="ch"><span class="ci">③</span><span class="ck"><span class="three t-guess"></span>${tx('× 配送方式选择率')}<small>${tx('转化 · 假定值 · 可调')}</small></span><span class="edw"><input class="ed" id="edPen" value="${(u.pickRate*100).toFixed(1)}"><span class="g"></span><span style="font-family:var(--mono);color:var(--mut)">%</span></span></div>
+     <div class="ch k"><span class="ci">④</span><span class="ck">${tx('= 无人机订单 · 日均')}<small>${tx('÷ 30 · 驱动测算引擎')}</small></span><span class="cv">${doTxt}<span class="g"></span><u>${tx('单/天')}</u></span></div>
+     <div class="ch"><span class="ci">⑤</span><span class="ck"><span class="three t-calc"></span>${tx('月收入')}<small>${tx('单均')} ${ue.revPerOrder.toFixed(2)}</small></span><span class="cv" style="color:var(--y)">${nW(ue.revenue)}<span class="g"></span><u>${tx('万/月')}</u></span></div>
+     <div class="ch"><span class="ci">⑥</span><span class="ck"><span class="three t-calc"></span>${tx('月配送成本')}<small>${tx('单均')} ${ue.costPerOrder.toFixed(1)}</small></span><span class="cv" style="color:var(--y)">${nW(ue.deliveryCost)}<span class="g"></span><u>${tx('万/月')}</u></span></div>
+     <div class="ch k"><span class="ci">⑦</span><span class="ck">${tx('月利润 · 利润率')}<small>${tx('收入 − 配送成本')}</small></span><span class="cv" style="color:${win?'var(--done)':'var(--block)'}">${win?'+':'−'}${nW(Math.abs(ue.profit))}<span class="g"></span><u>${tx('万')} · ${marginTxt(ue,a.dailyOrders)}</u></span></div>
+   </div>
+   <div class="sec" id="secSup"><span class="stg">${tx('开航② 经济性')}</span><span class="smain">${tx('供给 · 签约进度')}</span> <span class="x">${sup?tx('签约率')+' '+Math.round(a.signRate*100)+'% · '+tx('按商家家数 · 未按订单加权'):tx('无签约数据')}</span></div>
+   ${sup?`<div class="supfact">${tx('签约名单商家')} <b>${sup.shops}</b></div>
+   ${(function(){const t=sup.shops||1,seg=[[tx('已签'),sup.signed,'var(--done)',''],[tx('签约中'),sup.signing,'var(--y)',''],[tx('待签'),sup.tosign,'var(--mut)',tx('→ BD 跟进')]];
+     return '<div class="signbar">'+seg.map(s=>s[1]?`<span style="width:${(s[1]/t*100).toFixed(1)}%;background:${s[2]}" title="${s[0]} ${s[1]}"></span>`:'').join('')+
+       '</div><div class="signleg">'+seg.map(s=>`<span><i style="background:${s[2]}"></i>${s[0]} ${s[1]}${s[3]?'<em class="bdtag">'+s[3]+'</em>':''}</span>`).join('')+'</div>';})()}`:''}
+   <details class="moreunits" style="margin-top:8px"><summary><span class="caret">▸</span><span style="font-size:10px;color:var(--mut)">${tx('供给四维体检 · 参照')}</span></summary>
+     <div class="note">${tx('有效商家')} ${a.valid} · ${tx('品类')} ${a.cats} · ${tx('品牌')} ${a.brands} · SKU ${(a.sku/1000).toFixed(1)}k</div></details>
+   <div class="sec" id="secRent"><span class="stg">${tx('开航② 经济性')}</span><span class="smain">${tx('场地租金')}</span> <span class="x">${tx('改租金看利润')}</span></div>
+   <div class="rentrow"><label class="rrl">${tx('起飞')}<input class="ed" id="edTR" value="${Math.round(u.takeoffRent)}"></label><label class="rrl">${tx('降落')}<input class="ed" id="edLR" value="${Math.round(u.landingRent)}"></label>
+     <span class="rrx">${tx('此租金月利润')} <b style="color:${win?'var(--done)':'var(--block)'}">${win?'+':'−'}${nW(Math.abs(ue.profit))}<span class="g"></span>${tx('万')}</b></span></div>
+   <a class="gobtn" href="../unit-econ/?d=${ue.dailyOrders}&lp=${u.lands.length||1}&rd=${a.routeDist}&tr=${Math.round(u.takeoffRent)}&lr=${Math.round(u.landingRent)}&mo=${Math.round(a.mo)}&ac=${a.acc}&pe=${u.pickRate}&id=${encodeURIComponent(u.id)}" target="_blank">
+     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+     ${tx('打开单元经济台')}　(${tx('日均')} ${doTxt}<span class="g"></span>${tx('单预填')})</a>`;
+
+  document.getElementById('back').onclick=renderList;
+  try{localStorage.setItem('ops_link',JSON.stringify({d:ue.dailyOrders,lp:u.lands.length||1,
+    rd:a.routeDist,tr:u.takeoffRent,lr:u.landingRent,mo:Math.round(a.mo),ac:a.acc,pe:u.pickRate,
+    id:u.id,nm:u.nm}));}catch(e){}
+  // 降落卡上的单量 = 该降落点的配对池，与总池对得上
+  const lo=i=>{try{return moOf((a.od&&a.od.breakdown[i])?a.od.breakdown[i].odPoolWin:0);}catch(e){return 0;}};
+  const lr=u.lands.map((L0,i)=>`<div class="lprow"><span class="ld"></span>
+    <span class="ln" contenteditable="true" spellcheck="false" data-nm="${i}" title="${tx('点击改名')}">${L0.nm}</span>
+    <span class="lo">${lo(i).toLocaleString()}<span class="g"></span>${tx('单/月')}</span>
+    <input type="range" min="0.5" max="3" step="0.1" value="${L0.rkm}" data-r="${i}" title="${tx('拖动改半径')}">
+    <span class="rv">${L0.rkm.toFixed(1)}<span class="g"></span>km</span>
+    ${L0.fromSugg?`<span class="suggtag" title="${tx('来自系统推荐')}">★</span>`:''}
+    <span class="lx" data-del="${i}">✕</span>
+    <span class="lcc" data-cc="${i}" title="${tx('点击改坐标')}">⌖ ${L0.lat.toFixed(4)}, ${L0.lng.toFixed(4)}</span></div>`);
+  document.getElementById('landList').innerHTML=lr.length?lr.join('')
+    :`<div class="note">${tx('暂无降落点 · 用地图上方「＋ 点选加降落点」添加')}</div>`;
+  document.querySelectorAll('[data-r]').forEach(s=>s.oninput=e=>{const i=+e.target.dataset.r;
+    u.lands[i].rkm=+e.target.value;u.lands[i]._c.setRadius(u.lands[i].rkm*1000);renderUnit();});
+  {const sr=document.getElementById('supR');if(sr)sr.oninput=e=>{u.supplyRkm=+e.target.value;
+    if(hubCircle)hubCircle.setRadius(u.supplyRkm*1000);renderUnit();};}
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{const i=+e.target.dataset.del;
+    u.lands.splice(i,1);syncLandingRent(u);buildLands();renderUnit();});
+  document.querySelectorAll('[data-nm]').forEach(s=>{
+    s.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();e.target.blur();}};
+    s.onblur=e=>{const i=+e.target.dataset.nm;
+      u.lands[i].nm=(e.target.textContent.trim()||(tx('降落点')+' '+(i+1)));buildLands();renderUnit();};});
+  document.querySelectorAll('[data-cc]').forEach(el=>el.onclick=()=>{
+    if(el.querySelector('input'))return;
+    const i=+el.dataset.cc,L0=u.lands[i];
+    el.innerHTML=`${tx('纬度')}<input class="cce" value="${L0.lat.toFixed(5)}"> ${tx('经度')}<input class="cce" value="${L0.lng.toFixed(5)}"> <span class="ccok">✓</span>`;
+    const ins=el.querySelectorAll('input'),ok=el.querySelector('.ccok');
+    const commit=()=>{const la=parseFloat(ins[0].value),ln=parseFloat(ins[1].value);
+      if(isNaN(la)||isNaN(ln)){renderUnit();return;}
+      if(la<M.bbox[0]||la>M.bbox[2]||ln<M.bbox[1]||ln>M.bbox[3]){
+        if(!confirm(tx('坐标不在演示范围内，仍要修改？'))){renderUnit();return;}}
+      L0.lat=la;L0.lng=ln;buildLands();renderUnit();};
+    ins.forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commit();}});
+    ok.onclick=e=>{e.stopPropagation();commit();};ins[0].focus();ins[0].select();});
+  // 每次重渲都重跑一次选点：起降点与半径一动，推荐的位置与数字都要跟着变
+  setSugg(a.acc);
+  paintSuggList();
+  {const isw=document.getElementById('suggShow');
+   if(isw)isw.onchange=e=>{checked.sugg=e.target.checked?1:0;applyLayer('sugg');};}
+  const setHub=()=>{const la=parseFloat(document.getElementById('hubLa').value),
+      ln=parseFloat(document.getElementById('hubLn').value);
+    if(!isNaN(la)&&!isNaN(ln)){u.hubLat=la;u.hubLng=ln;unitMk.setLatLng([la,ln]);
+      if(hubCircle)hubCircle.setLatLng([la,ln]);buildLands();renderUnit();}};
+  document.getElementById('hubLa').onchange=setHub;document.getElementById('hubLn').onchange=setHub;
+  {const b=document.getElementById('bAddLL');if(b)b.onclick=()=>{
+    const la=parseFloat(document.getElementById('newLa').value),
+      ln=parseFloat(document.getElementById('newLn').value);
+    if(isNaN(la)||isNaN(ln)){alert(tx('请输入有效经纬度'));return;}
+    if(la<M.bbox[0]||la>M.bbox[2]||ln<M.bbox[1]||ln>M.bbox[3]){
+      if(!confirm(tx('坐标不在演示范围内，仍要添加？')))return;}
+    u.lands.push({nm:tx('降落点')+' '+(u.lands.length+1),lat:la,lng:ln,rkm:1.0});
+    syncLandingRent(u);buildLands();renderUnit();};}
+  document.getElementById('edAcc').oninput=e=>{u.servableRate=(+e.target.value||0)/100;renderUnit();};
+  document.getElementById('edPen').oninput=e=>{u.pickRate=(+e.target.value||0)/100;renderUnit();};
+  {const t=document.getElementById('edTR');if(t)t.oninput=e=>{u.takeoffRent=+e.target.value||0;renderUnit();};}
+  {const l=document.getElementById('edLR');if(l)l.oninput=e=>{u.landingRent=+e.target.value||0;renderUnit();};}
+  wb.scrollTop=sc0;
+  if(afId){const n=document.getElementById(afId);if(n)n.focus();}}
+
+/* ---------- 时段栏 ---------- */
+function drawTimeBar(){if(!M)return;
+  const hmax=Math.max(...M.hourly,1),f=hourRange[0]>0||hourRange[1]<23;
+  document.getElementById('tbsel').textContent=f
+    ?`${String(hourRange[0]).padStart(2,'0')}–${String(hourRange[1]).padStart(2,'0')}${tx('时')}`
+    :`${tx('全天')} 00–23${tx('时')}`;
+  document.getElementById('tbbars').innerHTML=M.hourly.map((v,h)=>
+    `<i class="${h>=hourRange[0]&&h<=hourRange[1]?'on':''}" style="height:${Math.max(6,Math.round(v/hmax*100))}%" title="${String(h).padStart(2,'0')}:00 · ${v.toLocaleString()}"></i>`).join('');}
+function setupTimeBar(){const bars=document.getElementById('tbbars');drawTimeBar();
+  let brushing=false,bStart=0;
+  const hourAt=e=>{const r=bars.getBoundingClientRect();
+    return Math.max(0,Math.min(23,Math.floor((e.clientX-r.left)/r.width*24)));};
+  const setR=(a,b)=>{hourRange=[Math.min(a,b),Math.max(a,b)];drawTimeBar();};
+  const apply=()=>{rebuildDemHeat();if(view==='unit'&&active!=null)renderUnit();};
+  bars.addEventListener('pointerdown',e=>{brushing=true;bStart=hourAt(e);setR(bStart,bStart);
+    try{bars.setPointerCapture(e.pointerId);}catch(_){}e.preventDefault();});
+  bars.addEventListener('pointermove',e=>{if(brushing)setR(bStart,hourAt(e));});
+  bars.addEventListener('pointerup',()=>{if(brushing){brushing=false;apply();}});
+  bars.addEventListener('pointercancel',()=>{if(brushing){brushing=false;apply();}});
+  document.getElementById('tbrst').onclick=()=>{hourRange=[0,23];drawTimeBar();apply();};}
+
+/* ---------- 截图 ----------
+   为什么不整页截图：外发图绝不能带经营数据，而「渲染完再把面板擦掉」这条路
+   依赖人记得关。这里只从地图 pane 取像素 —— 左栏数据概览、右栏商圈卡、时段条
+   压根不进入合成，所以「忘了关面板」在物理上无法泄露，不是靠纪律保证的。
+   热力保留形态但不给任何数值标尺，图例只出颜色与名称、不出计数。
+   ⚠ 瓦片必须带 crossOrigin，否则 drawImage 会污染画布，toBlob 直接抛。 */
+const SHOT_MAXPX=6e7;
+const SHOT_DENY=/\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?\s*(?:万|亿|单\/天|单\/月|%)|订单池|保本线|月利润|利润率|覆盖率|可承接率|承受租金/;
+function shotPanes(){const mp=document.querySelector('#map .leaflet-map-pane');if(!mp)return [];
+  return Array.from(mp.children).filter(el=>el.classList&&el.classList.contains('leaflet-pane'))
+    .map(p=>({p,z:parseInt(getComputedStyle(p).zIndex,10)||0})).sort((a,b)=>a.z-b.z).map(o=>o.p);}
+function shotTexts(){const out=[];
+  shotPanes().forEach(p=>p.querySelectorAll('*').forEach(el=>{
+    if(el.classList&&el.classList.contains('bLabel'))return;   // 商圈名不进图
+    Array.from(el.childNodes).forEach(n=>{if(n.nodeType===3){const t=n.textContent.trim();if(t)out.push(t);}});}));
+  return out;}
+function shotRR(c,x,y,w,h,r){r=Math.max(0,Math.min(r,Math.min(w,h)/2));
+  c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function shotEl(c,root,base,k){(function walk(el){
+  if(el.classList&&el.classList.contains('bLabel'))return;
+  const cs=getComputedStyle(el);
+  if(cs.display==='none'||cs.visibility==='hidden'||parseFloat(cs.opacity)===0)return;
+  const r=el.getBoundingClientRect();if(!r.width||!r.height)return;
+  const x=(r.left-base.left)*k,y=(r.top-base.top)*k,w=r.width*k,h=r.height*k;
+  const rad=(parseFloat(cs.borderTopLeftRadius)||0)*k;
+  c.save();c.globalAlpha=parseFloat(cs.opacity)||1;
+  const bg=cs.backgroundColor;
+  if(bg&&bg!=='rgba(0, 0, 0, 0)'&&bg!=='transparent'){
+    if(cs.boxShadow&&cs.boxShadow!=='none'){c.save();c.globalAlpha*=.3;c.fillStyle=bg;
+      shotRR(c,x-3*k,y-3*k,w+6*k,h+6*k,rad+3*k);c.fill();c.restore();}
+    c.fillStyle=bg;shotRR(c,x,y,w,h,rad);c.fill();}
+  const bw=parseFloat(cs.borderTopWidth)||0;
+  if(bw>0&&cs.borderTopStyle!=='none'){c.strokeStyle=cs.borderTopColor;c.lineWidth=bw*k;
+    shotRR(c,x,y,w,h,rad);c.stroke();}
+  const txt=Array.from(el.childNodes).filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim();
+  if(txt){c.fillStyle=cs.color;
+    c.font=cs.fontStyle+' '+cs.fontWeight+' '+Math.round(parseFloat(cs.fontSize)*k)+'px '+cs.fontFamily;
+    c.textBaseline='middle';c.textAlign=(cs.textAlign==='center'?'center':'left');
+    c.fillText(txt,c.textAlign==='center'?x+w/2:x,y+h/2);}
+  c.restore();
+  Array.from(el.children).forEach(walk);})(root);}
+const SHOT_LEGW=208;
+function shotLegend(c,LW,H,k){
+  const lt=thMode()==='light',ff=getComputedStyle(document.body).fontFamily,on=id=>checked[id];
+  /* 渐变条按主题取，不能用初始常量：浅色档下地图跑的是浅色色带，
+     图例却画深色档的色，导出图里两者对不上。 */
+  const HP=MAPPAL[lt?'light':'dark'];
+  const heat=[];
+  if(on('demand'))heat.push([HP.dem,tx('需求热力 (送货)')]);
+  if(on('supply'))heat.push([HP.sup,tx('供给热力 (取货)')]);
+  const skip={demand:1,supply:1};
+  const rows=[{id:'__hub',lb:tx('起飞点')},{id:'__land',lb:tx('降落点')}];
+  PANEL.forEach(s=>s.items.forEach(it=>{if(it.id&&on(it.id)&&!skip[it.id])rows.push({id:it.id,lb:tx(it.lb)});}));
+  const pad=16*k,gw=LW-pad*2;
+  c.save();
+  c.fillStyle=lt?'#F4F6FA':'#0B0C16';c.fillRect(0,0,LW,H);
+  c.fillStyle=lt?'rgba(0,0,0,.10)':'rgba(255,255,255,.08)';c.fillRect(LW-1*k,0,1*k,H);
+  c.textBaseline='middle';c.textAlign='left';
+  let y=pad+10*k;
+  c.fillStyle=lt?'#8F6B00':'#FFD100';c.font='700 '+(11*k)+'px '+ff;
+  c.fillText(tx('选址沙盘'),pad,y);y+=20*k;
+  heat.forEach(([grad,lb])=>{
+    const g=c.createLinearGradient(pad,0,pad+gw,0);
+    Object.keys(grad).forEach(stop=>g.addColorStop(+stop,grad[stop]));
+    c.fillStyle=g;c.fillRect(pad,y,gw,7*k);
+    c.fillStyle=lt?'#4F4D46':'#E9EEF9';c.font=(9.5*k)+'px '+ff;
+    c.fillText(lb,pad,y+17*k);
+    c.fillStyle=lt?'#6E6C65':'#6B7997';c.font=(8.5*k)+'px '+ff;
+    c.fillText(tx('低'),pad,y+28*k);
+    c.textAlign='right';c.fillText(tx('高'),pad+gw,y+28*k);c.textAlign='left';
+    y+=38*k;});
+  y+=4*k;
+  rows.forEach(r=>{
+    const col=r.id==='__hub'?(lt?'#B5850A':'#FFD100'):r.id==='__land'?(lt?'#3557C8':'#5E84F5'):legDot(r.id,'#888');
+    c.fillStyle=col;c.beginPath();c.arc(pad+3*k,y,3.4*k,0,Math.PI*2);c.fill();
+    c.fillStyle=lt?'#4F4D46':'#C8D2E4';c.font=(9.5*k)+'px '+ff;
+    c.fillText(r.lb,pad+12*k,y+.5*k);y+=17*k;});
+  c.fillStyle=lt?'#6E6C65':'#6B7997';c.font=(8.5*k)+'px '+ff;
+  c.fillText(tx('热力为相对密度 · 不含绝对量'),pad,H-pad);
+  c.restore();}
+async function exportShot(btn){
+  const old=btn?btn.textContent:'';
+  try{
+    const bad=shotTexts().find(t=>SHOT_DENY.test(t));
+    if(bad){alert(tx('出图已中止：图层里出现了不该进图的数据文字')+'\n· '+bad);return;}
+    if(btn){btn.textContent='⧉ '+tx('出图中');btn.style.pointerEvents='none';}
+    await new Promise(r=>setTimeout(r,60));
+    const cont=map.getContainer(),base=cont.getBoundingClientRect();
+    let k=Math.min(2,window.devicePixelRatio||1);
+    /* 画布面积是硬上限，越限不报错只是画不出来，所以宁可降清晰度也不越界。 */
+    while((base.width+SHOT_LEGW)*k*base.height*k>SHOT_MAXPX&&k>0.5)k-=0.1;
+    const LW=Math.round(SHOT_LEGW*k),W=Math.round(base.width*k),H=Math.round(base.height*k);
+    const cv=document.createElement('canvas');cv.width=LW+W;cv.height=H;
+    const c=cv.getContext('2d');
+    c.fillStyle=thMode()==='light'?'#EEF1F6':'#08090f';c.fillRect(LW,0,W,H);
+    shotLegend(c,LW,H,k);
+    c.save();c.translate(LW,0);
+    shotPanes().forEach(p=>{
+      p.querySelectorAll('img.leaflet-tile').forEach(img=>{
+        if(!img.complete||!img.naturalWidth)return;
+        const r=img.getBoundingClientRect();
+        c.drawImage(img,(r.left-base.left)*k,(r.top-base.top)*k,r.width*k,r.height*k);});
+      p.querySelectorAll('canvas').forEach(cn=>{
+        const r=cn.getBoundingClientRect();
+        c.drawImage(cn,(r.left-base.left)*k,(r.top-base.top)*k,r.width*k,r.height*k);});
+      p.querySelectorAll('.leaflet-marker-icon,.sector-label,.nfz-label').forEach(el=>shotEl(c,el,base,k));});
+    c.restore();
+    const blob=await new Promise(res=>cv.toBlob(res,'image/png'));
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='site-sandbox.png';document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);
+  }catch(e){
+    alert(tx('出图失败')+'：'+(e&&e.message||e));
+  }finally{if(btn){btn.textContent=old;btn.style.pointerEvents='';}}}
+
+/* ---------- 外框 i18n ---------- */
+function applyStatic(){
+  document.getElementById('bkTxt').textContent=tx('返回经营门户');
+  document.getElementById('ptStage').textContent=tx('开航① · 开在哪');
+  document.getElementById('ptTitle').innerHTML=(LANG==='en'?'<b>Site</b> Sandbox':'<b>选址</b> 沙盘')+
+    '<span class="ptsub"> · '+tx('圈选测算 · 需求洞察')+'</span>';
+  document.getElementById('liveTxt').textContent=tx('实时测算');
+  document.getElementById('crumbTxt').textContent=' · '+tx('演示数据 · 脚本生成')+(M?' · '+M.window:'');
+  document.getElementById('bAdd').textContent='＋ '+tx('点选加降落点');
+  document.getElementById('bRoute').textContent='✦ '+tx('航线连接');
+  document.getElementById('bFit').textContent='⤢ '+tx('全域');
+  document.getElementById('bShot').textContent='⧉ '+tx('截图');
+  document.getElementById('tbtTitle').textContent=tx('⏱ 时段分布 · 当地时间');
+  document.getElementById('tbrst').textContent=tx('重置');
+  document.title=tx('选址沙盘');}
+function switchLang(lang){LANG=lang;
+  document.documentElement.lang=lang==='en'?'en':'zh-CN';
+  document.querySelectorAll('.langbtn').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));
+  renderThemeBtn();applyStatic();buildSidebar();
+  if(view==='unit'&&active!=null)renderUnit();else renderList();
+  drawTimeBar();}
+</script>
+</body>
+</html>
